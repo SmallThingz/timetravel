@@ -43,6 +43,8 @@
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">-0.03</item>
         <item name="android:fontFamily">sans-serif-black</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:lineHeight">24sp</item>
     </style>
 
     <style name="TextAppearance.TimeTravel.BrandAccent" parent="TextAppearance.TimeTravel.BrandBase">
