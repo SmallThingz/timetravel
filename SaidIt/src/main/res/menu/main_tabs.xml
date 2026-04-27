@@ -3,9 +3,9 @@
     <item
         android:id="@+id/navigation_capture"
         android:icon="@drawable/ic_tab_home"
-        android:title="@string/tab_capture" />
+        android:title="" />
     <item
         android:id="@+id/navigation_files"
         android:icon="@drawable/ic_tab_files"
-        android:title="@string/tab_files" />
+        android:title="" />
 </menu>

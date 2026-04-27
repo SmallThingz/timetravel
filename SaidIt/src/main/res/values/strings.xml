@@ -30,8 +30,6 @@
     <string name="save_failed">Couldn\'t save recording.</string>
     <string name="settings_open">Settings</string>
     <string name="settings_apply">Apply</string>
-    <string name="tab_capture">Capture</string>
-    <string name="tab_files">Files</string>
     <string name="open">Open</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
