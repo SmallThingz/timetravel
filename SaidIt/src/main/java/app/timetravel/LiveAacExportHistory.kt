@@ -90,6 +90,11 @@ internal class LiveAacExportHistory(
         )
     }
 
+    fun clear() {
+        frames.clear()
+        totalPcmBytesWritten = 0
+    }
+
     override fun close() {
         if (closed) return
         closed = true
@@ -172,10 +177,12 @@ internal data class AacExportSnapshot(
 internal object AacSnapshotExporter {
     @Throws(IOException::class)
     fun export(
+        context: android.content.Context,
         snapshot: AacExportSnapshot,
-        file: File,
+        target: RecordingOutputTarget,
     ) {
-        val muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
+        val muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         try {
             val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, snapshot.sampleRate, 1).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -199,6 +206,7 @@ internal object AacSnapshotExporter {
         } finally {
             runCatching { muxer.stop() }
             muxer.release()
+            parcelFileDescriptor.close()
         }
     }
 }

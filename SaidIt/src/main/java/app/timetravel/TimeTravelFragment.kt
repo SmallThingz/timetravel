@@ -25,30 +25,34 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.textfield.TextInputLayout
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
+import androidx.appcompat.app.AppCompatDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.FileProvider
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.RelativeCornerSize
 import com.google.android.material.shape.ShapeAppearanceModel
 import com.google.android.material.snackbar.Snackbar
-import java.io.File
+import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.launch
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
@@ -59,12 +63,11 @@ class TimeTravelFragment : Fragment() {
     private lateinit var historySize: TextView
     private lateinit var recTime: TextView
     private lateinit var formatSummary: TextView
+    private lateinit var clearBufferButton: MaterialButton
     private lateinit var recTouchArea: View
     private lateinit var recButtonCircle: View
     private lateinit var listenSurface: View
     private lateinit var listenRing: View
-    private lateinit var listenGlowPrimary: View
-    private lateinit var listenGlowSecondary: View
     private lateinit var listenTitle: TextView
     private lateinit var listenCaption: TextView
     private lateinit var settingsButton: View
@@ -78,7 +81,7 @@ class TimeTravelFragment : Fragment() {
     private var serviceBound = false
     private var exportPresets = IntArray(4)
     private var currentPulseMode = PULSE_OFF
-    private var glowAnimators: List<ObjectAnimator> = emptyList()
+    private var pulseAnimators: List<ObjectAnimator> = emptyList()
     private val springAnimations = mutableListOf<SpringAnimation>()
     private var savingSnackbar: Snackbar? = null
 
@@ -208,6 +211,7 @@ class TimeTravelFragment : Fragment() {
         contentScroll = view.findViewById(R.id.content_scroll)
         historySize = view.findViewById(R.id.history_size)
         formatSummary = view.findViewById(R.id.format_summary)
+        clearBufferButton = view.findViewById(R.id.clear_buffer_button)
         recordMaxButton = view.findViewById(R.id.record_last_max)
         recordCustomButton = view.findViewById(R.id.record_last_custom)
         recTime = view.findViewById(R.id.rec_time)
@@ -215,8 +219,6 @@ class TimeTravelFragment : Fragment() {
         recButtonCircle = view.findViewById(R.id.rec_button_circle)
         listenSurface = view.findViewById(R.id.bottom_bar)
         listenRing = view.findViewById(R.id.listen_ring)
-        listenGlowPrimary = view.findViewById(R.id.listen_glow_primary)
-        listenGlowSecondary = view.findViewById(R.id.listen_glow_secondary)
         listenTitle = view.findViewById(R.id.listen_title)
         listenCaption = view.findViewById(R.id.listen_caption)
 
@@ -240,6 +242,11 @@ class TimeTravelFragment : Fragment() {
 
         settingsButton.setOnClickListener {
             startActivity(Intent(activity, SettingsActivity::class.java))
+        }
+        clearBufferButton.setOnClickListener {
+            if (!isSaving && !isRecording) {
+                recorder?.clearBuffer()
+            }
         }
         listenSurface.setOnClickListener(ListenButtonClickListener())
 
@@ -323,6 +330,8 @@ class TimeTravelFragment : Fragment() {
             button.tag = seconds
         }
         updateBufferSummary()
+        clearBufferButton.isEnabled = !isRecording && !isSaving
+        clearBufferButton.alpha = if (isRecording || isSaving) 0.5f else 1f
     }
 
     private fun updateBufferSummary() {
@@ -451,9 +460,9 @@ class TimeTravelFragment : Fragment() {
         listenTitle.setText(if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary)
         listenCaption.visibility = View.GONE
         listenSurface.isEnabled = !isRecording && !isSaving
+        clearBufferButton.isEnabled = !isRecording && !isSaving
+        clearBufferButton.alpha = if (isRecording || isSaving) 0.5f else 1f
 
-        // OFF: dark charcoal fill (#2A2A2A on #0D0D0D background)
-        // ON: lighter material tint to indicate active state
         val fillColor = MaterialColors.getColor(
             listenSurface,
             if (active) com.google.android.material.R.attr.colorSurfaceContainerHigh
@@ -463,39 +472,20 @@ class TimeTravelFragment : Fragment() {
             listenSurface,
             com.google.android.material.R.attr.colorOnSurface,
         )
-        val strokeColor = MaterialColors.getColor(
+        val strokeBaseColor = MaterialColors.getColor(
             listenSurface,
             com.google.android.material.R.attr.colorOutlineVariant,
         )
+        val strokeColor = ColorUtils.setAlphaComponent(strokeBaseColor, if (active) 88 else 56)
+        val ringStrokeColor = ColorUtils.setAlphaComponent(strokeBaseColor, if (active) 56 else 24)
         listenSurfaceDrawable.fillColor = ColorStateList.valueOf(fillColor)
         listenSurfaceDrawable.strokeColor = ColorStateList.valueOf(strokeColor)
-        listenRingDrawable.strokeColor = ColorStateList.valueOf(strokeColor)
+        listenRingDrawable.strokeColor = ColorStateList.valueOf(ringStrokeColor)
         listenTitle.setTextColor(contentColor)
         TextViewCompat.setCompoundDrawableTintList(listenTitle, ColorStateList.valueOf(contentColor))
-
-        val primaryAlpha = when {
-            isRecording -> 0.96f
-            active -> 0.32f
-            else -> 0f
-        }
-        val secondaryAlpha = when {
-            isRecording -> 0.58f
-            active -> 0.14f
-            else -> 0f
-        }
-        val baseScale = if (active) 1f else 0.9f
-        listenGlowPrimary.animate()
-            .alpha(primaryAlpha)
-            .scaleX(baseScale)
-            .scaleY(baseScale)
-            .setDuration(220L)
-            .start()
-        listenGlowSecondary.animate()
-            .alpha(secondaryAlpha)
-            .scaleX(baseScale)
-            .scaleY(baseScale)
-            .setDuration(220L)
-            .start()
+        listenRing.alpha = if (active) 1f else 0.8f
+        listenRing.scaleX = 1f
+        listenRing.scaleY = 1f
 
         startGlowAnimation(
             when {
@@ -514,25 +504,20 @@ class TimeTravelFragment : Fragment() {
         stopGlowAnimation()
         currentPulseMode = mode
         if (mode == PULSE_OFF) {
+            listenRing.scaleX = 1f
+            listenRing.scaleY = 1f
             return
         }
 
-        val livePulse = mode == PULSE_RECORDING
-        val primaryScaleTo = if (livePulse) 1.18f else 1.1f
-        val secondaryScaleTo = if (livePulse) 1.08f else 1.02f
-        val primaryAlphaTo = if (livePulse) 1f else 0.84f
-        val secondaryAlphaTo = if (livePulse) 0.7f else 0.46f
-        val duration = if (livePulse) 1700L else 2600L
+        val recordingPulse = mode == PULSE_RECORDING
+        val scaleTo = if (recordingPulse) 1.06f else 1.04f
+        val duration = if (recordingPulse) 1800L else 3200L
 
-        glowAnimators = listOf(
-            createGlowAnimator(listenGlowPrimary, "scaleX", 1f, primaryScaleTo, duration),
-            createGlowAnimator(listenGlowPrimary, "scaleY", 1f, primaryScaleTo, duration),
-            createGlowAnimator(listenGlowPrimary, "alpha", listenGlowPrimary.alpha, primaryAlphaTo, duration),
-            createGlowAnimator(listenGlowSecondary, "scaleX", 1f, secondaryScaleTo, duration + 240L),
-            createGlowAnimator(listenGlowSecondary, "scaleY", 1f, secondaryScaleTo, duration + 240L),
-            createGlowAnimator(listenGlowSecondary, "alpha", listenGlowSecondary.alpha, secondaryAlphaTo, duration + 240L),
+        pulseAnimators = listOf(
+            createGlowAnimator(listenRing, "scaleX", 1f, scaleTo, duration),
+            createGlowAnimator(listenRing, "scaleY", 1f, scaleTo, duration),
         )
-        glowAnimators.forEach { it.start() }
+        pulseAnimators.forEach { it.start() }
     }
 
     private fun createGlowAnimator(
@@ -551,8 +536,8 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun stopGlowAnimation() {
-        glowAnimators.forEach { it.cancel() }
-        glowAnimators = emptyList()
+        pulseAnimators.forEach { it.cancel() }
+        pulseAnimators = emptyList()
         currentPulseMode = PULSE_OFF
     }
 
@@ -610,40 +595,129 @@ class TimeTravelFragment : Fragment() {
 
         private fun promptForCustomDuration(keepRecording: Boolean) {
             val dialogContext = ContextThemeWrapper(requireContext(), R.style.ThemeOverlay_TimeTravel_AlertDialog)
-            val dialogView = LayoutInflater.from(dialogContext).inflate(R.layout.dialog_custom_duration, null)
-            val durationLayout = dialogView.findViewById<TextInputLayout>(R.id.custom_duration_layout)
-            val durationField = dialogView.findViewById<EditText>(R.id.custom_duration_value)
+            val scrollView = ScrollView(dialogContext).apply {
+                isFillViewport = true
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+            val content = LinearLayout(dialogContext).apply {
+                orientation = LinearLayout.VERTICAL
+                val horizontal = dp(24)
+                setPadding(horizontal, dp(12), horizontal, dp(4))
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+            scrollView.addView(content)
 
-            val dialog = MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_TimeTravel_AlertDialog)
-                .setTitle(R.string.custom_time)
-                .setView(dialogView)
-                .setPositiveButton(R.string.save, null)
-                .setNegativeButton(R.string.cancel, null)
-                .create()
+            content.addView(TextView(dialogContext).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                )
+                text = getString(R.string.custom_export_duration_supporting)
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+            })
 
-            dialog.setOnShowListener {
-                durationField.requestFocus()
-                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                    val seconds = parseDurationInput(durationField.text?.toString().orEmpty())?.toFloat()
-                    if (seconds == null || seconds <= 0f) {
-                        durationLayout.error = getString(R.string.custom_export_duration_invalid)
-                        return@setOnClickListener
-                    }
-
-                    durationLayout.error = null
-                    val service = recorder ?: return@setOnClickListener
-                    if (keepRecording) {
-                        service.startRecording(seconds)
-                    } else {
-                        setSavingInProgress(true)
-                        service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
-                    }
-                    dialog.dismiss()
+            val durationLayout = TextInputLayout(dialogContext).apply {
+                hint = getString(R.string.custom_export_duration_label)
+                isErrorEnabled = true
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    topMargin = dp(16)
                 }
             }
+            val durationField = TextInputEditText(dialogContext).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                )
+                hint = getString(R.string.custom_export_duration_hint)
+                imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                maxLines = 1
+                setSelectAllOnFocus(true)
+            }
+            durationLayout.addView(durationField)
+            content.addView(durationLayout)
 
+            val actionRow = LinearLayout(dialogContext).apply {
+                gravity = android.view.Gravity.END
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    topMargin = dp(12)
+                }
+            }
+            val cancelButton = MaterialButton(dialogContext, null, com.google.android.material.R.attr.materialButtonStyle).apply {
+                text = getString(R.string.cancel)
+            }
+            val saveButton = MaterialButton(dialogContext, null, com.google.android.material.R.attr.materialButtonStyle).apply {
+                text = getString(R.string.save)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    marginStart = dp(8)
+                }
+            }
+            actionRow.addView(cancelButton)
+            actionRow.addView(saveButton)
+            content.addView(actionRow)
+
+            val surface = LinearLayout(dialogContext).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                background = MaterialShapeDrawable(
+                    ShapeAppearanceModel.builder().setAllCornerSizes(dp(18).toFloat()).build(),
+                ).apply {
+                    fillColor = ColorStateList.valueOf(
+                        MaterialColors.getColor(dialogContext, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0),
+                    )
+                }
+                addView(TextView(dialogContext).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    )
+                    setPadding(dp(24), dp(20), dp(24), 0)
+                    text = getString(R.string.custom_time)
+                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
+                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                })
+                addView(scrollView)
+            }
+
+            val dialog = AppCompatDialog(dialogContext).apply {
+                setCancelable(true)
+                setContentView(surface)
+            }
+            cancelButton.setOnClickListener { dialog.dismiss() }
+            saveButton.setOnClickListener {
+                val seconds = parseDurationInput(durationField.text?.toString().orEmpty())?.toFloat()
+                if (seconds == null || seconds <= 0f) {
+                    durationLayout.error = getString(R.string.custom_export_duration_invalid)
+                    return@setOnClickListener
+                }
+
+                durationLayout.error = null
+                val service = recorder ?: return@setOnClickListener
+                if (keepRecording) {
+                    service.startRecording(seconds)
+                } else {
+                    setSavingInProgress(true)
+                    service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
+                }
+                dialog.dismiss()
+            }
+
+            durationField.requestFocus()
             dialog.show()
         }
+
+        private fun dp(value: Int): Int = (resources.displayMetrics.density * value).toInt()
 
         private fun getPrependedSeconds(button: View): Float {
             return when (button.id) {
@@ -679,12 +753,12 @@ class TimeTravelFragment : Fragment() {
         }
     }
 
-    private fun showSavedSnackbar(file: File) {
+    private fun showSavedSnackbar(recording: RecordingEntity) {
         val anchor = activity?.findViewById<View>(R.id.bottom_navigation)
         Snackbar.make(requireView(), R.string.saved_snackbar, Snackbar.LENGTH_LONG)
             .setAction(R.string.open) {
                 try {
-                    startActivity(buildOpenRecordingIntent(requireContext(), file))
+                    startActivity(buildOpenRecordingIntent(requireContext(), recording))
                 } catch (_: Exception) {
                     Toast.makeText(requireContext(), R.string.no_app_available, Toast.LENGTH_SHORT).show()
                 }
@@ -703,25 +777,16 @@ class TimeTravelFragment : Fragment() {
 
         fun buildNotificationForFile(
             context: Context,
-            outFile: File,
+            recording: RecordingEntity,
         ): Notification {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                val fileUri = FileProvider.getUriForFile(
-                    context,
-                    "${context.applicationContext.packageName}.provider",
-                    outFile,
-                )
-                setDataAndType(fileUri, "audio/*")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
+            val intent = buildOpenRecordingIntent(context, recording)
             val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
             return NotificationCompat.Builder(context, TimeTravelService.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(context.getString(R.string.recording_saved))
-                .setContentText(outFile.name)
+                .setContentText(recording.displayName)
                 .setSmallIcon(R.drawable.ic_notification_saved)
-                .setTicker(outFile.name)
+                .setTicker(recording.displayName)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -731,27 +796,27 @@ class TimeTravelFragment : Fragment() {
     }
 
     class NotifyFileReceiver(private val context: Context) : TimeTravelService.AudioFileReceiver {
-        override fun fileReady(
-            file: File,
-            runtime: Float,
-        ) {
-            if (
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                return
+        override fun fileReady(recording: RecordingEntity) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val saved = RecordingRepository.register(context, recording)
+                if (
+                    ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    return@launch
+                }
+                NotificationManagerCompat.from(context).notify(43, buildNotificationForFile(context, saved))
             }
-            NotificationManagerCompat.from(context).notify(43, buildNotificationForFile(context, file))
         }
     }
 
     private inner class SaveResultReceiver(private val activity: FragmentActivity) : TimeTravelService.AudioFileReceiver {
-        override fun fileReady(
-            file: File,
-            runtime: Float,
-        ) {
-            setSavingInProgress(false)
-            showSavedSnackbar(file)
+        override fun fileReady(recording: RecordingEntity) {
+            activity.lifecycleScope.launch {
+                val saved = RecordingRepository.register(activity, recording)
+                setSavingInProgress(false)
+                showSavedSnackbar(saved)
+            }
         }
 
         override fun fileFailed(message: String) {

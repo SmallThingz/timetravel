@@ -13,14 +13,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
-import java.io.File
-import java.util.Locale
+import kotlinx.coroutines.launch
 
 class SavedRecordingsFragment : Fragment() {
     private lateinit var list: RecyclerView
@@ -68,18 +67,20 @@ class SavedRecordingsFragment : Fragment() {
         context ?: return
         if (!this::list.isInitialized) return
 
-        val recordings = loadSavedRecordings()
-        adapter.submitList(recordings)
-        list.isVisible = recordings.isNotEmpty()
-        emptyState.isVisible = recordings.isEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val recordings = loadSavedRecordings(RecordingRepository.refresh(requireContext()))
+            adapter.submitList(recordings)
+            list.isVisible = recordings.isNotEmpty()
+            emptyState.isVisible = recordings.isEmpty()
+        }
     }
 
-    private fun openRecording(file: File) {
-        launchIntent(buildOpenRecordingIntent(requireContext(), file))
+    private fun openRecording(recording: RecordingEntity) {
+        launchIntent(buildOpenRecordingIntent(requireContext(), recording))
     }
 
-    private fun shareRecording(file: File) {
-        launchIntent(Intent.createChooser(buildShareRecordingIntent(requireContext(), file), getString(R.string.send)))
+    private fun shareRecording(recording: RecordingEntity) {
+        launchIntent(Intent.createChooser(buildShareRecordingIntent(requireContext(), recording), getString(R.string.send)))
     }
 
     private fun launchIntent(intent: Intent) {
@@ -108,22 +109,12 @@ class SavedRecordingsFragment : Fragment() {
         }
     }
 
-    private fun loadSavedRecordings(): List<SavedRecordingListItem> {
-        val directory = getSavedRecordingsDirectory()
-        val files = directory.listFiles()
-            ?.asSequence()
-            ?.filter { it.isFile && it.length() > 0L && !it.name.startsWith(".") }
-            ?.filter { it.extension.lowercase(Locale.US) in SUPPORTED_EXTENSIONS }
-            ?.sortedByDescending { resolveRecordingStartTimeMillis(it) }
-            ?.toList()
-            .orEmpty()
-
+    private fun loadSavedRecordings(recordings: List<RecordingEntity>): List<SavedRecordingListItem> {
         val items = mutableListOf<SavedRecordingListItem>()
         var currentDateHeader = ""
 
-        files.forEach { file ->
-            val startedAt = resolveRecordingStartTimeMillis(file)
-            val dateHeader = formatRecordingDateHeader(requireContext(), startedAt)
+        recordings.forEach { recording ->
+            val dateHeader = formatRecordingDateHeader(requireContext(), recording.startedAtMillis)
             if (dateHeader != currentDateHeader) {
                 currentDateHeader = dateHeader
                 items.add(SavedRecordingListItem.Header(dateHeader))
@@ -131,53 +122,28 @@ class SavedRecordingsFragment : Fragment() {
 
             items.add(
                 SavedRecordingListItem.Recording(
-                    file = file,
-                    timestampLabel = formatRecordingStartTimestamp(requireContext(), startedAt),
-                    fileName = file.name,
-                    durationLabel = formatSavedRecordingDuration(resolveRecordingDurationMillis(file)),
-                    codecLabel = resolveRecordingCodecInfo(file),
-                    sizeLabel = formatShortFileSize(file.length()),
-                )
+                    recording = recording,
+                    timestampLabel = formatRecordingStartTimestamp(requireContext(), recording.startedAtMillis),
+                    fileName = recording.displayName,
+                    durationLabel = formatSavedRecordingDuration(recording.durationMillis),
+                    codecLabel = recording.codecSummary,
+                    sizeLabel = formatShortFileSize(recording.sizeBytes),
+                ),
             )
         }
         return items
     }
 
-    private fun deleteRecording(file: File) {
-        val parent = file.parentFile ?: run {
-            Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val pendingDelete = File(parent, ".pending-delete-${System.currentTimeMillis()}-${file.name}")
-        if (!file.renameTo(pendingDelete)) {
-            Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        refreshRecordings()
-        var restored = false
-        Snackbar.make(requireView(), R.string.recording_deleted, Snackbar.LENGTH_LONG)
-            .setAction(R.string.undo) {
-                restored = pendingDelete.renameTo(file)
-                refreshRecordings()
+    private fun deleteRecording(recording: RecordingEntity) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val deleted = RecordingRepository.delete(requireContext(), recording)
+            if (!deleted) {
+                Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
+                return@launch
             }
-            .addCallback(
-                object : BaseTransientBottomBar.BaseCallback<Snackbar>() {
-                    override fun onDismissed(
-                        transientBottomBar: Snackbar?,
-                        event: Int,
-                    ) {
-                        if (!restored) {
-                            pendingDelete.delete()
-                        }
-                    }
-                },
-            )
-            .show()
-    }
-
-    private companion object {
-        val SUPPORTED_EXTENSIONS = setOf("wav", "m4a", "aac")
+            refreshRecordings()
+            Snackbar.make(requireView(), R.string.recording_deleted, Snackbar.LENGTH_LONG).show()
+        }
     }
 
     private fun formatSavedRecordingDuration(durationMillis: Long): String {
@@ -198,7 +164,7 @@ class SavedRecordingsFragment : Fragment() {
 private sealed class SavedRecordingListItem {
     data class Header(val dateLabel: String) : SavedRecordingListItem()
     data class Recording(
-        val file: File,
+        val recording: RecordingEntity,
         val timestampLabel: String,
         val fileName: String,
         val durationLabel: String,
@@ -208,9 +174,9 @@ private sealed class SavedRecordingListItem {
 }
 
 private class SavedRecordingAdapter(
-    private val onOpen: (File) -> Unit,
-    private val onShare: (File) -> Unit,
-    private val onDelete: (File) -> Unit,
+    private val onOpen: (RecordingEntity) -> Unit,
+    private val onShare: (RecordingEntity) -> Unit,
+    private val onDelete: (RecordingEntity) -> Unit,
 ) : ListAdapter<SavedRecordingListItem, RecyclerView.ViewHolder>(SavedRecordingDiffCallback()) {
 
     override fun getItemViewType(position: Int): Int {
@@ -226,11 +192,9 @@ private class SavedRecordingAdapter(
     ): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return if (viewType == 0) {
-            val view = inflater.inflate(R.layout.item_recording_header, parent, false)
-            HeaderViewHolder(view)
+            HeaderViewHolder(inflater.inflate(R.layout.item_recording_header, parent, false))
         } else {
-            val view = inflater.inflate(R.layout.item_saved_recording, parent, false)
-            SavedRecordingViewHolder(view, onOpen, onShare, onDelete)
+            SavedRecordingViewHolder(inflater.inflate(R.layout.item_saved_recording, parent, false), onOpen, onShare, onDelete)
         }
     }
 
@@ -238,17 +202,16 @@ private class SavedRecordingAdapter(
         holder: RecyclerView.ViewHolder,
         position: Int,
     ) {
-        val item = getItem(position)
-        if (holder is HeaderViewHolder && item is SavedRecordingListItem.Header) {
-            holder.bind(item)
-        } else if (holder is SavedRecordingViewHolder && item is SavedRecordingListItem.Recording) {
-            holder.bind(item)
+        when (val item = getItem(position)) {
+            is SavedRecordingListItem.Header -> (holder as HeaderViewHolder).bind(item)
+            is SavedRecordingListItem.Recording -> (holder as SavedRecordingViewHolder).bind(item)
         }
     }
 }
 
 private class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
     private val dateText: TextView = itemView.findViewById(R.id.header_date)
+
     fun bind(item: SavedRecordingListItem.Header) {
         dateText.text = item.dateLabel
     }
@@ -256,9 +219,9 @@ private class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemVie
 
 private class SavedRecordingViewHolder(
     itemView: View,
-    private val onOpen: (File) -> Unit,
-    private val onShare: (File) -> Unit,
-    private val onDelete: (File) -> Unit,
+    private val onOpen: (RecordingEntity) -> Unit,
+    private val onShare: (RecordingEntity) -> Unit,
+    private val onDelete: (RecordingEntity) -> Unit,
 ) : RecyclerView.ViewHolder(itemView) {
     private val timestamp: TextView = itemView.findViewById(R.id.recording_timestamp)
     private val name: TextView = itemView.findViewById(R.id.recording_name)
@@ -274,12 +237,12 @@ private class SavedRecordingViewHolder(
         codec.text = item.codecLabel
         size.text = item.sizeLabel
 
-        itemView.setOnClickListener { onOpen(item.file) }
+        itemView.setOnClickListener { onOpen(item.recording) }
         itemView.setOnLongClickListener {
-            onShare(item.file)
+            onShare(item.recording)
             true
         }
-        delete.setOnClickListener { onDelete(item.file) }
+        delete.setOnClickListener { onDelete(item.recording) }
     }
 }
 
@@ -292,7 +255,7 @@ private class SavedRecordingDiffCallback : DiffUtil.ItemCallback<SavedRecordingL
             return oldItem.dateLabel == newItem.dateLabel
         }
         if (oldItem is SavedRecordingListItem.Recording && newItem is SavedRecordingListItem.Recording) {
-            return oldItem.file.absolutePath == newItem.file.absolutePath
+            return oldItem.recording.id == newItem.recording.id
         }
         return false
     }

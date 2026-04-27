@@ -1,13 +1,20 @@
 package app.timetravel
 
-import java.io.File
-import java.io.RandomAccessFile
+import android.content.Context
+import android.os.ParcelFileDescriptor
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 
 internal class WavAudioFileWriter(
-    override val file: File,
+    context: Context,
+    override val target: RecordingOutputTarget,
     private val sampleRate: Int,
 ) : AudioFileWriter {
-    private val output = RandomAccessFile(file, "rw")
+    private val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
+    private val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
+    private val channel: FileChannel = outputStream.channel
 
     override var totalSampleBytesWritten: Int = 0
         private set
@@ -21,50 +28,46 @@ internal class WavAudioFileWriter(
         offset: Int,
         count: Int,
     ) {
-        output.write(bytes, offset, count)
+        channel.write(ByteBuffer.wrap(bytes, offset, count))
         totalSampleBytesWritten += count
     }
 
     override fun close() {
-        output.seek(0L)
         writeHeader(totalSampleBytesWritten)
-        output.close()
+        channel.truncate(HEADER_SIZE + totalSampleBytesWritten.toLong())
+        outputStream.close()
+        parcelFileDescriptor.close()
     }
 
     private fun writeHeader(dataSize: Int) {
         val chunkSize = 36 + dataSize
         val byteRate = sampleRate * CHANNEL_COUNT * BITS_PER_SAMPLE / 8
         val blockAlign = CHANNEL_COUNT * BITS_PER_SAMPLE / 8
-
-        output.writeBytes("RIFF")
-        output.writeIntLE(chunkSize)
-        output.writeBytes("WAVE")
-        output.writeBytes("fmt ")
-        output.writeIntLE(16)
-        output.writeShortLE(1)
-        output.writeShortLE(CHANNEL_COUNT)
-        output.writeIntLE(sampleRate)
-        output.writeIntLE(byteRate)
-        output.writeShortLE(blockAlign)
-        output.writeShortLE(BITS_PER_SAMPLE)
-        output.writeBytes("data")
-        output.writeIntLE(dataSize)
+        val header = ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
+            put("RIFF".toByteArray(Charsets.US_ASCII))
+            putInt(chunkSize)
+            put("WAVE".toByteArray(Charsets.US_ASCII))
+            put("fmt ".toByteArray(Charsets.US_ASCII))
+            putInt(16)
+            putShort(1)
+            putShort(CHANNEL_COUNT.toShort())
+            putInt(sampleRate)
+            putInt(byteRate)
+            putShort(blockAlign.toShort())
+            putShort(BITS_PER_SAMPLE.toShort())
+            put("data".toByteArray(Charsets.US_ASCII))
+            putInt(dataSize)
+            flip()
+        }
+        channel.position(0L)
+        while (header.hasRemaining()) {
+            channel.write(header)
+        }
     }
 
     private companion object {
         const val CHANNEL_COUNT = 1
         const val BITS_PER_SAMPLE = 16
-
-        fun RandomAccessFile.writeIntLE(value: Int) {
-            write(value and 0xFF)
-            write(value shr 8 and 0xFF)
-            write(value shr 16 and 0xFF)
-            write(value shr 24 and 0xFF)
-        }
-
-        fun RandomAccessFile.writeShortLE(value: Int) {
-            write(value and 0xFF)
-            write(value shr 8 and 0xFF)
-        }
+        const val HEADER_SIZE = 44
     }
 }

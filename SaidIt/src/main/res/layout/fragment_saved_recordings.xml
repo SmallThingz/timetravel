@@ -13,17 +13,17 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="24dp"
-        android:paddingTop="24dp"
-        android:paddingEnd="24dp"
-        android:paddingBottom="12dp">
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp">
 
         <TextView
             android:id="@+id/recordings_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/recordings_title"
-            android:textAppearance="?attr/textAppearanceDisplaySmall"
+            android:drawableStart="@drawable/ic_wordmark_mark"
+            android:drawablePadding="10dp"
+            android:text="@string/app_name"
+            android:textAppearance="@style/TextAppearance.TimeTravel.Wordmark"
             android:textColor="?attr/colorOnSurface" />
 
         <View

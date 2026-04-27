@@ -116,6 +116,17 @@ internal class AudioMemory {
         return sum
     }
 
+    @Synchronized
+    fun clear() {
+        current?.let { free.addLast(it) }
+        current = null
+        offset = 0
+        currentWasFilled = false
+        filling = false
+        filled.forEach { free.addLast(it) }
+        filled.clear()
+    }
+
     @Throws(IOException::class)
     fun fill(filler: Consumer) {
         synchronized(this) {

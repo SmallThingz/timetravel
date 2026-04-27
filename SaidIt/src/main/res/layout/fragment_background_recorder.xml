@@ -19,10 +19,13 @@
         android:paddingVertical="12dp">
 
         <TextView
+            android:id="@+id/app_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_wordmark_mark"
+            android:drawablePadding="10dp"
             android:text="@string/app_name"
-            android:textAppearance="?attr/textAppearanceHeadlineSmall"
+            android:textAppearance="@style/TextAppearance.TimeTravel.Wordmark"
             android:textColor="?attr/colorOnSurface" />
 
         <View
@@ -51,7 +54,7 @@
         android:clipChildren="false"
         android:clipToPadding="false">
 
-        <!-- Top info section: buffer label, timer, subtitle -->
+        <!-- Top info section: timer, subtitle -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -61,32 +64,31 @@
             android:paddingHorizontal="24dp">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:letterSpacing="0.08"
-                android:text="@string/current_time_buffer"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
-            <TextView
                 android:id="@+id/history_size"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
                 android:textAppearance="?attr/textAppearanceDisplayLarge"
                 android:textColor="?attr/colorOnSurface"
                 android:typeface="monospace"
                 tools:text="10:24:37" />
 
-            <TextView
-                android:id="@+id/format_summary"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+        <TextView
+            android:id="@+id/format_summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="Recording the past 60 seconds" />
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:text="Recording the past 60 seconds" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/clear_buffer_button"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/clear_buffer" />
         </LinearLayout>
 
         <!-- Big circle button — takes remaining space, centered -->
@@ -104,22 +106,6 @@
                 android:layout_gravity="center"
                 android:background="@drawable/listen_surface_outer_ring" />
 
-            <View
-                android:id="@+id/listen_glow_primary"
-                android:layout_width="256dp"
-                android:layout_height="256dp"
-                android:layout_gravity="center"
-                android:alpha="0.0"
-                android:background="@drawable/listen_glow_primary" />
-
-            <View
-                android:id="@+id/listen_glow_secondary"
-                android:layout_width="200dp"
-                android:layout_height="200dp"
-                android:layout_gravity="center"
-                android:alpha="0.0"
-                android:background="@drawable/listen_glow_secondary" />
-
             <FrameLayout
                 android:id="@+id/bottom_bar"
                 android:layout_width="232dp"
@@ -135,7 +121,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:drawablePadding="16dp"
+                    android:drawablePadding="18dp"
                     android:gravity="center"
                     android:textAppearance="?attr/textAppearanceHeadlineMedium"
                     android:textColor="?attr/colorOnSurface"

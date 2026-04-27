@@ -1,20 +1,24 @@
 package app.timetravel
 
+import android.content.Context
 import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 
 internal class AacAudioFileWriter(
-    override val file: File,
+    context: Context,
+    override val target: RecordingOutputTarget,
     private val sampleRate: Int,
 ) : AudioFileWriter {
     private val codec: MediaCodec
     private val muxer: MediaMuxer
+    private val parcelFileDescriptor: ParcelFileDescriptor
     private val bufferInfo = MediaCodec.BufferInfo()
     private var trackIndex = -1
     private var muxerStarted = false
@@ -34,7 +38,8 @@ internal class AacAudioFileWriter(
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             start()
         }
-        muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        parcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
+        muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     }
 
     override fun write(
@@ -77,6 +82,7 @@ internal class AacAudioFileWriter(
                 runCatching { muxer.stop() }
             }
             muxer.release()
+            parcelFileDescriptor.close()
         }
     }
 

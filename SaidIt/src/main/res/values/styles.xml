@@ -1,23 +1,13 @@
 <resources>
-    <style name="Theme.TimeTravel" parent="Theme.Material3.Dark.NoActionBar">
+    <style name="Theme.TimeTravel" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:textViewStyle">@style/TextView</item>
         <item name="alertDialogTheme">@style/ThemeOverlay.TimeTravel.AlertDialog</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.TimeTravel.AlertDialog</item>
-        <item name="colorSurface">#0D0D0D</item>
-        <item name="colorSurfaceContainer">#151515</item>
-        <item name="colorSurfaceContainerLow">#121212</item>
-        <item name="colorSurfaceContainerHigh">#1A1A1A</item>
-        <item name="colorSurfaceContainerHighest">#252525</item>
-        <item name="colorOnSurface">#EDEDED</item>
-        <item name="colorOnSurfaceVariant">#9E9E9E</item>
-        <item name="colorOutlineVariant">#2A2A2A</item>
     </style>
 
     <style name="ThemeOverlay.TimeTravel.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="shapeAppearanceOverlay">@style/TimeTravel.ShapeAppearanceOverlay.Dialog</item>
-        <item name="buttonBarPositiveButtonStyle">@style/Widget.TimeTravel.DialogButton</item>
-        <item name="buttonBarNegativeButtonStyle">@style/Widget.TimeTravel.DialogButton</item>
         <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.TimeTravel.DialogTitle</item>
         <item name="materialAlertDialogBodyTextStyle">@style/TextAppearance.TimeTravel.DialogBody</item>
     </style>
@@ -38,6 +28,13 @@
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
+    <style name="TextAppearance.TimeTravel.Wordmark" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
     <style name="TextAppearance.TimeTravel.DialogTitle" parent="TextAppearance.Material3.TitleLarge">
         <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
@@ -45,15 +42,15 @@
     <style name="TextAppearance.TimeTravel.DialogBody" parent="TextAppearance.Material3.BodyMedium">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
-
-    <style name="Widget.TimeTravel.DialogButton" parent="Widget.Material3.Button.TextButton.Dialog">
-        <item name="android:textAllCaps">false</item>
-    </style>
-
     <style name="TimeTravel.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">?attr/colorSurfaceContainerHigh</item>
         <item name="boxStrokeColor">?attr/colorOutline</item>
+        <item name="boxStrokeErrorColor">?attr/colorError</item>
         <item name="hintTextColor">?attr/colorOnSurfaceVariant</item>
         <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
+        <item name="prefixTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="endIconTint">?attr/colorOnSurfaceVariant</item>
+        <item name="errorTextColor">?attr/colorError</item>
         <item name="boxCornerRadiusTopStart">16dp</item>
         <item name="boxCornerRadiusTopEnd">16dp</item>
         <item name="boxCornerRadiusBottomStart">16dp</item>

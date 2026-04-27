@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">timetravel</string>
+    <string name="app_name" translatable="false">TimeTravel</string>
 
     <string name="recording">TimeTravel</string>
     <string name="recording_saved">Saved</string>
@@ -12,13 +12,13 @@
 
     <string name="buffer_active_summary">ON</string>
     <string name="buffer_inactive_summary">OFF</string>
-    <string name="current_time_buffer">CURRENT TIME BUFFER</string>
     <string name="buffer_active_hint">Tap to pause</string>
     <string name="buffer_inactive_hint">Tap to start</string>
     <string name="buffer_recording_hint">Recording</string>
     <string name="buffer_status_time">Recording the past %1$s</string>
     <string name="buffer_status_size">Keeping %1$s of audio ready</string>
     <string name="buffer_status_paused">Buffer paused</string>
+    <string name="clear_buffer">Clear</string>
 
     <string name="record_all_memory">Full</string>
     <string name="custom_time">Custom</string>
@@ -51,14 +51,13 @@
     <string name="settings_return">Back</string>
     <string name="undo">Undo</string>
     <string name="retention_mode_title">Retention</string>
-    <string name="retention_mode_size">Size</string>
     <string name="retention_mode_time">Time</string>
+    <string name="retention_mode_size">Size</string>
     <string name="retention_time_label">Time</string>
-    <string name="retention_time_estimate">Save size at current format: %1$s</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="retention_size_label">Size (MB)</string>
-    <string name="retention_size_estimate">Save time at current format: %1$s</string>
     <string name="recording_settings_title">Audio</string>
+    <string name="storage_settings_title">Storage</string>
     <string name="codec_label">Codec</string>
     <string name="codec_aac">AAC / M4A</string>
     <string name="codec_wav">WAV / PCM</string>
@@ -73,6 +72,13 @@
     <string name="input_route_label">Route</string>
     <string name="input_route_auto">Auto</string>
     <string name="input_route_builtin_mic">Built-in</string>
+    <string name="export_folder_label">Folder</string>
+    <string name="choose_folder">Choose</string>
+    <string name="default_folder">Default</string>
+    <string name="move_recordings">Move existing</string>
+    <string name="move_recordings_none">No recordings to move.</string>
+    <string name="move_recordings_done">Moved %1$d recordings.</string>
+    <string name="move_recordings_done_with_cleanup">Moved %1$d. Removed %2$d missing.</string>
     <string name="settings_saved">Saved.</string>
     <string name="settings_saved_next_start">Saved. Starts next time.</string>
     <string name="settings_saved_deferred_input">Saved. Input changes apply next time.</string>
