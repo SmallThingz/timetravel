@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">TimeTravel</string>
+    <string name="app_name" translatable="false">timetravel</string>
 
     <string name="recording">TimeTravel</string>
     <string name="recording_saved">Saved</string>
@@ -24,6 +24,7 @@
     <string name="custom_time">Custom</string>
     <string name="custom_export_duration_label">Time</string>
     <string name="custom_export_duration_hint">12:30</string>
+    <string name="custom_export_duration_supporting">Use MM:SS or HH:MM:SS</string>
     <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="preset_invalid">Invalid time format.</string>
     <string name="saving">Saving…</string>

@@ -16,6 +16,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
 import android.os.IBinder
+import android.view.ContextThemeWrapper
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
@@ -26,6 +27,7 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.textfield.TextInputLayout
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -447,56 +449,41 @@ class TimeTravelFragment : Fragment() {
     private fun updateListenSurfaceAppearance() {
         val active = isListening || isRecording
         listenTitle.setText(if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary)
-        listenCaption.setText(
-            when {
-                isRecording -> R.string.buffer_recording_hint
-                active -> R.string.buffer_active_hint
-                else -> R.string.buffer_inactive_hint
-            },
-        )
+        listenCaption.visibility = View.GONE
         listenSurface.isEnabled = !isRecording && !isSaving
 
+        // OFF: dark charcoal fill (#2A2A2A on #0D0D0D background)
+        // ON: lighter material tint to indicate active state
         val fillColor = MaterialColors.getColor(
             listenSurface,
-            if (active) com.google.android.material.R.attr.colorPrimaryContainer
+            if (active) com.google.android.material.R.attr.colorSurfaceContainerHigh
             else com.google.android.material.R.attr.colorSurfaceContainerHighest,
         )
         val contentColor = MaterialColors.getColor(
             listenSurface,
-            if (active) com.google.android.material.R.attr.colorOnPrimaryContainer
-            else com.google.android.material.R.attr.colorOnSurface,
-        )
-        val titleColor = MaterialColors.getColor(
-            listenSurface,
-            if (active) com.google.android.material.R.attr.colorOnPrimaryContainer
-            else com.google.android.material.R.attr.colorOnSurface,
-        )
-        val captionColor = MaterialColors.getColor(
-            listenSurface,
-            com.google.android.material.R.attr.colorOnSurfaceVariant,
+            com.google.android.material.R.attr.colorOnSurface,
         )
         val strokeColor = MaterialColors.getColor(
             listenSurface,
-            if (active) R.attr.colorPrimary else com.google.android.material.R.attr.colorOutlineVariant,
+            com.google.android.material.R.attr.colorOutlineVariant,
         )
         listenSurfaceDrawable.fillColor = ColorStateList.valueOf(fillColor)
         listenSurfaceDrawable.strokeColor = ColorStateList.valueOf(strokeColor)
         listenRingDrawable.strokeColor = ColorStateList.valueOf(strokeColor)
-        listenTitle.setTextColor(titleColor)
+        listenTitle.setTextColor(contentColor)
         TextViewCompat.setCompoundDrawableTintList(listenTitle, ColorStateList.valueOf(contentColor))
-        listenCaption.setTextColor(captionColor)
 
         val primaryAlpha = when {
             isRecording -> 0.96f
-            active -> 0.68f
-            else -> 0.08f
+            active -> 0.32f
+            else -> 0f
         }
         val secondaryAlpha = when {
             isRecording -> 0.58f
-            active -> 0.28f
-            else -> 0.04f
+            active -> 0.14f
+            else -> 0f
         }
-        val baseScale = if (active) 1f else 0.94f
+        val baseScale = if (active) 1f else 0.9f
         listenGlowPrimary.animate()
             .alpha(primaryAlpha)
             .scaleX(baseScale)
@@ -622,7 +609,9 @@ class TimeTravelFragment : Fragment() {
         }
 
         private fun promptForCustomDuration(keepRecording: Boolean) {
-            val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null)
+            val dialogContext = ContextThemeWrapper(requireContext(), R.style.ThemeOverlay_TimeTravel_AlertDialog)
+            val dialogView = LayoutInflater.from(dialogContext).inflate(R.layout.dialog_custom_duration, null)
+            val durationLayout = dialogView.findViewById<TextInputLayout>(R.id.custom_duration_layout)
             val durationField = dialogView.findViewById<EditText>(R.id.custom_duration_value)
 
             val dialog = MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_TimeTravel_AlertDialog)
@@ -633,14 +622,15 @@ class TimeTravelFragment : Fragment() {
                 .create()
 
             dialog.setOnShowListener {
+                durationField.requestFocus()
                 dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     val seconds = parseDurationInput(durationField.text?.toString().orEmpty())?.toFloat()
                     if (seconds == null || seconds <= 0f) {
-                        durationField.error = getString(R.string.custom_export_duration_invalid)
+                        durationLayout.error = getString(R.string.custom_export_duration_invalid)
                         return@setOnClickListener
                     }
 
-                    durationField.error = null
+                    durationLayout.error = null
                     val service = recorder ?: return@setOnClickListener
                     if (keepRecording) {
                         service.startRecording(seconds)

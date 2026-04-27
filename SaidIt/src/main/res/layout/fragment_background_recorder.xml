@@ -8,6 +8,7 @@
     android:orientation="vertical"
     tools:context="app.timetravel.TimeTravelFragment">
 
+    <!-- Top bar: app name + settings -->
     <LinearLayout
         android:id="@+id/status_bar"
         android:layout_width="match_parent"
@@ -39,24 +40,25 @@
             app:tint="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
 
-    <ScrollView
+    <!-- Main content when NOT recording -->
+    <LinearLayout
         android:id="@+id/content_scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true"
-        android:overScrollMode="never">
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
+        <!-- Top info section: buffer label, timer, subtitle -->
         <LinearLayout
-            android:id="@+id/main_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:paddingStart="24dp"
-            android:paddingTop="20dp"
-            android:paddingEnd="24dp"
-            android:paddingBottom="24dp">
+            android:paddingTop="28dp"
+            android:paddingHorizontal="24dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -70,161 +72,168 @@
                 android:id="@+id/history_size"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="12dp"
                 android:textAppearance="?attr/textAppearanceDisplayLarge"
                 android:textColor="?attr/colorOnSurface"
                 android:typeface="monospace"
-                tools:text="22:30" />
+                tools:text="10:24:37" />
 
             <TextView
                 android:id="@+id/format_summary"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="Recording the past 30:00" />
+                tools:text="Recording the past 60 seconds" />
+        </LinearLayout>
+
+        <!-- Big circle button — takes remaining space, centered -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+
+            <View
+                android:id="@+id/listen_ring"
+                android:layout_width="268dp"
+                android:layout_height="268dp"
+                android:layout_gravity="center"
+                android:background="@drawable/listen_surface_outer_ring" />
+
+            <View
+                android:id="@+id/listen_glow_primary"
+                android:layout_width="256dp"
+                android:layout_height="256dp"
+                android:layout_gravity="center"
+                android:alpha="0.0"
+                android:background="@drawable/listen_glow_primary" />
+
+            <View
+                android:id="@+id/listen_glow_secondary"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:layout_gravity="center"
+                android:alpha="0.0"
+                android:background="@drawable/listen_glow_secondary" />
 
             <FrameLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
+                android:id="@+id/bottom_bar"
+                android:layout_width="232dp"
+                android:layout_height="232dp"
+                android:layout_gravity="center"
+                android:clickable="true"
                 android:clipChildren="false"
-                android:clipToPadding="false">
+                android:clipToOutline="true"
+                android:focusable="true">
 
-                <View
-                    android:id="@+id/listen_ring"
-                    android:layout_width="304dp"
-                    android:layout_height="304dp"
+                <TextView
+                    android:id="@+id/listen_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:background="@drawable/listen_surface_outer_ring" />
-
-                <View
-                    android:id="@+id/listen_glow_primary"
-                    android:layout_width="288dp"
-                    android:layout_height="288dp"
-                    android:layout_gravity="center"
-                    android:alpha="0.16"
-                    android:background="@drawable/listen_glow_primary" />
-
-                <View
-                    android:id="@+id/listen_glow_secondary"
-                    android:layout_width="232dp"
-                    android:layout_height="232dp"
-                    android:layout_gravity="center"
-                    android:alpha="0.1"
-                    android:background="@drawable/listen_glow_secondary" />
-
-                <FrameLayout
-                    android:id="@+id/bottom_bar"
-                    android:layout_width="248dp"
-                    android:layout_height="248dp"
-                    android:layout_gravity="center"
-                    android:clickable="true"
-                    android:clipChildren="false"
-                    android:clipToOutline="true"
-                    android:focusable="true">
-
-                    <TextView
-                        android:id="@+id/listen_title"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:drawablePadding="16dp"
-                        android:gravity="center"
-                        android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                        android:textColor="?attr/colorOnSurface"
-                        app:drawableTint="?attr/colorOnSurface"
-                        app:drawableTopCompat="@drawable/ic_capture_wave"
-                        tools:text="OFF" />
-                </FrameLayout>
+                    android:drawablePadding="16dp"
+                    android:gravity="center"
+                    android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                    android:textColor="?attr/colorOnSurface"
+                    app:drawableTint="?attr/colorOnSurface"
+                    app:drawableTopCompat="@drawable/ic_capture_wave"
+                    tools:text="OFF" />
             </FrameLayout>
+        </FrameLayout>
 
-            <TextView
-                android:id="@+id/listen_caption"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="Tap to start" />
+        <!-- Caption below button (hidden by default, very subtle) -->
+        <TextView
+            android:id="@+id/listen_caption"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:paddingBottom="6dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone"
+            tools:text="Tap to start" />
+
+        <!-- Preset grid: pushed to the very bottom, compact -->
+        <LinearLayout
+            android:id="@+id/preset_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="8dp">
 
             <LinearLayout
-                android:id="@+id/preset_grid"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:orientation="vertical">
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_1"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_weight="1"
+                    tools:text="1:00" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/record_preset_1"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        tools:text="1:00" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/record_preset_2"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        tools:text="5:00" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/record_preset_3"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        tools:text="30:00" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/record_preset_4"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        tools:text="2:00" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_2"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    tools:text="5:00" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/record_last_max"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/record_all_memory" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_3"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    tools:text="30:00" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/record_last_custom"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:text="@string/custom_time" />
-                </LinearLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_4"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    tools:text="2:00" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_last_max"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/record_all_memory" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_last_custom"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:text="@string/custom_time" />
             </LinearLayout>
         </LinearLayout>
-    </ScrollView>
+    </LinearLayout>
 
+    <!-- Recording overlay: replaces entire content when actively recording -->
     <FrameLayout
         android:id="@+id/rec_touch_area"
         android:layout_width="match_parent"
@@ -237,13 +246,12 @@
 
         <FrameLayout
             android:id="@+id/rec_button_circle"
-            android:layout_width="248dp"
-            android:layout_height="248dp"
+            android:layout_width="232dp"
+            android:layout_height="232dp"
             android:layout_gravity="center"
             android:clickable="true"
             android:focusable="true"
-            android:clipToOutline="true"
-            android:background="?attr/colorPrimaryContainer">
+            android:clipToOutline="true">
 
             <TextView
                 android:id="@+id/rec_time"
