@@ -1,31 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical" android:layout_width="wrap_content"
-    android:layout_height="wrap_content">
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
 
     <TextView
+        android:id="@+id/progress_description"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/work_default"
-        android:id="@+id/progress_description"
         android:layout_gravity="center_horizontal"
-        android:textSize="25sp"
-        android:gravity="center"
         android:background="@drawable/dialog_title"
-        android:textColor="@color/gray_f" />
+        android:gravity="center"
+        android:padding="18dp"
+        android:text="@string/work_default"
+        android:textColor="@color/gray_f"
+        android:textSize="25sp" />
 
     <LinearLayout
-        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="@dimen/small_round"
+        android:layout_gravity="center_horizontal"
         android:background="@drawable/dialog_content"
-        android:layout_gravity="center_horizontal">
+        android:orientation="vertical"
+        android:padding="20dp">
+
         <ProgressBar
-            android:indeterminate="true"
-            android:layout_gravity="center_horizontal"
             android:layout_width="40dp"
-            android:layout_height="40dp" />
-        </LinearLayout>
+            android:layout_height="40dp"
+            android:layout_gravity="center_horizontal"
+            android:indeterminate="true" />
+    </LinearLayout>
 </LinearLayout>

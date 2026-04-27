@@ -53,6 +53,10 @@
     <string name="record_30_minutes">30:00</string>
     <string name="record_2_hrs">2 godz</string>
     <string name="record_6_hrs">6 godz</string>
+    <string name="custom_export_duration_label">Własny czas wstecz (MM:SS lub HH:MM:SS)</string>
+    <string name="custom_export_duration_hint">12:30</string>
+    <string name="record_custom_duration">Eksportuj</string>
+    <string name="custom_export_duration_invalid">Wpisz czas jak 12:30 lub 1:12:30.</string>
     <string name="default_price">9.90 zł</string>
 
     <string name="record_description">Aby po zapisaniu pamięci dowolnym z powyższych przycisków, kontynuować nagrywanie, przytrzymaj go dłużej.</string>
@@ -114,6 +118,10 @@
     <string name="audio_memory_change">Możesz ją zmienić modyfikując:</string>
     <string name="option_a_used_ram">A) Wykorzystywaną pamięć RAM</string>
     <string name="option_b_audio_quality">B) Jakość dźwięku</string>
+    <string name="custom_memory_size_label">Własny maks. rozmiar (MB)</string>
+    <string name="custom_memory_size_hint">256</string>
+    <string name="custom_memory_size_apply">Zastosuj</string>
+    <string name="custom_memory_size_invalid">Wpisz liczbę całkowitą większą od 0.</string>
     <string name="used_ram_description">Echo oraz inne aplikacje wykorzystują pomięć telefonu do zapisywania swoich danych. Duże wykorzystanie pamięci może spowolnić pozostałe aplikacje.</string>
     <string name="audio_quality_description">Jakość 8kHz wystarcza do zapisu ludzkiej mowy. Wyższe opcje pozwalają na znalezienie kompromisu między jakością nagrania, a zużyciem pamięci.</string>
     <string name="settings_return">Powrót</string>

@@ -6,9 +6,11 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.10.1'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24'
     }
 }
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
 
 repositories {
         mavenCentral()
@@ -17,7 +19,8 @@ repositories {
 
 android {
     namespace 'eu.mrogalski.saidit'
-    compileSdk 34
+    compileSdk 37
+    buildToolsVersion '37.0.0'
 
     defaultConfig{
         applicationId "eu.mrogalski.saidit"
@@ -29,10 +32,10 @@ android {
 
     signingConfigs {
         release {
-            storeFile file("<relative path>")
-            storePassword "<fill in>"
-            keyAlias "<fill in>"
-            keyPassword "<fill in>"
+            storeFile file("release.keystore")
+            storePassword "OKo9sqHJm0PwZdi3ZZtiKgi5"
+            keyAlias "release7502j2b8"
+            keyPassword "OKo9sqHJm0PwZdi3ZZtiKgi5"
         }
     }
 
@@ -54,10 +57,18 @@ android {
     buildFeatures {
         buildConfig true
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
 
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: '*.jar')
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.12.0'
 }

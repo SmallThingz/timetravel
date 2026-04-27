@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape>
-            <corners android:topLeftRadius="@dimen/small_round" android:topRightRadius="@dimen/small_round" android:bottomLeftRadius="@dimen/small_round" android:bottomRightRadius="@dimen/small_round" />
-            <solid android:color="@color/transparent" />
-            <stroke android:color="@color/green" android:width="@dimen/shadow_offset" />
-
-
+            <corners android:radius="@dimen/small_round" />
+            <solid android:color="@color/shadow_base" />
         </shape>
     </item>
-    <item android:bottom="@dimen/shadow_offset">
+    <item android:bottom="1dp">
         <shape>
-            <padding android:bottom="@dimen/small_round" android:top="@dimen/small_round" android:left="@dimen/small_round" android:right="@dimen/small_round" />
-            <corners android:topLeftRadius="@dimen/small_round" android:topRightRadius="@dimen/small_round" android:bottomLeftRadius="@dimen/small_round" android:bottomRightRadius="@dimen/small_round" />
-            <solid android:color="@color/light_green" />
+            <padding
+                android:bottom="@dimen/button_padding"
+                android:left="@dimen/small_round"
+                android:right="@dimen/small_round"
+                android:top="@dimen/button_padding" />
+            <corners android:radius="@dimen/small_round" />
+            <stroke
+                android:width="1dp"
+                android:color="@color/accent" />
+            <solid android:color="@color/accent_soft" />
         </shape>
     </item>
 </layer-list>

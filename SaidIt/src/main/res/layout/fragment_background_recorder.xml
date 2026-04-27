@@ -1,297 +1,348 @@
-<ScrollView  xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main_fragment"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:fillViewport="true">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:animateLayoutChanges="true"
+        android:orientation="vertical"
+        android:padding="20dp"
         tools:context="eu.mrogalski.saidit.SaidItFragment">
 
-        <Button
-            android:id="@+id/listen_button"
-            style="@style/GreenButton"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:gravity="center"
-            android:text="@string/listening_enabled_disable" />
-
-        <TextView
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="5dp"
-            android:layout_marginLeft="20dp"
-            android:layout_marginRight="20dp"
+        <LinearLayout
+            style="@style/HeroCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/listening_description"/>
+            android:layout_marginBottom="@dimen/section_gap"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/HeroEyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/main_panel_eyebrow" />
+
+            <TextView
+                style="@style/HeadlineText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/app_name" />
+
+            <TextView
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/listening_description" />
+
+            <Button
+                android:id="@+id/listen_button"
+                style="@style/HeroButton"
+                android:layout_width="match_parent"
+                android:layout_height="68dp"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:text="@string/listening_enabled_disable" />
+        </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/ready_section"
+            style="@style/SectionCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:animateLayoutChanges="true"
             android:clipChildren="false"
-            android:id="@+id/ready_section">
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/SectionTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ready_section_title" />
 
             <TextView
                 android:id="@+id/history_size_title"
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
+                style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/history_size_title_static"/>
+                android:layout_marginTop="16dp"
+                android:text="@string/history_size_title_static" />
 
             <TextView
                 android:id="@+id/history_size"
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
+                style="@style/MetricText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                style="@style/EmphasizedText"
-                android:text=""/>
+                android:text="" />
 
             <TextView
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
-                android:layout_marginLeft="40dp"
-                android:layout_marginRight="40dp"
+                style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/save_description"/>
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/save_description" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipChildren="false"
-                android:layout_marginLeft="30dp"
-                android:layout_marginRight="30dp"
                 android:layout_marginTop="10dp"
                 android:layout_marginBottom="10dp"
                 android:orientation="horizontal">
 
                 <Button
                     android:id="@+id/record_last_minute"
-                    android:text="@string/record_one_minute"
+                    style="@style/Button"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    style="@style/Button"/>
+                    android:text="@string/record_one_minute" />
+
                 <Button
                     android:id="@+id/record_last_5_minutes"
-                    android:text="@string/record_five_minutes"
+                    style="@style/Button"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="10dp"
-                    android:layout_marginRight="10dp"
+                    android:layout_marginLeft="8dp"
+                    android:layout_marginRight="8dp"
                     android:layout_weight="1"
-                    style="@style/Button"/>
+                    android:text="@string/record_five_minutes" />
+
                 <Button
                     android:id="@+id/record_last_max"
-                    android:text="@string/record_all_memory"
+                    style="@style/Button"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    style="@style/Button" />
+                    android:text="@string/record_all_memory" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipChildren="false"
-                android:layout_marginLeft="30dp"
-                android:layout_marginRight="30dp"
                 android:layout_marginBottom="10dp"
                 android:orientation="horizontal">
 
                 <Button
                     android:id="@+id/record_last_30_minutes"
-                    android:text="@string/record_30_minutes"
+                    style="@style/Button"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    style="@style/Button"/>
+                    android:text="@string/record_30_minutes" />
 
                 <Button
                     android:id="@+id/record_last_2_hrs"
                     style="@style/Button"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="10dp"
-                    android:layout_marginRight="10dp"
+                    android:layout_marginLeft="8dp"
+                    android:layout_marginRight="8dp"
                     android:layout_weight="1"
                     android:text="@string/record_2_hrs" />
+
                 <Button
                     android:id="@+id/record_last_6_hrs"
-                    android:text="@string/record_6_hrs"
+                    style="@style/Button"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    style="@style/Button" />
+                    android:text="@string/record_6_hrs" />
             </LinearLayout>
 
             <TextView
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
-                android:layout_marginLeft="30dp"
-                android:layout_marginRight="30dp"
+                style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/record_description"/>
+                android:layout_marginTop="8dp"
+                android:text="@string/custom_export_duration_label" />
 
-
-            <View
-                android:layout_marginLeft="50dp"
-                android:layout_marginRight="50dp"
-                android:layout_marginTop="20dp"
-                android:layout_marginBottom="20dp"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layerType="software"
-                android:layout_height="7dp"
-                android:background="@drawable/dashed_line" />
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/custom_export_duration"
+                    style="@style/InputField"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:hint="@string/custom_export_duration_hint"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:textAppearance="?android:textAppearance" />
+
+                <Button
+                    android:id="@+id/record_last_custom"
+                    style="@style/Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:text="@string/record_custom_duration" />
+            </LinearLayout>
 
             <TextView
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
+                style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/upper_memory_limit_start"/>
+                android:text="@string/record_description" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="7dp"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"
+                android:background="@drawable/dashed_line"
+                android:layerType="software" />
+
+            <TextView
+                style="@style/SectionTitleSmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/memory_panel_title" />
+
+            <TextView
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/upper_memory_limit_start" />
 
             <TextView
                 android:id="@+id/history_limit"
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
+                style="@style/MetricText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                style="@style/EmphasizedText"
-                android:text="@string/sample_time"/>
+                android:text="@string/sample_time" />
 
             <TextView
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
+                style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/upper_memory_limit_settings_start"/>
+                android:text="@string/upper_memory_limit_settings_start" />
 
             <Button
                 android:id="@+id/settings_button"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
+                style="@style/Button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                style="@style/Button"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="10dp"
                 android:text="@string/upper_memory_limit_settings_end" />
-
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/rec_section"
+            style="@style/SectionCardRecording"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/section_gap"
             android:orientation="vertical"
             android:visibility="gone"
-            tools:visibility="visible"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            tools:visibility="visible">
 
-            <View
-                android:layout_marginLeft="50dp"
-                android:layout_marginRight="50dp"
-                android:layout_marginTop="20dp"
-                android:layout_marginBottom="20dp"
+            <TextView
+                style="@style/SectionTitle"
                 android:layout_width="match_parent"
-                android:layerType="software"
-                android:layout_height="7dp"
-                android:background="@drawable/dashed_line" />
+                android:layout_height="wrap_content"
+                android:text="@string/recording_panel_title" />
 
             <TextView
                 android:id="@+id/rec_indicator"
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
-                android:layout_marginLeft="20dp"
-                android:layout_marginRight="20dp"
-                android:text="@string/recorded_static"
+                style="@style/BodyText"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/recorded_static" />
 
             <TextView
                 android:id="@+id/rec_time"
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
+                style="@style/MetricText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                style="@style/EmphasizedText"
-                android:text="@string/sample_time"/>
+                android:text="@string/sample_time" />
 
             <TextView
-                android:layout_marginTop="5dp"
-                android:layout_marginBottom="5dp"
-                android:layout_marginLeft="20dp"
-                android:layout_marginRight="20dp"
+                style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/recording_stop_description"/>
+                android:layout_marginTop="8dp"
+                android:text="@string/recording_stop_description" />
 
             <Button
-                android:layout_width="60dp"
-                android:layout_height="60dp"
+                android:id="@+id/rec_stop_button"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
                 android:layout_gravity="center"
                 android:layout_marginTop="20dp"
-                android:layout_marginBottom="20dp"
-                android:id="@+id/rec_stop_button"
-                android:background="@color/light_red" />
-
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/red_circle_button" />
         </LinearLayout>
 
-        <View
-            android:layout_marginLeft="50dp"
-            android:layout_marginRight="50dp"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="20dp"
-            android:layout_width="match_parent"
-            android:layerType="software"
-            android:layout_height="7dp"
-            android:background="@drawable/dashed_line" />
-
-        <TextView
-            android:layout_marginTop="5dp"
-            android:layout_marginBottom="5dp"
-            android:layout_marginLeft="20dp"
-            android:layout_marginRight="20dp"
+        <LinearLayout
+            style="@style/SectionCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/read_more_at"/>
+            android:layout_marginTop="@dimen/section_gap"
+            android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/rate_on_google_play"
-            android:background="@drawable/gray_button"
-            android:layout_marginTop="15dp"
-            android:layout_marginBottom="15dp"
-            android:layout_gravity="center"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@drawable/github_logo"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp" />
+            <TextView
+                style="@style/SectionTitleSmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/support_panel_title" />
 
-        <TextView
-            android:layout_marginTop="5dp"
-            android:layout_marginBottom="5dp"
-            android:layout_marginLeft="20dp"
-            android:layout_marginRight="20dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/rate_invite"/>
+            <TextView
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/read_more_at" />
 
-        <ImageView
-            android:id="@+id/heart"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="25dp"
-            android:layout_marginBottom="80dp"
-            android:layout_gravity="center"
-            android:src="@drawable/ic_love"
-            />
+            <ImageButton
+                android:id="@+id/rate_on_google_play"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/white_button"
+                android:contentDescription="@string/open_project"
+                android:paddingLeft="18dp"
+                android:paddingTop="12dp"
+                android:paddingRight="18dp"
+                android:paddingBottom="12dp"
+                android:src="@drawable/github_logo" />
 
+            <TextView
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/rate_invite" />
+
+            <ImageView
+                android:id="@+id/heart"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="20dp"
+                android:contentDescription="@string/support_project"
+                android:src="@drawable/ic_love" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>
