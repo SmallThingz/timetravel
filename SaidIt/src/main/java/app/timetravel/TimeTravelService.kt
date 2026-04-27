@@ -7,6 +7,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
@@ -960,29 +961,29 @@ class TimeTravelService : Service() {
         val stats = audioMemory.getStats(fillRate)
         val persisted = persistentAudioRingStore.peekSnapshot()
         val history = liveExportHistory.debugSnapshot()
-        reportFile.parentFile?.mkdirs()
-        reportFile.appendText(
+        val status =
             buildString {
-                appendLine("reason=$reason")
-                appendLine("state=$state")
-                appendLine("sampleRate=$sampleRate")
-                appendLine("channelCount=${channelMode.channelCount}")
-                appendLine("codec=${effectiveOutputCodec.prefValue}")
-                appendLine("filled=${stats.filled}")
-                appendLine("total=${stats.total}")
-                appendLine("overwriting=${stats.overwriting}")
-                appendLine("persistedFilled=${persisted?.filledBytes ?: 0}")
-                appendLine("persistedCapacity=${persisted?.capacityBytes ?: 0}")
-                appendLine("persistedLastWrite=${persisted?.lastWriteAtMillis ?: 0}")
-                appendLine("historySegments=${history.segmentCount}")
-                appendLine("historyTotalSampleBytes=${history.totalSampleBytes}")
-                appendLine("historyCurrentSegmentBytes=${history.currentSegmentSampleBytes}")
-                appendLine("historyNextSegmentStart=${history.nextSegmentStartMillis ?: 0}")
-                appendLine("historyFiles=${history.segmentFiles.joinToString(",")}")
-                appendLine("exportDir=${describeConfiguredOutputDirectory(this@TimeTravelService)}")
-                appendLine("---")
-            },
-        )
+                append("reason=").append(reason)
+                append(" state=").append(state)
+                append(" sampleRate=").append(sampleRate)
+                append(" channelCount=").append(channelMode.channelCount)
+                append(" codec=").append(effectiveOutputCodec.prefValue)
+                append(" filled=").append(stats.filled)
+                append(" total=").append(stats.total)
+                append(" overwriting=").append(stats.overwriting)
+                append(" persistedFilled=").append(persisted?.filledBytes ?: 0)
+                append(" persistedCapacity=").append(persisted?.capacityBytes ?: 0)
+                append(" persistedLastWrite=").append(persisted?.lastWriteAtMillis ?: 0)
+                append(" historySegments=").append(history.segmentCount)
+                append(" historyTotalSampleBytes=").append(history.totalSampleBytes)
+                append(" historyCurrentSegmentBytes=").append(history.currentSegmentSampleBytes)
+                append(" historyNextSegmentStart=").append(history.nextSegmentStartMillis ?: 0)
+                append(" historyFiles=").append(history.segmentFiles.joinToString(","))
+                append(" exportDir=").append(describeConfiguredOutputDirectory(this@TimeTravelService))
+            }
+        reportFile.parentFile?.mkdirs()
+        reportFile.appendText(status + "\n---\n")
+        storeDebugStatus(status)
     }
 
     private fun resolveDebugReportFile(): File {
@@ -991,6 +992,14 @@ class TimeTravelService : Service() {
             directory.mkdirs()
         }
         return File(directory, "debug-report.txt")
+    }
+
+    private fun storeDebugStatus(status: String) {
+        runCatching {
+            val clazz = Class.forName("app.timetravel.DebugStatusStore")
+            val method = clazz.getMethod("write", Context::class.java, String::class.java)
+            method.invoke(null, this, status)
+        }
     }
 
     private fun isDebuggableBuild(): Boolean {
