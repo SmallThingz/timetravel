@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -49,6 +50,7 @@ class TimeTravelActivity : AppCompatActivity() {
             selectTab(item.itemId)
             true
         }
+        bottomNavigation.post { clearBottomNavigationTooltips() }
         lifecycleScope.launch(Dispatchers.Default) {
             warmRecorderCapabilityCache(applicationContext)
         }
@@ -169,6 +171,16 @@ class TimeTravelActivity : AppCompatActivity() {
 
     private fun dismissDialogs() {
         permissionDeniedDialog?.dismiss()
+    }
+
+    private fun clearBottomNavigationTooltips() {
+        val menuView = bottomNavigation.getChildAt(0) as? ViewGroup ?: return
+        for (index in 0 until menuView.childCount) {
+            menuView.getChildAt(index).apply {
+                tooltipText = null
+                setOnLongClickListener { true }
+            }
+        }
     }
 
     private companion object {

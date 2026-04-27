@@ -69,6 +69,7 @@
     <string name="retention_size_label">Size (MB)</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Storage</string>
+    <string name="background_persistence_title">Background</string>
     <string name="codec_label">Codec</string>
     <string name="codec_aac">AAC / M4A</string>
     <string name="codec_wav">WAV / PCM</string>
@@ -93,6 +94,15 @@
     <string name="move_recordings_none">No recordings to move.</string>
     <string name="move_recordings_done">Moved %1$d recordings.</string>
     <string name="move_recordings_done_with_cleanup">Moved %1$d. Removed %2$d missing.</string>
+    <string name="persistent_buffer_cache_label">Keep buffer on restart</string>
+    <string name="persistent_buffer_cache_summary">Write live buffer to disk and restore it after process death or reopen.</string>
+    <string name="aggressive_restart_label">Aggressive restart</string>
+    <string name="aggressive_restart_summary">Reschedule recorder service after task swipe or system kill whenever buffer should survive.</string>
+    <string name="wake_lock_label">Keep CPU awake</string>
+    <string name="wake_lock_summary">Hold a partial wake lock while live buffering. Highest survival, highest battery cost.</string>
+    <string name="battery_optimization_status_ok">Battery optimization: unrestricted</string>
+    <string name="battery_optimization_status_limited">Battery optimization: restricted</string>
+    <string name="battery_optimization_button">Battery settings</string>
     <string name="settings_saved">Saved.</string>
     <string name="settings_saved_next_start">Saved. Starts next time.</string>
     <string name="settings_saved_deferred_input">Saved. Input changes apply next time.</string>

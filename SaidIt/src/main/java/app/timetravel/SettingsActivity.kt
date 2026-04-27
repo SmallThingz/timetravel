@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.MotionEvent
@@ -24,6 +25,7 @@ import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.DynamicColors
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.launch
@@ -52,6 +54,11 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var chooseFolderButton: MaterialButton
     private lateinit var defaultFolderButton: MaterialButton
     private lateinit var moveRecordingsButton: MaterialButton
+    private lateinit var batteryOptimizationButton: MaterialButton
+    private lateinit var batteryOptimizationStatus: TextView
+    private lateinit var persistentBufferSwitch: MaterialSwitch
+    private lateinit var aggressiveRestartSwitch: MaterialSwitch
+    private lateinit var wakeLockSwitch: MaterialSwitch
     private lateinit var undoButton: View
     private lateinit var applyButton: View
 
@@ -87,6 +94,9 @@ class SettingsActivity : AppCompatActivity() {
         var route: InputRouteMode? = null,
         var sampleRate: Int = 0,
         var exportDirectoryUri: String? = null,
+        var persistentBufferEnabled: Boolean = true,
+        var aggressiveRestartEnabled: Boolean = true,
+        var wakeLockEnabled: Boolean = false,
     ) {
         fun copyFrom(other: SettingsSnapshot) {
             themeMode = other.themeMode
@@ -99,6 +109,9 @@ class SettingsActivity : AppCompatActivity() {
             route = other.route
             sampleRate = other.sampleRate
             exportDirectoryUri = other.exportDirectoryUri
+            persistentBufferEnabled = other.persistentBufferEnabled
+            aggressiveRestartEnabled = other.aggressiveRestartEnabled
+            wakeLockEnabled = other.wakeLockEnabled
         }
     }
 
@@ -168,6 +181,11 @@ class SettingsActivity : AppCompatActivity() {
         chooseFolderButton = findViewById(R.id.choose_folder_button)
         defaultFolderButton = findViewById(R.id.default_folder_button)
         moveRecordingsButton = findViewById(R.id.move_recordings_button)
+        batteryOptimizationButton = findViewById(R.id.battery_optimization_button)
+        batteryOptimizationStatus = findViewById(R.id.battery_optimization_status)
+        persistentBufferSwitch = findViewById(R.id.persistent_buffer_switch)
+        aggressiveRestartSwitch = findViewById(R.id.aggressive_restart_switch)
+        wakeLockSwitch = findViewById(R.id.wake_lock_switch)
         undoButton = findViewById(R.id.settings_undo_button)
         applyButton = findViewById(R.id.settings_apply_button)
 
@@ -198,6 +216,7 @@ class SettingsActivity : AppCompatActivity() {
             pushUndoState()
         }
         moveRecordingsButton.setOnClickListener { moveExistingRecordings() }
+        batteryOptimizationButton.setOnClickListener { openBatteryOptimizationSettings() }
         setupListeners()
         bindUiFromPreferences(true)
     }
@@ -213,6 +232,11 @@ class SettingsActivity : AppCompatActivity() {
             unbindService(connection)
             serviceBound = false
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshBatteryOptimizationUi()
     }
 
     private fun applyWindowInsets(content: View) {
@@ -353,6 +377,24 @@ class SettingsActivity : AppCompatActivity() {
                 pushUndoState()
             }
         }
+        persistentBufferSwitch.setOnCheckedChangeListener { _, _ ->
+            if (!bindingUi) {
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
+        aggressiveRestartSwitch.setOnCheckedChangeListener { _, _ ->
+            if (!bindingUi) {
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
+        wakeLockSwitch.setOnCheckedChangeListener { _, _ ->
+            if (!bindingUi) {
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
     }
 
     private fun bindUiFromPreferences(isInitial: Boolean = false) {
@@ -372,6 +414,9 @@ class SettingsActivity : AppCompatActivity() {
         val configuredChannelMode = getConfiguredChannelMode(this)
         val configuredRate = getConfiguredSampleRate(this, configuredSource, configuredRoute, configuredCodec, configuredChannelMode)
         val configuredExportTreeUri = getConfiguredExportTreeUri(this)
+        val configuredPersistentBuffer = isDiskBufferCacheEnabled(this)
+        val configuredAggressiveRestart = isAggressiveRestartEnabled(this)
+        val configuredWakeLock = isWakeLockEnabled(this)
 
         if (isInitial) {
             activeRetentionMode = configuredMode
@@ -388,6 +433,9 @@ class SettingsActivity : AppCompatActivity() {
             currentSettings.route = configuredRoute
             currentSettings.sampleRate = configuredRate
             currentSettings.exportDirectoryUri = configuredExportTreeUri?.toString()
+            currentSettings.persistentBufferEnabled = configuredPersistentBuffer
+            currentSettings.aggressiveRestartEnabled = configuredAggressiveRestart
+            currentSettings.wakeLockEnabled = configuredWakeLock
             originalSettings.clear()
             originalSettings.push(currentSettings.copy())
         } else {
@@ -422,10 +470,15 @@ class SettingsActivity : AppCompatActivity() {
 
         refreshSourceModes(configuredSource, configuredChannelMode, configuredRate)
 
+        persistentBufferSwitch.isChecked = configuredPersistentBuffer
+        aggressiveRestartSwitch.isChecked = configuredAggressiveRestart
+        wakeLockSwitch.isChecked = configuredWakeLock
+
         bindingUi = false
         refreshRetentionFields()
         refreshExportDirectoryUi()
         refreshMoveRecordingsAvailability()
+        refreshBatteryOptimizationUi()
     }
 
     private fun saveCurrentToSnapshot(snapshot: SettingsSnapshot) {
@@ -439,6 +492,9 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.route = currentRouteMode()
         snapshot.sampleRate = currentSampleRate() ?: 0
         snapshot.exportDirectoryUri = selectedExportTreeUri?.toString()
+        snapshot.persistentBufferEnabled = persistentBufferSwitch.isChecked
+        snapshot.aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
+        snapshot.wakeLockEnabled = wakeLockSwitch.isChecked
     }
 
     private fun pushUndoState() {
@@ -458,6 +514,9 @@ class SettingsActivity : AppCompatActivity() {
         retentionTimeSecondsValue = previous.retentionTime
         retentionSizeMbValue = previous.retentionSizeMb
         selectedExportTreeUri = previous.exportDirectoryUri?.let(Uri::parse)
+        persistentBufferSwitch.isChecked = previous.persistentBufferEnabled
+        aggressiveRestartSwitch.isChecked = previous.aggressiveRestartEnabled
+        wakeLockSwitch.isChecked = previous.wakeLockEnabled
 
         setDropdownItems(
             themeDropdown,
@@ -481,6 +540,7 @@ class SettingsActivity : AppCompatActivity() {
         refreshRetentionFields()
         refreshExportDirectoryUi()
         refreshMoveRecordingsAvailability()
+        refreshBatteryOptimizationUi()
 
         currentSettings.copyFrom(previous)
         hasUnsavedChanges = originalSettings.peek() != currentSettings
@@ -625,6 +685,9 @@ class SettingsActivity : AppCompatActivity() {
         val route = currentRouteMode()
         val source = currentSourceMode()
         val sampleRate = currentSampleRate()
+        val persistentBufferEnabled = persistentBufferSwitch.isChecked
+        val aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
+        val wakeLockEnabled = wakeLockSwitch.isChecked
 
         if (sampleRate == null) {
             sampleRateLayout.error = getString(R.string.unsupported_config_message)
@@ -668,6 +731,9 @@ class SettingsActivity : AppCompatActivity() {
             .putString(TimeTravelConfig.CHANNEL_MODE_KEY, channelMode.prefValue)
             .putString(TimeTravelConfig.INPUT_ROUTE_KEY, route.prefValue)
             .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
+            .putBoolean(TimeTravelConfig.BUFFER_DISK_CACHE_ENABLED_KEY, persistentBufferEnabled)
+            .putBoolean(TimeTravelConfig.AGGRESSIVE_RESTART_ENABLED_KEY, aggressiveRestartEnabled)
+            .putBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, wakeLockEnabled)
             .apply()
         setConfiguredExportTreeUri(this, selectedExportTreeUri)
         applyConfiguredThemeMode(this)
@@ -773,6 +839,25 @@ class SettingsActivity : AppCompatActivity() {
         exportPathLayout.error = null
         defaultFolderButton.isEnabled = selectedExportTreeUri != null
         bindingUi = false
+    }
+
+    private fun refreshBatteryOptimizationUi() {
+        val unrestricted = isIgnoringBatteryOptimizations(this)
+        batteryOptimizationStatus.text = getString(
+            if (unrestricted) R.string.battery_optimization_status_ok else R.string.battery_optimization_status_limited,
+        )
+    }
+
+    private fun openBatteryOptimizationSettings() {
+        val intent = if (isIgnoringBatteryOptimizations(this)) {
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        } else {
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+        }
+        runCatching { startActivity(intent) }
+            .onFailure { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
     }
 
     private fun refreshMoveRecordingsAvailability() {

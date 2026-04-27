@@ -18,6 +18,11 @@
         <item name="cornerSize">18dp</item>
     </style>
 
+    <style name="TimeTravel.ShapeAppearanceOverlay.BottomNavIndicator" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">999dp</item>
+    </style>
+
     <style name="TextBase" parent="TextAppearance.Material3.BodyMedium">
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:gravity">start</item>
