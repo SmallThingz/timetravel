@@ -278,14 +278,14 @@ class TimeTravelFragment : Fragment() {
     private fun updateListenButtonAppearance(enabled: Boolean) {
         listenButton.setText(if (enabled) R.string.listening_enabled_disable else R.string.listening_disabled_enable)
         val backgroundAttr = if (enabled) {
-            com.google.android.material.R.attr.colorPrimary
+            R.attr.colorPrimary
         } else {
-            com.google.android.material.R.attr.colorSurfaceContainerHighest
+            R.attr.colorSurfaceContainerHighest
         }
         val textAttr = if (enabled) {
-            com.google.android.material.R.attr.colorOnPrimary
+            R.attr.colorOnPrimary
         } else {
-            com.google.android.material.R.attr.colorOnSurface
+            R.attr.colorOnSurface
         }
         listenButton.backgroundTintList = android.content.res.ColorStateList.valueOf(
             MaterialColors.getColor(listenButton, backgroundAttr),

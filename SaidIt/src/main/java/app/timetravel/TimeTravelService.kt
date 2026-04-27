@@ -109,32 +109,35 @@ class TimeTravelService : Service() {
     }
 
     private fun loadConfiguration() {
-        var sourceMode = getConfiguredAudioSourceMode(this)
-        var routeMode = getConfiguredInputRouteMode(this)
-        var codec = getConfiguredOutputCodec(this)
+        var selectedSourceMode = getConfiguredAudioSourceMode(this)
+        var selectedRouteMode = getConfiguredInputRouteMode(this)
+        var selectedCodec = getConfiguredOutputCodec(this)
 
-        if (supportedSampleRates(this, sourceMode, routeMode, codec).isEmpty()) {
-            if (codec != ExportCodec.WAV && supportedSampleRates(this, sourceMode, routeMode, ExportCodec.WAV).isNotEmpty()) {
-                codec = ExportCodec.WAV
+        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec).isEmpty()) {
+            if (
+                selectedCodec != ExportCodec.WAV &&
+                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, ExportCodec.WAV).isNotEmpty()
+            ) {
+                selectedCodec = ExportCodec.WAV
             } else {
-                routeMode = InputRouteMode.AUTO
-                sourceMode = AudioSourceMode.MIC
-                codec = ExportCodec.WAV
+                selectedRouteMode = InputRouteMode.AUTO
+                selectedSourceMode = AudioSourceMode.MIC
+                selectedCodec = ExportCodec.WAV
             }
         }
 
-        val supportedRates = supportedSampleRates(this, sourceMode, routeMode, codec)
-        var preferredRate = getConfiguredSampleRate(this, sourceMode, routeMode, codec)
+        val supportedRates = supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec)
+        var preferredRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedCodec)
         if (supportedRates.isNotEmpty() && preferredRate !in supportedRates) {
             preferredRate = supportedRates.first()
         }
 
         sampleRate = if (preferredRate > 0) preferredRate else 48_000
         fillRate = 2 * sampleRate
-        sourceMode = sourceMode
-        audioSource = sourceMode.sourceValue
-        outputCodec = if (isCodecSupported(codec, sampleRate)) codec else ExportCodec.WAV
-        inputRouteMode = routeMode
+        sourceMode = selectedSourceMode
+        audioSource = selectedSourceMode.sourceValue
+        outputCodec = if (isCodecSupported(selectedCodec, sampleRate)) selectedCodec else ExportCodec.WAV
+        inputRouteMode = selectedRouteMode
     }
 
     private fun innerStartListening() {

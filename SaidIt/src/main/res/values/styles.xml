@@ -8,50 +8,30 @@
 
     <style name="ThemeOverlay.TimeTravel.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog" />
 
-    <style name="TextBase" parent="android:Widget.TextView">
+    <style name="TextBase" parent="TextAppearance.Material3.BodyMedium">
         <item name="android:textColor">?attr/colorOnSurface</item>
-        <item name="android:textSize">@dimen/info_text_size</item>
         <item name="android:gravity">start</item>
     </style>
 
     <style name="TextView" parent="TextBase" />
 
-    <style name="EmphasizedText" parent="TextView">
-        <item name="android:textSize">@dimen/emph_text_size</item>
-        <item name="android:typeface">monospace</item>
-    </style>
+    <style name="HeadlineText" parent="TextAppearance.Material3.HeadlineMedium" />
 
-    <style name="HeadlineText" parent="TextView">
-        <item name="android:textSize">30sp</item>
-        <item name="android:gravity">start</item>
-    </style>
+    <style name="SectionTitle" parent="TextAppearance.Material3.TitleLarge" />
 
-    <style name="SectionTitle" parent="TextView">
-        <item name="android:textSize">24sp</item>
-        <item name="android:gravity">start</item>
-    </style>
+    <style name="SectionTitleSmall" parent="TextAppearance.Material3.TitleMedium" />
 
-    <style name="SectionTitleSmall" parent="TextView">
-        <item name="android:textSize">18sp</item>
-        <item name="android:gravity">start</item>
-    </style>
-
-    <style name="BodyText" parent="TextView">
+    <style name="BodyText" parent="TextAppearance.Material3.BodyMedium">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-        <item name="android:textSize">15sp</item>
-        <item name="android:gravity">start</item>
     </style>
 
-    <style name="LabelText" parent="TextView">
+    <style name="LabelText" parent="TextAppearance.Material3.LabelMedium">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-        <item name="android:textSize">12sp</item>
-        <item name="android:gravity">start</item>
     </style>
 
-    <style name="MetricText" parent="EmphasizedText">
+    <style name="MetricText" parent="TextAppearance.Material3.DisplaySmall">
         <item name="android:textColor">?attr/colorOnSurface</item>
-        <item name="android:textSize">28sp</item>
-        <item name="android:gravity">start</item>
+        <item name="android:typeface">monospace</item>
     </style>
 
     <style name="DialogPanel">
@@ -64,39 +44,35 @@
     <style name="TimeTravel.MaterialButton.Primary" parent="Widget.Material3.Button">
         <item name="android:minHeight">56dp</item>
         <item name="android:textColor">?attr/colorOnPrimary</item>
-        <item name="android:textSize">16sp</item>
         <item name="android:layout_margin">0dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="backgroundTint">?attr/colorPrimary</item>
-        <item name="cornerRadius">20dp</item>
+        <item name="cornerRadius">16dp</item>
         <item name="elevation">0dp</item>
     </style>
 
     <style name="TimeTravel.MaterialButton.Secondary" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:minHeight">52dp</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
-        <item name="android:textSize">16sp</item>
         <item name="android:layout_margin">0dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="strokeColor">?attr/colorOutlineVariant</item>
         <item name="strokeWidth">1dp</item>
-        <item name="cornerRadius">20dp</item>
+        <item name="cornerRadius">16dp</item>
         <item name="elevation">0dp</item>
     </style>
 
     <style name="TimeTravel.MaterialButton.Secondary.Small" parent="TimeTravel.MaterialButton.Secondary">
         <item name="android:minHeight">44dp</item>
-        <item name="android:textSize">14sp</item>
     </style>
 
     <style name="TimeTravel.MaterialButton.Danger" parent="Widget.Material3.Button">
         <item name="android:minHeight">56dp</item>
         <item name="android:textColor">?attr/colorOnErrorContainer</item>
-        <item name="android:textSize">16sp</item>
         <item name="android:layout_margin">0dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="backgroundTint">?attr/colorErrorContainer</item>
-        <item name="cornerRadius">20dp</item>
+        <item name="cornerRadius">16dp</item>
         <item name="elevation">0dp</item>
     </style>
 
@@ -104,10 +80,10 @@
         <item name="boxStrokeColor">?attr/colorOutline</item>
         <item name="hintTextColor">?attr/colorOnSurfaceVariant</item>
         <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
-        <item name="boxCornerRadiusTopStart">20dp</item>
-        <item name="boxCornerRadiusTopEnd">20dp</item>
-        <item name="boxCornerRadiusBottomStart">20dp</item>
-        <item name="boxCornerRadiusBottomEnd">20dp</item>
+        <item name="boxCornerRadiusTopStart">16dp</item>
+        <item name="boxCornerRadiusTopEnd">16dp</item>
+        <item name="boxCornerRadiusBottomStart">16dp</item>
+        <item name="boxCornerRadiusBottomEnd">16dp</item>
     </style>
 
     <style name="TimeTravel.TextInputEditText" parent="Widget.Material3.TextInputEditText.OutlinedBox">

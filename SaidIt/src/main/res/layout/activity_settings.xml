@@ -81,18 +81,11 @@
                 android:layout_height="wrap_content"
                 android:text="@string/retention_mode_title" />
 
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/retention_mode_description" />
-
             <com.google.android.material.button.MaterialButtonToggleGroup
                 android:id="@+id/retention_mode_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="12dp"
                 app:selectionRequired="true"
                 app:singleSelection="true">
 

@@ -29,5 +29,5 @@ open class ThemedDialog : DialogFragment() {
         UiFonts.styleDialog(root, context, getShadowColorId())
     }
 
-    protected open fun getShadowColorId(): Int = R.color.accent_deep
+    protected open fun getShadowColorId(): Int = android.R.color.transparent
 }

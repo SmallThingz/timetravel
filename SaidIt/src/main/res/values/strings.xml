@@ -2,33 +2,29 @@
 <resources>
     <string name="app_name" translatable="false">TimeTravel</string>
 
-    <string name="recording">Recording…</string>
+    <string name="recording">TimeTravel</string>
     <string name="recording_saved">Clip saved</string>
-    <string name="notification_channel_name">TimeTravel recorder</string>
-    <string name="notification_running">Capturing audio in the background.</string>
+    <string name="notification_channel_name">Background capture</string>
+    <string name="notification_running">Running in the background.</string>
     <string name="error_during_writing_history_into">Error while writing audio history into: </string>
     <string name="error_during_recording_into">Error while recording into: </string>
     <string name="cant_create_file_generic">Couldn\'t create the output file.</string>
 
-    <string name="listening_enabled_disable">Buffering on</string>
-    <string name="listening_disabled_enable">Buffering off</string>
-    <string name="listening_description">TimeTravel keeps a rolling buffer of recent audio so you can pull a clip from the past on demand.</string>
-    <string name="buffer_active_summary">The rolling buffer is live and ready to export.</string>
-    <string name="buffer_inactive_summary">The rolling buffer is paused. Turn buffering on to start capturing again.</string>
-    <string name="main_panel_eyebrow">AUDIO TIME MACHINE</string>
-    <string name="ready_section_title">Jump back</string>
-    <string name="memory_panel_title">Retention window</string>
+    <string name="listening_enabled_disable">Pause</string>
+    <string name="listening_disabled_enable">Start</string>
+    <string name="buffer_active_summary">Ready</string>
+    <string name="buffer_inactive_summary">Paused</string>
     <string name="recording_panel_title">Live capture</string>
-    <string name="settings_title">Recorder settings</string>
-    <string name="settings_subtitle">Tune how far back TimeTravel listens, which input it prefers, and how clips are exported.</string>
-    <string name="recorded_static">Recording is in progress. Already saved the most recent</string>
+    <string name="settings_title">Settings</string>
+    <string name="recorded_static">Saved</string>
     <plurals name="recorded">
-        <item quantity="other">Recording is in progress. Already saved the most recent</item>
+        <item quantity="one">Saved</item>
+        <item quantity="other">Saved</item>
     </plurals>
-    <string name="recording_stop_description">Stop the live take and save everything captured so far.</string>
-    <string name="history_size_title_static">Buffered right now</string>
+    <string name="history_size_title_static">Available</string>
     <plurals name="history_size_title">
-        <item quantity="other">Memory holds the most recent</item>
+        <item quantity="one">Available</item>
+        <item quantity="other">Available</item>
     </plurals>
 
     <plurals name="minute">
@@ -41,33 +37,29 @@
         <item quantity="other">%d seconds</item>
     </plurals>
 
-    <string name="record_all_memory">Full buffer</string>
-    <string name="custom_export_duration_label">Custom time back (MM:SS or HH:MM:SS)</string>
+    <string name="record_all_memory">Full</string>
+    <string name="custom_time">Custom</string>
+    <string name="custom_export_duration_label">Time</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="record_custom_duration">Use</string>
-    <string name="custom_export_duration_invalid">Enter time like 12:30 or 1:12:30.</string>
-    <string name="preset_invalid">Enter a valid duration for every preset.</string>
-    <string name="record_description">Tap to export only. Long-press any export button if you want TimeTravel to keep recording after the clip starts.</string>
-    <string name="upper_memory_limit_settings_start">Estimated with the current rate and the selected retention mode.</string>
-    <string name="settings_open">Tune</string>
-    <string name="edit_presets">Edit presets</string>
-    <string name="export_presets_title">Preset windows</string>
+    <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
+    <string name="preset_invalid">Enter a valid time for each preset.</string>
+    <string name="settings_open">Settings</string>
+    <string name="edit_presets">Presets</string>
     <string name="preset_editor_title">Edit export presets</string>
-    <string name="preset_editor_message">Use MM, MM:SS, or HH:MM:SS for each preset.</string>
+    <string name="preset_editor_message">MM, MM:SS, or HH:MM:SS</string>
     <string name="preset_one_label">Preset 1</string>
     <string name="preset_two_label">Preset 2</string>
     <string name="preset_three_label">Preset 3</string>
     <string name="preset_four_label">Preset 4</string>
-    <string name="format_summary">%1$s • %2$s</string>
-    <string name="source_summary">Source: %1$s • Route: %2$s</string>
-    <string name="stop_and_save">Stop and save</string>
+    <string name="live_summary">%1$s • %2$s • %3$s</string>
+    <string name="stop_and_save">Stop</string>
 
     <string name="work_default">Working</string>
-    <string name="work_preparing_memory">Preparing the rolling buffer</string>
+    <string name="work_preparing_memory">Starting buffer</string>
 
     <string name="recording_done_title">Clip ready</string>
-    <string name="recording_done_filename">File name</string>
-    <string name="recording_done_directory">Saved to</string>
+    <string name="recording_done_filename">Name</string>
+    <string name="recording_done_directory">Folder</string>
     <string name="recording_done_runtime">Length</string>
     <string name="recording_done_size">Size</string>
 
@@ -80,42 +72,43 @@
     <string name="cancel">Cancel</string>
     <string name="no_app_available">No compatible app is available for that action.</string>
 
-    <string name="settings_return">Back</string>
-    <string name="retention_mode_title">Retention mode</string>
-    <string name="retention_mode_size">Size limit</string>
-    <string name="retention_mode_time">Time limit</string>
-    <string name="retention_time_label">Keep audio for</string>
-    <string name="retention_time_invalid">Enter time like 30:00 or 2:00:00.</string>
-    <string name="retention_size_label">Use up to (MB)</string>
-    <string name="retention_summary_title">Estimated retained audio</string>
-    <string name="recording_settings_title">Recording format</string>
+    <string name="settings_return">Done</string>
+    <string name="retention_mode_title">Retention</string>
+    <string name="retention_mode_size">Size</string>
+    <string name="retention_mode_time">Time</string>
+    <string name="retention_time_label">Time</string>
+    <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
+    <string name="retention_size_label">Size (MB)</string>
+    <string name="retention_summary_title">Current limit</string>
+    <string name="retention_label">Limit</string>
+    <string name="recording_settings_title">Audio</string>
     <string name="codec_label">Codec</string>
     <string name="codec_aac">AAC / M4A</string>
     <string name="codec_wav">WAV / PCM</string>
-    <string name="sample_rate_label">Sample rate</string>
+    <string name="sample_rate_label">Rate</string>
     <string name="audio_source_label">Audio source</string>
-    <string name="audio_source_default">System default</string>
-    <string name="audio_source_mic">Microphone</string>
+    <string name="audio_source_default">Default</string>
+    <string name="audio_source_mic">Mic</string>
     <string name="audio_source_voice_recognition">Voice recognition</string>
     <string name="audio_source_camcorder">Camcorder</string>
     <string name="audio_source_unprocessed">Unprocessed</string>
     <string name="audio_source_voice_performance">Voice performance</string>
-    <string name="input_route_label">Input route</string>
-    <string name="input_route_auto">Automatic</string>
-    <string name="input_route_builtin_mic">Built-in microphone</string>
-    <string name="apply_settings">Apply settings</string>
-    <string name="settings_saved">Settings applied.</string>
-    <string name="settings_saved_next_start">Settings saved. They will apply the next time buffering starts.</string>
+    <string name="input_route_label">Mic route</string>
+    <string name="input_route_auto">Auto</string>
+    <string name="input_route_builtin_mic">Built-in mic</string>
+    <string name="apply_settings">Apply</string>
+    <string name="settings_saved">Applied.</string>
+    <string name="settings_saved_next_start">Saved. Starts next time.</string>
+    <string name="settings_saved_deferred_input">Saved. Input changes apply next time buffering starts.</string>
     <string name="settings_apply_blocked_recording">Stop the current recording before changing these settings.</string>
-    <string name="unsupported_config_message">This source, route, and codec combination has no supported sample rates on this device.</string>
+    <string name="unsupported_config_message">This device does not support that audio setup.</string>
     <string name="audio_input_init_failed">TimeTravel couldn\'t start the microphone with the selected configuration.</string>
-    <string name="retention_mode_description">Both limits stay editable. TimeTravel uses whichever mode is selected.</string>
     <string name="custom_memory_size_invalid">Enter a whole number greater than 0.</string>
 
     <string name="sample_time">22 minutes and 30 seconds.</string>
-    <string name="recording_name">Name this clip</string>
+    <string name="recording_name">File name</string>
     <string name="recording_name_required">Enter a file name.</string>
     <string name="save_recording">Save clip</string>
     <string name="permission_required">Permission required</string>
-    <string name="permission_required_message">TimeTravel needs microphone access, and on Android 13+ notification access, to buffer and export audio clips.</string>
+    <string name="permission_required_message">Microphone access is required. On Android 13 and later, notifications are also needed so background capture stays visible.</string>
 </resources>

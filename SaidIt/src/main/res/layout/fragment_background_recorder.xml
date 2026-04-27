@@ -50,7 +50,7 @@
 
             <TextView
                 android:id="@+id/status_summary"
-                style="@style/LabelText"
+                style="@style/SectionTitleSmall"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -58,7 +58,7 @@
 
             <TextView
                 android:id="@+id/format_summary"
-                style="@style/BodyText"
+                style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
@@ -194,13 +194,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="@string/sample_time" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/upper_memory_limit_settings_start" />
         </LinearLayout>
 
         <com.google.android.material.divider.MaterialDivider
@@ -241,13 +234,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/sample_time" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/recording_stop_description" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/rec_stop_button"
