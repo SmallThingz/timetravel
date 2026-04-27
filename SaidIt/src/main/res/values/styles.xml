@@ -79,6 +79,7 @@
     <style name="TimeTravel.DropdownMenu" parent="Widget.Material3.TextInputEditText.OutlinedBox">
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:popupBackground">@drawable/dropdown_menu_popup_background</item>
+        <item name="android:dropDownSelector">@drawable/dropdown_menu_item_selector</item>
         <item name="simpleItemSelectedColor">@android:color/transparent</item>
     </style>
 </resources>

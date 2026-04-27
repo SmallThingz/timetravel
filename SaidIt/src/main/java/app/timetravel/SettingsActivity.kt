@@ -30,7 +30,10 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputLayout
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var themeLayout: TextInputLayout
@@ -70,7 +73,9 @@ class SettingsActivity : AppCompatActivity() {
     private var service: TimeTravelService? = null
     private var serviceBound = false
     private var bindingUi = false
+    private var capabilityUiReady = false
     private var hasUnsavedChanges = false
+    private var capabilityRefreshGeneration = 0
     private var moveAvailabilityGeneration = 0
 
     private val originalSettings = SettingsSnapshot()
@@ -227,7 +232,7 @@ class SettingsActivity : AppCompatActivity() {
         moveRecordingsButton.setOnClickListener { moveExistingRecordings() }
         batteryOptimizationButton.setOnClickListener { openBatteryOptimizationSettings() }
         setupListeners()
-        bindUiFromPreferences(true)
+        bindUiFromPreferences()
     }
 
     override fun onStart() {
@@ -326,7 +331,7 @@ class SettingsActivity : AppCompatActivity() {
 
         bitrateSlider.addOnChangeListener { _, value, fromUser ->
             if (bindingUi) return@addOnChangeListener
-            updateBitrateValueLabel(value.toInt())
+            updateBitrateValueLabel(value.roundToInt())
             if (!fromUser) return@addOnChangeListener
             refreshRetentionFields(preserveActiveInputs = true)
             saveCurrentToSnapshot(currentSettings)
@@ -343,12 +348,16 @@ class SettingsActivity : AppCompatActivity() {
         codecDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(codecDropdown)
-                refreshSourceModes(
-                    preferredSource = currentSourceMode(),
-                    preferredChannelMode = currentChannelMode(),
-                    preferredRate = currentSampleRate(),
-                )
-                refreshBitrateField()
+                if (capabilityUiReady) {
+                    refreshSourceModes(
+                        preferredSource = currentSourceMode(),
+                        preferredChannelMode = currentChannelMode(),
+                        preferredRate = currentSampleRate(),
+                    )
+                    refreshBitrateField()
+                } else {
+                    refreshCapabilityUiAsync(resetOriginalSnapshot = false)
+                }
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
@@ -356,13 +365,17 @@ class SettingsActivity : AppCompatActivity() {
         inputRouteDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(inputRouteDropdown)
-                refreshCodecOptions(
-                    preferredCodec = currentCodec(),
-                    preferredSource = currentSourceMode(),
-                    preferredChannelMode = currentChannelMode(),
-                    preferredRate = currentSampleRate(),
-                    preferredBitrateKbps = currentBitrateKbpsOrNull(),
-                )
+                if (capabilityUiReady) {
+                    refreshCodecOptions(
+                        preferredCodec = currentCodec(),
+                        preferredSource = currentSourceMode(),
+                        preferredChannelMode = currentChannelMode(),
+                        preferredRate = currentSampleRate(),
+                        preferredBitrateKbps = currentBitrateKbpsOrNull(),
+                    )
+                } else {
+                    refreshCapabilityUiAsync(resetOriginalSnapshot = false)
+                }
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
@@ -370,10 +383,14 @@ class SettingsActivity : AppCompatActivity() {
         audioSourceDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(audioSourceDropdown)
-                refreshChannelModes(
-                    preferredChannelMode = currentChannelMode(),
-                    preferredRate = currentSampleRate(),
-                )
+                if (capabilityUiReady) {
+                    refreshChannelModes(
+                        preferredChannelMode = currentChannelMode(),
+                        preferredRate = currentSampleRate(),
+                    )
+                } else {
+                    refreshCapabilityUiAsync(resetOriginalSnapshot = false)
+                }
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
@@ -381,8 +398,12 @@ class SettingsActivity : AppCompatActivity() {
         channelModeDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(channelModeDropdown)
-                refreshSampleRates(preferredRate = currentSampleRate())
-                refreshBitrateField()
+                if (capabilityUiReady) {
+                    refreshSampleRates(preferredRate = currentSampleRate())
+                    refreshBitrateField()
+                } else {
+                    refreshCapabilityUiAsync(resetOriginalSnapshot = false)
+                }
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
@@ -425,8 +446,9 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun bindUiFromPreferences(isInitial: Boolean = false) {
+    private fun bindUiFromPreferences() {
         bindingUi = true
+        capabilityUiReady = false
 
         val prefs = getRecorderPreferences(this)
         val configuredThemeMode = getConfiguredThemeMode(this)
@@ -440,7 +462,9 @@ class SettingsActivity : AppCompatActivity() {
         val configuredRoute = getConfiguredInputRouteMode(this)
         val configuredSource = getConfiguredAudioSourceMode(this)
         val configuredChannelMode = getConfiguredChannelMode(this)
-        val configuredRate = getConfiguredSampleRate(this, configuredSource, configuredRoute, configuredCodec, configuredChannelMode)
+        val configuredRate = prefs.getInt(TimeTravelConfig.SAMPLE_RATE_KEY, standardSampleRates().first())
+            .takeIf { it > 0 }
+            ?: standardSampleRates().first()
         val configuredBitrateKbps = getConfiguredCodecBitrateKbps(this, configuredCodec, configuredRate, configuredChannelMode.channelCount) ?: 0
         val configuredExportTreeUri = getConfiguredExportTreeUri(this)
         val configuredPersistentBuffer = isDiskBufferCacheEnabled(this)
@@ -459,22 +483,45 @@ class SettingsActivity : AppCompatActivity() {
             getString(configuredThemeMode.labelRes),
         )
 
-        availableRouteModes = supportedInputRouteModes(this)
-        val selectedRoute = availableRouteModes.firstOrNull { it == configuredRoute } ?: availableRouteModes.first()
+        availableRouteModes = InputRouteMode.entries
         setDropdownItems(
             inputRouteDropdown,
             availableRouteModes.map { getString(it.labelRes) },
-            getString(selectedRoute.labelRes),
+            getString(configuredRoute.labelRes),
         )
 
-        refreshCodecOptions(
-            preferredCodec = configuredCodec,
-            preferredSource = configuredSource,
-            preferredChannelMode = configuredChannelMode,
-            preferredRate = configuredRate,
-            preferredBitrateKbps = configuredBitrateKbps,
+        availableCodecs = ExportCodec.entries
+        setDropdownItems(
+            codecDropdown,
+            availableCodecs.map { getString(it.labelRes) },
+            getString(configuredCodec.labelRes),
         )
-        bindingUi = true
+
+        availableSourceModes = AudioSourceMode.availableModes()
+        setDropdownItems(
+            audioSourceDropdown,
+            availableSourceModes.map { getString(it.labelRes) },
+            getString(configuredSource.labelRes),
+        )
+
+        availableChannelModes = ChannelMode.entries
+        setDropdownItems(
+            channelModeDropdown,
+            availableChannelModes.map { getString(it.labelRes) },
+            getString(configuredChannelMode.labelRes),
+        )
+
+        availableSampleRates = buildList {
+            add(configuredRate)
+            addAll(standardSampleRates())
+        }.filter { it > 0 }.distinct()
+        setDropdownItems(
+            sampleRateDropdown,
+            availableSampleRates.map(::sampleRateLabel),
+            sampleRateLabel(configuredRate),
+        )
+        sampleRateDropdown.isEnabled = true
+        refreshBitrateField(preferredKbps = configuredBitrateKbps)
 
         persistentBufferSwitch.isChecked = configuredPersistentBuffer
         aggressiveRestartSwitch.isChecked = configuredAggressiveRestart
@@ -489,6 +536,59 @@ class SettingsActivity : AppCompatActivity() {
         originalSettings.copyFrom(currentSettings)
         hasUnsavedChanges = false
         updateUndoButton(false)
+        refreshCapabilityUiAsync(resetOriginalSnapshot = true)
+    }
+
+    private fun snapshotCurrentUi(): SettingsSnapshot {
+        return SettingsSnapshot().also(::saveCurrentToSnapshot)
+    }
+
+    private fun refreshCapabilityUiAsync(resetOriginalSnapshot: Boolean) {
+        val generation = ++capabilityRefreshGeneration
+        val preferred = snapshotCurrentUi()
+        lifecycleScope.launch(Dispatchers.Default) {
+            warmRecorderCapabilityCache(applicationContext)
+            withContext(Dispatchers.Main) {
+                if (generation != capabilityRefreshGeneration || isFinishing || isDestroyed) {
+                    return@withContext
+                }
+                applyResolvedCapabilityUi(preferred, resetOriginalSnapshot)
+            }
+        }
+    }
+
+    private fun applyResolvedCapabilityUi(
+        preferred: SettingsSnapshot,
+        resetOriginalSnapshot: Boolean,
+    ) {
+        val shouldResetOriginalSnapshot = resetOriginalSnapshot && !hasUnsavedChanges
+        bindingUi = true
+        availableRouteModes = supportedInputRouteModes(this)
+        val selectedRoute = preferred.route?.takeIf { it in availableRouteModes } ?: availableRouteModes.first()
+        setDropdownItems(
+            inputRouteDropdown,
+            availableRouteModes.map { getString(it.labelRes) },
+            getString(selectedRoute.labelRes),
+        )
+        refreshCodecOptions(
+            preferredCodec = preferred.codec,
+            preferredSource = preferred.source,
+            preferredChannelMode = preferred.channelMode,
+            preferredRate = preferred.sampleRate,
+            preferredBitrateKbps = preferred.bitrateKbps,
+        )
+        bindingUi = false
+        capabilityUiReady = true
+        refreshRetentionFields(preserveActiveInputs = true)
+        refreshMoveRecordingsAvailability()
+        saveCurrentToSnapshot(currentSettings)
+        if (shouldResetOriginalSnapshot) {
+            originalSettings.copyFrom(currentSettings)
+            hasUnsavedChanges = false
+            updateUndoButton(false)
+        } else {
+            pushUndoState()
+        }
     }
 
     private fun saveCurrentToSnapshot(snapshot: SettingsSnapshot) {
@@ -542,13 +642,17 @@ class SettingsActivity : AppCompatActivity() {
             getString(previous.route?.labelRes ?: availableRouteModes.first().labelRes),
         )
 
-        refreshCodecOptions(
-            preferredCodec = previous.codec,
-            preferredSource = previous.source,
-            preferredChannelMode = previous.channelMode,
-            preferredRate = previous.sampleRate,
-            preferredBitrateKbps = previous.bitrateKbps,
-        )
+        if (capabilityUiReady) {
+            refreshCodecOptions(
+                preferredCodec = previous.codec,
+                preferredSource = previous.source,
+                preferredChannelMode = previous.channelMode,
+                preferredRate = previous.sampleRate,
+                preferredBitrateKbps = previous.bitrateKbps,
+            )
+        } else {
+            refreshBitrateField(preferredKbps = previous.bitrateKbps)
+        }
 
         bindingUi = false
         refreshRetentionFields()
@@ -559,6 +663,9 @@ class SettingsActivity : AppCompatActivity() {
         currentSettings.copyFrom(previous)
         hasUnsavedChanges = false
         updateUndoButton(false)
+        if (!capabilityUiReady) {
+            refreshCapabilityUiAsync(resetOriginalSnapshot = false)
+        }
     }
 
     private fun refreshCodecOptions(
@@ -656,7 +763,7 @@ class SettingsActivity : AppCompatActivity() {
         bindingUi = true
         bitrateSlider.valueFrom = range.first.toFloat()
         bitrateSlider.valueTo = range.last.toFloat()
-        bitrateSlider.stepSize = codecBitrateStepKbps(codec).toFloat()
+        bitrateSlider.stepSize = 0f
         bitrateSlider.value = resolvedBitrateKbps.toFloat()
         updateBitrateValueLabel(resolvedBitrateKbps)
         bindingUi = previousBindingUi
@@ -875,7 +982,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun currentBitrateKbpsOrNull(): Int? {
         val range = codecBitrateRangeKbps(currentCodec()) ?: return null
-        return bitrateSlider.value.toInt().coerceIn(range)
+        return bitrateSlider.value.roundToInt().coerceIn(range)
     }
 
     private fun updateBitrateValueLabel(valueKbps: Int) {
@@ -1042,9 +1149,9 @@ private class DropdownHighlightAdapter(
     context: Context,
     items: List<String>,
     selectedValue: String,
-) : ArrayAdapter<String>(context, R.layout.item_dropdown_option, items.toMutableList()) {
+) : ArrayAdapter<String>(context, R.layout.item_dropdown_option, android.R.id.text1, items.toMutableList()) {
     private var selectedValue = selectedValue
-    private val edgePaddingPx = (context.resources.displayMetrics.density * 16f).toInt()
+    private val edgePaddingPx = (context.resources.displayMetrics.density * 6f).toInt()
 
     fun replaceItems(
         items: List<String>,
@@ -1085,13 +1192,13 @@ private class DropdownHighlightAdapter(
         view: View,
         value: String,
     ) {
-        val label = view as TextView
+        val label = view.findViewById<TextView>(android.R.id.text1)
         val active = value == selectedValue
         val topPadding = if (positionOf(value) == 0) edgePaddingPx else 0
         val bottomPadding = if (positionOf(value) == count - 1) edgePaddingPx else 0
-        val baseVerticalPadding = (context.resources.displayMetrics.density * 14f).toInt()
-        val horizontalPadding = (context.resources.displayMetrics.density * 16f).toInt()
-        label.setPadding(horizontalPadding, baseVerticalPadding + topPadding, horizontalPadding, baseVerticalPadding + bottomPadding)
+        view.setPaddingRelative(0, topPadding, 0, bottomPadding)
+        view.isActivated = active
+        view.isSelected = active
         label.isActivated = active
         label.isSelected = active
     }

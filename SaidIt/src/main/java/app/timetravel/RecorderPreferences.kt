@@ -33,6 +33,7 @@ private val inputConfigCache = ConcurrentHashMap<InputConfigKey, Boolean>()
 private val sampleRatesCache = ConcurrentHashMap<SampleRatesKey, List<Int>>()
 private val sourceModesCache = ConcurrentHashMap<SourceModesKey, List<AudioSourceMode>>()
 private val channelModesCache = ConcurrentHashMap<ChannelModesKey, List<ChannelMode>>()
+private val capabilityWarmLock = Any()
 
 @Volatile
 private var cachedSupportedCodecs: List<ExportCodec>? = null
@@ -644,6 +645,10 @@ fun supportedInputRouteModes(context: Context): List<InputRouteMode> {
     }
 }
 
+fun standardSampleRates(): List<Int> = SAMPLE_RATE_CANDIDATES.toList()
+
+fun isRecorderCapabilityCacheWarm(): Boolean = capabilityCacheWarm
+
 fun sampleRateLabel(sampleRate: Int): String {
     return if (sampleRate % 1000 == 0) {
         "${sampleRate / 1000} kHz"
@@ -747,19 +752,22 @@ fun supportedCodecs(): List<ExportCodec> {
 
 fun warmRecorderCapabilityCache(context: Context) {
     if (capabilityCacheWarm) return
-    val appContext = context.applicationContext
-    val routes = supportedInputRouteModes(appContext)
-    val codecs = supportedCodecs()
-    codecs.forEach { codec ->
-        routes.forEach { route ->
-            AudioSourceMode.availableModes().forEach { source ->
-                ChannelMode.entries.forEach { channelMode ->
-                    supportedSampleRates(appContext, source, route, codec, channelMode)
+    synchronized(capabilityWarmLock) {
+        if (capabilityCacheWarm) return
+        val appContext = context.applicationContext
+        val routes = supportedInputRouteModes(appContext)
+        val codecs = supportedCodecs()
+        codecs.forEach { codec ->
+            routes.forEach { route ->
+                AudioSourceMode.availableModes().forEach { source ->
+                    ChannelMode.entries.forEach { channelMode ->
+                        supportedSampleRates(appContext, source, route, codec, channelMode)
+                    }
                 }
             }
         }
+        capabilityCacheWarm = true
     }
-    capabilityCacheWarm = true
 }
 
 private fun bytesPerSecond(

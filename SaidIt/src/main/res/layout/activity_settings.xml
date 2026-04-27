@@ -248,7 +248,7 @@
                         android:contentDescription="@string/codec_bitrate_label"
                         android:valueFrom="32"
                         android:valueTo="320"
-                        android:stepSize="8"
+                        android:stepSize="0"
                         android:value="128" />
                 </LinearLayout>
 
