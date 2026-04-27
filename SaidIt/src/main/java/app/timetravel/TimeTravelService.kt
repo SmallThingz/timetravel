@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -24,6 +25,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import java.io.File
 import java.io.IOException
 
 @SuppressLint("ImplicitSamInstance")
@@ -94,6 +96,7 @@ class TimeTravelService : Service() {
     }
 
     override fun onDestroy() {
+        audioHandler.post { syncPersistentBufferFromMemory() }
         stopRecording(null)
         audioHandler.removeCallbacks(audioReader)
         releaseAudioRecord()
@@ -814,6 +817,7 @@ class TimeTravelService : Service() {
         } else {
             startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification())
         }
+        handleDebugCommand(intent)
         return START_STICKY
     }
 
@@ -896,7 +900,101 @@ class TimeTravelService : Service() {
             persistentAudioRingStore.clear()
             return
         }
+        liveExportHistory.checkpoint()
         persistentAudioRingStore.replaceWith(audioMemory, sampleRate, channelMode.channelCount)
+    }
+
+    private fun handleDebugCommand(intent: Intent?) {
+        if (!isDebuggableBuild()) {
+            return
+        }
+        val action = intent?.action ?: return
+        if (!action.startsWith(DEBUG_ACTION_PREFIX)) {
+            return
+        }
+
+        val seconds = intent.getFloatExtra(EXTRA_DEBUG_SECONDS, 0f)
+        audioHandler.post {
+            when (action) {
+                ACTION_DEBUG_ENABLE_LISTENING -> mainHandler.post { enableListening() }
+                ACTION_DEBUG_DISABLE_LISTENING -> mainHandler.post { disableListening() }
+                ACTION_DEBUG_CLEAR_BUFFER -> if (state != STATE_RECORDING) {
+                    audioMemory.clear()
+                    liveExportHistory.clear()
+                    persistentAudioRingStore.clear()
+                }
+                ACTION_DEBUG_EXPORT_FULL -> exportDebug(FULL_BUFFER_SECONDS)
+                ACTION_DEBUG_EXPORT_SECONDS -> exportDebug(seconds)
+                ACTION_DEBUG_CHECKPOINT -> syncPersistentBufferFromMemory()
+                ACTION_DEBUG_LOG_STATE -> logDebugState()
+                ACTION_DEBUG_DUMP_REPORT -> writeDebugReport("manual-dump")
+            }
+        }
+    }
+
+    private fun exportDebug(seconds: Float) {
+        if (seconds <= 0f) {
+            Log.w(TAG, "Debug export ignored; seconds=$seconds")
+            return
+        }
+        if (state != STATE_LISTENING && state != STATE_PAUSED) {
+            Log.w(TAG, "Debug export ignored; state=$state")
+            return
+        }
+        dumpRecording(seconds, DebugAudioFileReceiver(), "")
+    }
+
+    private fun logDebugState() {
+        val stats = audioMemory.getStats(fillRate)
+        val persisted = persistentAudioRingStore.peekSnapshot()
+        Log.d(
+            TAG,
+            "debug-state state=$state filled=${stats.filled} total=${stats.total} overwriting=${stats.overwriting} " +
+                "sampleRate=$sampleRate channels=${channelMode.channelCount} codec=${effectiveOutputCodec.prefValue} " +
+                "persistedFilled=${persisted?.filledBytes ?: 0} persistedCapacity=${persisted?.capacityBytes ?: 0}",
+        )
+    }
+
+    private fun writeDebugReport(reason: String) {
+        val reportFile = resolveDebugReportFile()
+        val stats = audioMemory.getStats(fillRate)
+        val persisted = persistentAudioRingStore.peekSnapshot()
+        val history = liveExportHistory.debugSnapshot()
+        reportFile.parentFile?.mkdirs()
+        reportFile.appendText(
+            buildString {
+                appendLine("reason=$reason")
+                appendLine("state=$state")
+                appendLine("sampleRate=$sampleRate")
+                appendLine("channelCount=${channelMode.channelCount}")
+                appendLine("codec=${effectiveOutputCodec.prefValue}")
+                appendLine("filled=${stats.filled}")
+                appendLine("total=${stats.total}")
+                appendLine("overwriting=${stats.overwriting}")
+                appendLine("persistedFilled=${persisted?.filledBytes ?: 0}")
+                appendLine("persistedCapacity=${persisted?.capacityBytes ?: 0}")
+                appendLine("persistedLastWrite=${persisted?.lastWriteAtMillis ?: 0}")
+                appendLine("historySegments=${history.segmentCount}")
+                appendLine("historyTotalSampleBytes=${history.totalSampleBytes}")
+                appendLine("historyCurrentSegmentBytes=${history.currentSegmentSampleBytes}")
+                appendLine("historyNextSegmentStart=${history.nextSegmentStartMillis ?: 0}")
+                appendLine("historyFiles=${history.segmentFiles.joinToString(",")}")
+                appendLine("exportDir=${describeConfiguredOutputDirectory(this@TimeTravelService)}")
+                appendLine("---")
+            },
+        )
+    }
+
+    private fun resolveDebugReportFile(): File {
+        val directory = getSavedRecordingsDirectory(this)
+        if (!directory.exists()) {
+            directory.mkdirs()
+        }
+        return File(directory, "debug-report.txt")
+    }
+
+    private fun isDebuggableBuild(): Boolean {
+        return (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     }
 
     private fun adoptPersistedBufferConfigurationIfNeeded() {
@@ -998,11 +1096,34 @@ class TimeTravelService : Service() {
         BLOCKED_RECORDING,
     }
 
+    private inner class DebugAudioFileReceiver : AudioFileReceiver {
+        override fun fileReady(recording: RecordingEntity) {
+            Log.d(TAG, "debug-export-ready id=${recording.id} name=${recording.displayName} size=${recording.sizeBytes}")
+            writeDebugReport("export-ready:${recording.displayName}:${recording.sizeBytes}")
+        }
+
+        override fun fileFailed(message: String) {
+            Log.e(TAG, "debug-export-failed $message")
+            writeDebugReport("export-failed:$message")
+        }
+    }
+
     companion object {
         val TAG: String = TimeTravelService::class.java.simpleName
         const val NOTIFICATION_CHANNEL_ID = "TimeTravelRecorderChannel"
         const val FOREGROUND_NOTIFICATION_ID = 458
         const val MIN_AUDIO_RECORD_BUFFER_SIZE = 16 * 1024
+        const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
+        const val DEBUG_ACTION_PREFIX = "app.timetravel.debug."
+        const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
+        const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
+        const val ACTION_DEBUG_CLEAR_BUFFER = "${DEBUG_ACTION_PREFIX}CLEAR_BUFFER"
+        const val ACTION_DEBUG_EXPORT_FULL = "${DEBUG_ACTION_PREFIX}EXPORT_FULL"
+        const val ACTION_DEBUG_EXPORT_SECONDS = "${DEBUG_ACTION_PREFIX}EXPORT_SECONDS"
+        const val ACTION_DEBUG_CHECKPOINT = "${DEBUG_ACTION_PREFIX}CHECKPOINT"
+        const val ACTION_DEBUG_LOG_STATE = "${DEBUG_ACTION_PREFIX}LOG_STATE"
+        const val ACTION_DEBUG_DUMP_REPORT = "${DEBUG_ACTION_PREFIX}DUMP_REPORT"
+        const val EXTRA_DEBUG_SECONDS = "seconds"
 
         const val STATE_READY = 0
         const val STATE_LISTENING = 1

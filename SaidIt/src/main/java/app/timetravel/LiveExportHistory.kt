@@ -82,6 +82,11 @@ internal class LiveExportHistory(
     }
 
     @Synchronized
+    fun checkpoint() {
+        closeCurrentSegmentLocked()
+    }
+
+    @Synchronized
     fun clear() {
         resetLocked()
     }
@@ -586,12 +591,31 @@ internal class LiveExportHistory(
         val requestedSampleBytes: Long,
     )
 
+    data class DebugSnapshot(
+        val segmentCount: Int,
+        val totalSampleBytes: Long,
+        val currentSegmentSampleBytes: Long,
+        val nextSegmentStartMillis: Long?,
+        val segmentFiles: List<String>,
+    )
+
+    @Synchronized
+    fun debugSnapshot(): DebugSnapshot {
+        return DebugSnapshot(
+            segmentCount = segments.size,
+            totalSampleBytes = segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L),
+            currentSegmentSampleBytes = currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L,
+            nextSegmentStartMillis = nextSegmentStartMillis,
+            segmentFiles = segments.map { it.file.name },
+        )
+    }
+
     private companion object {
         const val WAV_HEADER_BYTES = 44L
         const val COPY_BUFFER_BYTES = 256 * 1024
-        const val DEFAULT_SEGMENT_DURATION_MS = 30_000L
-        const val MIN_SEGMENT_DURATION_MS = 10_000L
-        const val MAX_SEGMENT_DURATION_MS = 120_000L
+        const val DEFAULT_SEGMENT_DURATION_MS = 2_000L
+        const val MIN_SEGMENT_DURATION_MS = 2_000L
+        const val MAX_SEGMENT_DURATION_MS = 2_000L
         val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
         val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")
 
