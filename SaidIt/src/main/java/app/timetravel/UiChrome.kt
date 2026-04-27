@@ -1,17 +1,21 @@
 package app.timetravel
 
 import android.app.Activity
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import com.google.android.material.color.MaterialColors
 
 internal fun Activity.applyTimeTravelSystemBars() {
+    val surfaceColor = MaterialColors.getColor(window.decorView, com.google.android.material.R.attr.colorSurface)
+    val useDarkSystemIcons = ColorUtils.calculateLuminance(surfaceColor) > 0.5
+
     @Suppress("DEPRECATION")
-    window.statusBarColor = MaterialColors.getColor(window.decorView, com.google.android.material.R.attr.colorSurface)
+    window.statusBarColor = surfaceColor
     @Suppress("DEPRECATION")
-    window.navigationBarColor = MaterialColors.getColor(window.decorView, com.google.android.material.R.attr.colorSurface)
+    window.navigationBarColor = surfaceColor
 
     WindowCompat.getInsetsController(window, window.decorView).apply {
-        isAppearanceLightStatusBars = false
-        isAppearanceLightNavigationBars = false
+        isAppearanceLightStatusBars = useDarkSystemIcons
+        isAppearanceLightNavigationBars = useDarkSystemIcons
     }
 }

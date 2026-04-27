@@ -332,6 +332,18 @@ fun deleteRecordingAsset(
     }
 }
 
+fun renameRecordingAsset(
+    context: Context,
+    recording: RecordingEntity,
+    requestedBaseName: String,
+): RecordingEntity? {
+    val displayName = buildRenamedDisplayName(recording.displayName, requestedBaseName)
+    return when (RecordingStorageType.valueOf(recording.storageType)) {
+        RecordingStorageType.FILE -> renameFileRecording(recording, displayName)
+        RecordingStorageType.DOCUMENT -> renameDocumentRecording(context, recording, displayName)
+    }
+}
+
 fun copyRecordingToConfiguredDirectory(
     context: Context,
     recording: RecordingEntity,
@@ -461,6 +473,50 @@ private fun createLocalOutputTarget(
     )
 }
 
+private fun renameFileRecording(
+    recording: RecordingEntity,
+    displayName: String,
+): RecordingEntity? {
+    val source = File(recording.id)
+    val parent = source.parentFile ?: return null
+    val uniqueName = findAvailableDisplayName(displayName) { candidate ->
+        candidate != source.name && File(parent, candidate).exists()
+    }
+    if (uniqueName == source.name) {
+        return recording
+    }
+    val target = File(parent, uniqueName)
+    if (!source.renameTo(target)) {
+        return null
+    }
+    return recording.copy(
+        id = target.absolutePath,
+        displayName = uniqueName,
+    )
+}
+
+private fun renameDocumentRecording(
+    context: Context,
+    recording: RecordingEntity,
+    displayName: String,
+): RecordingEntity? {
+    val document = DocumentFile.fromSingleUri(context, Uri.parse(recording.id)) ?: return null
+    val tree = DocumentFile.fromTreeUri(context, Uri.parse(recording.directoryId)) ?: return null
+    val uniqueName = findAvailableDisplayName(displayName) { candidate ->
+        candidate != document.name && tree.findFile(candidate) != null
+    }
+    if (uniqueName == document.name) {
+        return recording
+    }
+    if (!document.renameTo(uniqueName)) {
+        return null
+    }
+    return recording.copy(
+        id = document.uri.toString(),
+        displayName = document.name ?: uniqueName,
+    )
+}
+
 private fun createDocumentOutputTarget(
     context: Context,
     treeUri: Uri,
@@ -517,6 +573,15 @@ private fun sanitizeBaseName(name: String): String {
         .trim()
         .replace(Regex("\\s+"), " ")
     return sanitized.ifEmpty { "TimeTravel" }
+}
+
+private fun buildRenamedDisplayName(
+    existingDisplayName: String,
+    requestedBaseName: String,
+): String {
+    val extension = existingDisplayName.substringAfterLast('.', "")
+    val baseName = sanitizeBaseName(requestedBaseName.substringBeforeLast('.', requestedBaseName))
+    return if (extension.isBlank()) baseName else "$baseName.$extension"
 }
 
 private fun guessMimeType(displayName: String): String {

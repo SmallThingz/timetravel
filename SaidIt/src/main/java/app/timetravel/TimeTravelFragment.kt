@@ -16,17 +16,15 @@ import android.graphics.Typeface
 import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
 import android.os.IBinder
-import android.view.ContextThemeWrapper
 import android.util.Log
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.textfield.TextInputLayout
@@ -370,8 +368,7 @@ class TimeTravelFragment : Fragment() {
             strokeWidth = resources.displayMetrics.density
         }
         listenRingDrawable = MaterialShapeDrawable(circleShape).apply {
-            fillColor = ColorStateList.valueOf(Color.TRANSPARENT)
-            strokeWidth = resources.displayMetrics.density
+            strokeWidth = resources.displayMetrics.density * 0.85f
             strokeColor = ColorStateList.valueOf(
                 MaterialColors.getColor(
                     listenSurface,
@@ -465,19 +462,26 @@ class TimeTravelFragment : Fragment() {
 
         val fillColor = MaterialColors.getColor(
             listenSurface,
-            if (active) com.google.android.material.R.attr.colorSurfaceContainerHigh
-            else com.google.android.material.R.attr.colorSurfaceContainerHighest,
+            if (active) com.google.android.material.R.attr.colorPrimaryContainer
+            else com.google.android.material.R.attr.colorSurfaceContainerHigh,
         )
         val contentColor = MaterialColors.getColor(
             listenSurface,
-            com.google.android.material.R.attr.colorOnSurface,
+            if (active) com.google.android.material.R.attr.colorOnPrimaryContainer
+            else com.google.android.material.R.attr.colorOnSurface,
         )
-        val strokeBaseColor = MaterialColors.getColor(
+        val borderBaseColor = MaterialColors.getColor(
             listenSurface,
-            com.google.android.material.R.attr.colorOutlineVariant,
+            if (active) androidx.appcompat.R.attr.colorPrimary
+            else com.google.android.material.R.attr.colorOutlineVariant,
         )
-        val strokeColor = ColorUtils.setAlphaComponent(strokeBaseColor, if (active) 88 else 56)
-        val ringStrokeColor = ColorUtils.setAlphaComponent(strokeBaseColor, if (active) 56 else 24)
+        val ringBaseColor = MaterialColors.getColor(
+            listenSurface,
+            if (active) androidx.appcompat.R.attr.colorPrimary
+            else com.google.android.material.R.attr.colorOutlineVariant,
+        )
+        val strokeColor = ColorUtils.setAlphaComponent(borderBaseColor, if (active) 52 else 34)
+        val ringStrokeColor = ColorUtils.setAlphaComponent(ringBaseColor, if (active) 30 else 16)
         listenSurfaceDrawable.fillColor = ColorStateList.valueOf(fillColor)
         listenSurfaceDrawable.strokeColor = ColorStateList.valueOf(strokeColor)
         listenRingDrawable.strokeColor = ColorStateList.valueOf(ringStrokeColor)
@@ -510,8 +514,8 @@ class TimeTravelFragment : Fragment() {
         }
 
         val recordingPulse = mode == PULSE_RECORDING
-        val scaleTo = if (recordingPulse) 1.06f else 1.04f
-        val duration = if (recordingPulse) 1800L else 3200L
+        val scaleTo = if (recordingPulse) 1.09f else 1.065f
+        val duration = if (recordingPulse) 2200L else 3400L
 
         pulseAnimators = listOf(
             createGlowAnimator(listenRing, "scaleX", 1f, scaleTo, duration),
@@ -594,130 +598,52 @@ class TimeTravelFragment : Fragment() {
         }
 
         private fun promptForCustomDuration(keepRecording: Boolean) {
-            val dialogContext = ContextThemeWrapper(requireContext(), R.style.ThemeOverlay_TimeTravel_AlertDialog)
-            val scrollView = ScrollView(dialogContext).apply {
-                isFillViewport = true
-                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
-            val content = LinearLayout(dialogContext).apply {
-                orientation = LinearLayout.VERTICAL
-                val horizontal = dp(24)
-                setPadding(horizontal, dp(12), horizontal, dp(4))
-                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
-            scrollView.addView(content)
+            val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null, false)
+            val durationLayout = content.findViewById<TextInputLayout>(R.id.custom_duration_layout)
+            val durationField = content.findViewById<TextInputEditText>(R.id.custom_duration_value)
+            durationField.setSelectAllOnFocus(true)
 
-            content.addView(TextView(dialogContext).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-                text = getString(R.string.custom_export_duration_supporting)
-                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
-            })
+            val handle = ThemedDialog.create(
+                context = requireContext(),
+                title = getString(R.string.custom_time),
+                content = content,
+                positiveText = getString(R.string.save),
+            )
 
-            val durationLayout = TextInputLayout(dialogContext).apply {
-                hint = getString(R.string.custom_export_duration_label)
-                isErrorEnabled = true
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    topMargin = dp(16)
-                }
-            }
-            val durationField = TextInputEditText(dialogContext).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-                hint = getString(R.string.custom_export_duration_hint)
-                imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
-                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                maxLines = 1
-                setSelectAllOnFocus(true)
-            }
-            durationLayout.addView(durationField)
-            content.addView(durationLayout)
-
-            val actionRow = LinearLayout(dialogContext).apply {
-                gravity = android.view.Gravity.END
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    topMargin = dp(12)
-                }
-            }
-            val cancelButton = MaterialButton(dialogContext, null, com.google.android.material.R.attr.materialButtonStyle).apply {
-                text = getString(R.string.cancel)
-            }
-            val saveButton = MaterialButton(dialogContext, null, com.google.android.material.R.attr.materialButtonStyle).apply {
-                text = getString(R.string.save)
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    marginStart = dp(8)
-                }
-            }
-            actionRow.addView(cancelButton)
-            actionRow.addView(saveButton)
-            content.addView(actionRow)
-
-            val surface = LinearLayout(dialogContext).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                background = MaterialShapeDrawable(
-                    ShapeAppearanceModel.builder().setAllCornerSizes(dp(18).toFloat()).build(),
-                ).apply {
-                    fillColor = ColorStateList.valueOf(
-                        MaterialColors.getColor(dialogContext, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0),
-                    )
-                }
-                addView(TextView(dialogContext).apply {
-                    layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    )
-                    setPadding(dp(24), dp(20), dp(24), 0)
-                    text = getString(R.string.custom_time)
-                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
-                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
-                })
-                addView(scrollView)
-            }
-
-            val dialog = AppCompatDialog(dialogContext).apply {
-                setCancelable(true)
-                setContentView(surface)
-            }
-            cancelButton.setOnClickListener { dialog.dismiss() }
-            saveButton.setOnClickListener {
+            fun submit(): Boolean {
                 val seconds = parseDurationInput(durationField.text?.toString().orEmpty())?.toFloat()
                 if (seconds == null || seconds <= 0f) {
                     durationLayout.error = getString(R.string.custom_export_duration_invalid)
-                    return@setOnClickListener
+                    return false
                 }
 
                 durationLayout.error = null
-                val service = recorder ?: return@setOnClickListener
+                val service = recorder ?: return false
                 if (keepRecording) {
                     service.startRecording(seconds)
                 } else {
                     setSavingInProgress(true)
                     service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
                 }
-                dialog.dismiss()
+                handle.dialog.dismiss()
+                return true
+            }
+            handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
+            handle.positiveButton.setOnClickListener { submit() }
+            durationField.setOnEditorActionListener { _, actionId, event ->
+                if (
+                    actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
+                    event?.keyCode == KeyEvent.KEYCODE_ENTER
+                ) {
+                    submit()
+                } else {
+                    false
+                }
             }
 
             durationField.requestFocus()
-            dialog.show()
+            handle.dialog.show()
         }
-
-        private fun dp(value: Int): Int = (resources.displayMetrics.density * value).toInt()
 
         private fun getPrependedSeconds(button: View): Float {
             return when (button.id) {

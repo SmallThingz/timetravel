@@ -40,10 +40,36 @@ object RecordingRepository {
         }
     }
 
+    suspend fun rename(
+        context: Context,
+        recording: RecordingEntity,
+        requestedBaseName: String,
+    ): RecordingEntity? {
+        return withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val renamed = renameRecordingAsset(context, recording, requestedBaseName) ?: return@withLock null
+                dao(context).deleteById(recording.id)
+                dao(context).upsert(renamed)
+                renamed
+            }
+        }
+    }
+
     suspend fun pruneMissing(context: Context): Int {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
                 pruneMissingLocked(context)
+            }
+        }
+    }
+
+    suspend fun hasMovableRecordings(context: Context): Boolean {
+        return withContext(Dispatchers.IO) {
+            mutex.withLock {
+                syncConfiguredDirectory(context)
+                pruneMissingLocked(context)
+                val targetDirectoryId = getConfiguredOutputDirectoryId(context)
+                dao(context).listAll().any { it.directoryId != targetDirectoryId }
             }
         }
     }

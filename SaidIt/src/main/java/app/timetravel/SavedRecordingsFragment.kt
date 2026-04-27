@@ -22,12 +22,21 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
 class SavedRecordingsFragment : Fragment() {
+    private lateinit var brandLockup: View
+    private lateinit var settingsButton: View
+    private lateinit var selectionTitle: TextView
+    private lateinit var selectionActions: View
+    private lateinit var selectionClearButton: View
+    private lateinit var selectionRenameButton: View
+    private lateinit var selectionDeleteButton: View
     private lateinit var list: RecyclerView
     private lateinit var emptyState: View
+    private val selectedRecordingIds = linkedSetOf<String>()
+    private var latestRecordingsById: Map<String, RecordingEntity> = emptyMap()
     private val adapter = SavedRecordingAdapter(
-        onOpen = ::openRecording,
-        onShare = ::shareRecording,
-        onDelete = ::deleteRecording,
+        onOpen = ::handleRecordingTap,
+        onDelete = ::deleteSingleRecording,
+        onToggleSelection = ::toggleSelection,
     )
 
     override fun onCreateView(
@@ -44,9 +53,20 @@ class SavedRecordingsFragment : Fragment() {
     ) {
         super.onViewCreated(view, savedInstanceState)
         applyWindowInsets(view)
-        view.findViewById<View>(R.id.settings_button).setOnClickListener {
+        brandLockup = view.findViewById(R.id.brand_lockup)
+        settingsButton = view.findViewById(R.id.settings_button)
+        selectionTitle = view.findViewById(R.id.selection_title)
+        selectionActions = view.findViewById(R.id.selection_actions)
+        selectionClearButton = view.findViewById(R.id.selection_clear_button)
+        selectionRenameButton = view.findViewById(R.id.selection_rename_button)
+        selectionDeleteButton = view.findViewById(R.id.selection_delete_button)
+
+        settingsButton.setOnClickListener {
             startActivity(Intent(requireContext(), SettingsActivity::class.java))
         }
+        selectionClearButton.setOnClickListener { clearSelection() }
+        selectionDeleteButton.setOnClickListener { deleteSelectedRecordings() }
+        selectionRenameButton.setOnClickListener { renameSelectedRecording() }
 
         list = view.findViewById(R.id.recordings_list)
         emptyState = view.findViewById(R.id.recordings_empty)
@@ -68,19 +88,24 @@ class SavedRecordingsFragment : Fragment() {
         if (!this::list.isInitialized) return
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val recordings = loadSavedRecordings(RecordingRepository.refresh(requireContext()))
+            val storedRecordings = RecordingRepository.refresh(requireContext())
+            latestRecordingsById = storedRecordings.associateBy { it.id }
+            selectedRecordingIds.retainAll(latestRecordingsById.keys)
+            val recordings = loadSavedRecordings(storedRecordings)
             adapter.submitList(recordings)
+            adapter.updateSelection(selectedRecordingIds)
             list.isVisible = recordings.isNotEmpty()
             emptyState.isVisible = recordings.isEmpty()
+            updateSelectionChrome()
         }
     }
 
-    private fun openRecording(recording: RecordingEntity) {
+    private fun handleRecordingTap(recording: RecordingEntity) {
+        if (selectedRecordingIds.isNotEmpty()) {
+            toggleSelection(recording)
+            return
+        }
         launchIntent(buildOpenRecordingIntent(requireContext(), recording))
-    }
-
-    private fun shareRecording(recording: RecordingEntity) {
-        launchIntent(Intent.createChooser(buildShareRecordingIntent(requireContext(), recording), getString(R.string.send)))
     }
 
     private fun launchIntent(intent: Intent) {
@@ -109,6 +134,32 @@ class SavedRecordingsFragment : Fragment() {
         }
     }
 
+    private fun toggleSelection(recording: RecordingEntity) {
+        if (!selectedRecordingIds.add(recording.id)) {
+            selectedRecordingIds.remove(recording.id)
+        }
+        adapter.updateSelection(selectedRecordingIds)
+        updateSelectionChrome()
+    }
+
+    private fun clearSelection() {
+        if (selectedRecordingIds.isEmpty()) return
+        selectedRecordingIds.clear()
+        adapter.updateSelection(selectedRecordingIds)
+        updateSelectionChrome()
+    }
+
+    private fun updateSelectionChrome() {
+        val count = selectedRecordingIds.size
+        val selectionActive = count > 0
+        brandLockup.isVisible = !selectionActive
+        settingsButton.isVisible = !selectionActive
+        selectionTitle.isVisible = selectionActive
+        selectionActions.isVisible = selectionActive
+        selectionTitle.text = resources.getQuantityString(R.plurals.recordings_selected, count, count)
+        selectionRenameButton.isVisible = count == 1
+    }
+
     private fun loadSavedRecordings(recordings: List<RecordingEntity>): List<SavedRecordingListItem> {
         val items = mutableListOf<SavedRecordingListItem>()
         var currentDateHeader = ""
@@ -134,16 +185,77 @@ class SavedRecordingsFragment : Fragment() {
         return items
     }
 
-    private fun deleteRecording(recording: RecordingEntity) {
+    private fun deleteSingleRecording(recording: RecordingEntity) {
         viewLifecycleOwner.lifecycleScope.launch {
             val deleted = RecordingRepository.delete(requireContext(), recording)
             if (!deleted) {
                 Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }
+            selectedRecordingIds.remove(recording.id)
             refreshRecordings()
             Snackbar.make(requireView(), R.string.recording_deleted, Snackbar.LENGTH_LONG).show()
         }
+    }
+
+    private fun deleteSelectedRecordings() {
+        val selected = selectedRecordingIds.mapNotNull(latestRecordingsById::get)
+        if (selected.isEmpty()) {
+            clearSelection()
+            return
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            var deletedCount = 0
+            selected.forEach { recording ->
+                if (RecordingRepository.delete(requireContext(), recording)) {
+                    deletedCount++
+                }
+            }
+            clearSelection()
+            refreshRecordings()
+            val message = if (deletedCount == 1) {
+                getString(R.string.recording_deleted)
+            } else {
+                resources.getQuantityString(R.plurals.recordings_deleted, deletedCount, deletedCount)
+            }
+            Snackbar.make(requireView(), message, Snackbar.LENGTH_LONG).show()
+        }
+    }
+
+    private fun renameSelectedRecording() {
+        val recording = selectedRecordingIds.singleOrNull()?.let(latestRecordingsById::get) ?: return
+        val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_rename_recording, null, false)
+        val nameLayout = content.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.rename_recording_layout)
+        val nameInput = content.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.rename_recording_input)
+        nameInput.setText(recording.displayName.substringBeforeLast('.', recording.displayName))
+        nameInput.setSelection(nameInput.text?.length ?: 0)
+
+        val handle = ThemedDialog.create(
+            context = requireContext(),
+            title = getString(R.string.rename_recording),
+            content = content,
+            positiveText = getString(R.string.save),
+        )
+        handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
+        handle.positiveButton.setOnClickListener {
+            val requestedName = nameInput.text?.toString().orEmpty().trim()
+            if (requestedName.isBlank()) {
+                nameLayout.error = getString(R.string.rename_recording_invalid)
+                return@setOnClickListener
+            }
+            nameLayout.error = null
+            viewLifecycleOwner.lifecycleScope.launch {
+                val renamed = RecordingRepository.rename(requireContext(), recording, requestedName)
+                if (renamed == null) {
+                    Toast.makeText(requireContext(), R.string.rename_recording_failed, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                clearSelection()
+                refreshRecordings()
+                handle.dialog.dismiss()
+            }
+        }
+        handle.dialog.show()
     }
 
     private fun formatSavedRecordingDuration(durationMillis: Long): String {
@@ -175,9 +287,15 @@ private sealed class SavedRecordingListItem {
 
 private class SavedRecordingAdapter(
     private val onOpen: (RecordingEntity) -> Unit,
-    private val onShare: (RecordingEntity) -> Unit,
     private val onDelete: (RecordingEntity) -> Unit,
+    private val onToggleSelection: (RecordingEntity) -> Unit,
 ) : ListAdapter<SavedRecordingListItem, RecyclerView.ViewHolder>(SavedRecordingDiffCallback()) {
+    private var selectedIds: Set<String> = emptySet()
+
+    fun updateSelection(selection: Set<String>) {
+        selectedIds = selection.toSet()
+        notifyDataSetChanged()
+    }
 
     override fun getItemViewType(position: Int): Int {
         return when (getItem(position)) {
@@ -194,7 +312,7 @@ private class SavedRecordingAdapter(
         return if (viewType == 0) {
             HeaderViewHolder(inflater.inflate(R.layout.item_recording_header, parent, false))
         } else {
-            SavedRecordingViewHolder(inflater.inflate(R.layout.item_saved_recording, parent, false), onOpen, onShare, onDelete)
+            SavedRecordingViewHolder(inflater.inflate(R.layout.item_saved_recording, parent, false), onOpen, onDelete, onToggleSelection)
         }
     }
 
@@ -204,7 +322,14 @@ private class SavedRecordingAdapter(
     ) {
         when (val item = getItem(position)) {
             is SavedRecordingListItem.Header -> (holder as HeaderViewHolder).bind(item)
-            is SavedRecordingListItem.Recording -> (holder as SavedRecordingViewHolder).bind(item)
+            is SavedRecordingListItem.Recording -> {
+                val selectionActive = selectedIds.isNotEmpty()
+                (holder as SavedRecordingViewHolder).bind(
+                    item = item,
+                    selectionActive = selectionActive,
+                    selected = item.recording.id in selectedIds,
+                )
+            }
         }
     }
 }
@@ -220,9 +345,10 @@ private class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemVie
 private class SavedRecordingViewHolder(
     itemView: View,
     private val onOpen: (RecordingEntity) -> Unit,
-    private val onShare: (RecordingEntity) -> Unit,
     private val onDelete: (RecordingEntity) -> Unit,
+    private val onToggleSelection: (RecordingEntity) -> Unit,
 ) : RecyclerView.ViewHolder(itemView) {
+    private val row: View = itemView.findViewById(R.id.recording_row)
     private val timestamp: TextView = itemView.findViewById(R.id.recording_timestamp)
     private val name: TextView = itemView.findViewById(R.id.recording_name)
     private val duration: TextView = itemView.findViewById(R.id.recording_duration)
@@ -230,16 +356,28 @@ private class SavedRecordingViewHolder(
     private val size: TextView = itemView.findViewById(R.id.recording_size)
     private val delete: View = itemView.findViewById(R.id.recording_delete)
 
-    fun bind(item: SavedRecordingListItem.Recording) {
+    fun bind(
+        item: SavedRecordingListItem.Recording,
+        selectionActive: Boolean,
+        selected: Boolean,
+    ) {
         timestamp.text = item.timestampLabel
         name.text = item.fileName
         duration.text = item.durationLabel
         codec.text = item.codecLabel
         size.text = item.sizeLabel
+        row.isActivated = selected
+        delete.isVisible = !selectionActive
 
-        itemView.setOnClickListener { onOpen(item.recording) }
+        itemView.setOnClickListener {
+            if (selectionActive) {
+                onToggleSelection(item.recording)
+            } else {
+                onOpen(item.recording)
+            }
+        }
         itemView.setOnLongClickListener {
-            onShare(item.recording)
+            onToggleSelection(item.recording)
             true
         }
         delete.setOnClickListener { onDelete(item.recording) }

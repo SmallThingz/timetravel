@@ -4,12 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
     tools:ignore="Instantiatable">
 
     <LinearLayout
         android:id="@+id/settings_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
         android:orientation="vertical">
 
         <LinearLayout
@@ -34,11 +36,19 @@
                 android:layout_height="0dp"
                 android:layout_weight="1" />
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_title"
+                android:textAppearance="?attr/textAppearanceTitleLarge"
+                android:textColor="?attr/colorOnSurface" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/undo_button"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
                 android:text="@string/undo"
                 android:visibility="gone"
                 tools:visibility="visible" />
@@ -69,39 +79,109 @@
                     android:layout_height="wrap_content"
                     android:text="@string/retention_mode_title" />
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/TimeTravel.TextInputLayout"
-                    android:id="@+id/retention_time_layout"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:hint="@string/retention_time_label">
+                    android:orientation="horizontal">
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/retention_time_input"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:id="@+id/retention_time_group"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_weight="2"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/TimeTravel.TextInputLayout"
-                    android:id="@+id/retention_size_layout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:hint="@string/retention_size_label">
+                        <TextView
+                            android:id="@+id/retention_time_prefix"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:textAppearance="?attr/textAppearanceLabelLarge"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:visibility="gone"
+                            tools:text="~" />
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/retention_size_input"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/retention_hours_layout"
+                            style="@style/TimeTravel.TextInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="@string/hours_label_short">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/retention_hours_input"
+                                style="@style/TimeTravel.TextInputEditText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:importantForAutofill="no"
+                                android:inputType="number"
+                                android:maxLength="4"
+                                android:maxLines="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/retention_minutes_layout"
+                            style="@style/TimeTravel.TextInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:hint="@string/minutes_label_short">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/retention_minutes_input"
+                                style="@style/TimeTravel.TextInputEditText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:importantForAutofill="no"
+                                android:inputType="number"
+                                android:maxLength="2"
+                                android:maxLines="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/retention_seconds_layout"
+                            style="@style/TimeTravel.TextInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:hint="@string/seconds_label_short">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/retention_seconds_input"
+                                style="@style/TimeTravel.TextInputEditText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:importantForAutofill="no"
+                                android:inputType="number"
+                                android:maxLength="2"
+                                android:maxLines="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/retention_size_layout"
+                        style="@style/TimeTravel.TextInputLayout"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:hint="@string/retention_size_label">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/retention_size_input"
+                            style="@style/TimeTravel.TextInputEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:importantForAutofill="no"
+                            android:inputType="number"
+                            android:maxLines="1" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
 
                 <com.google.android.material.divider.MaterialDivider
                     android:layout_width="match_parent"
@@ -116,77 +196,93 @@
                     android:layout_height="wrap_content"
                     android:text="@string/recording_settings_title" />
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/TimeTravel.TextInputLayout"
-                    android:id="@+id/codec_layout"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:hint="@string/codec_label"
-                    app:endIconMode="dropdown_menu">
+                    android:orientation="horizontal">
 
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/codec_dropdown"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/codec_layout"
+                        style="@style/TimeTravel.TextInputLayout"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:focusable="false"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_weight="1"
+                        android:hint="@string/codec_label"
+                        app:endIconMode="dropdown_menu">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/TimeTravel.TextInputLayout"
-                    android:id="@+id/sample_rate_layout"
+                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                            android:id="@+id/codec_dropdown"
+                            style="@style/TimeTravel.TextInputEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:inputType="none" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/sample_rate_layout"
+                        style="@style/TimeTravel.TextInputLayout"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:hint="@string/sample_rate_label"
+                        app:endIconMode="dropdown_menu">
+
+                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                            android:id="@+id/sample_rate_dropdown"
+                            style="@style/TimeTravel.TextInputEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:inputType="none" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:hint="@string/sample_rate_label"
-                    app:endIconMode="dropdown_menu">
+                    android:orientation="horizontal">
 
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/sample_rate_dropdown"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/audio_source_layout"
+                        style="@style/TimeTravel.TextInputLayout"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:focusable="false"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_weight="1"
+                        android:hint="@string/audio_source_label"
+                        app:endIconMode="dropdown_menu">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/TimeTravel.TextInputLayout"
-                    android:id="@+id/audio_source_layout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:hint="@string/audio_source_label"
-                    app:endIconMode="dropdown_menu">
+                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                            android:id="@+id/audio_source_dropdown"
+                            style="@style/TimeTravel.TextInputEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:inputType="none" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/audio_source_dropdown"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/input_route_layout"
+                        style="@style/TimeTravel.TextInputLayout"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:focusable="false"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:hint="@string/input_route_label"
+                        app:endIconMode="dropdown_menu">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/TimeTravel.TextInputLayout"
-                    android:id="@+id/input_route_layout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:hint="@string/input_route_label"
-                    app:endIconMode="dropdown_menu">
-
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/input_route_dropdown"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:focusable="false"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                            android:id="@+id/input_route_dropdown"
+                            style="@style/TimeTravel.TextInputEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:inputType="none" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/edit_presets_button"
@@ -231,6 +327,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
@@ -247,14 +344,19 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
                         android:text="@string/default_folder" />
-                </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/move_recordings_button"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/move_recordings" />
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_weight="1" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/move_recordings_button"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/move_recordings" />
+                </LinearLayout>
             </LinearLayout>
         </ScrollView>
     </LinearLayout>

@@ -33,6 +33,7 @@ class TimeTravelActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_background_recorder)
         applyTimeTravelSystemBars()

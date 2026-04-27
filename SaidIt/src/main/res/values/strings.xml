@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">TimeTravel</string>
+    <string name="brand_time" translatable="false">time</string>
+    <string name="brand_travel" translatable="false">travel</string>
 
     <string name="recording">TimeTravel</string>
     <string name="recording_saved">Saved</string>
@@ -49,12 +51,16 @@
     <string name="no_app_available">No compatible app available.</string>
 
     <string name="settings_return">Back</string>
+    <string name="settings_title">Settings</string>
     <string name="undo">Undo</string>
     <string name="retention_mode_title">Retention</string>
     <string name="retention_mode_time">Time</string>
     <string name="retention_mode_size">Size</string>
     <string name="retention_time_label">Time</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
+    <string name="hours_label_short">Hr</string>
+    <string name="minutes_label_short">Min</string>
+    <string name="seconds_label_short">Sec</string>
     <string name="retention_size_label">Size (MB)</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Storage</string>
@@ -93,6 +99,10 @@
     <string name="recordings_empty_title">No saved clips</string>
     <string name="recordings_empty_body">Exports and live saves show up here.</string>
     <string name="delete_recording">Delete</string>
+    <string name="rename_recording">Rename</string>
+    <string name="rename_recording_invalid">Enter a valid name.</string>
+    <string name="rename_recording_failed">Couldn\'t rename recording.</string>
+    <string name="clear_selection">Clear selection</string>
     <string name="recording_deleted">Recording deleted.</string>
     <string name="recording_delete_failed">Couldn\'t delete recording.</string>
 </resources>
