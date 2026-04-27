@@ -210,7 +210,7 @@ class SettingsActivity : AppCompatActivity() {
                     saveSettingsSilently()
                 }
                 finish()
-                overridePendingTransition(0, 0)
+                applyNoAnimationCloseTransition()
             }
         })
 
@@ -218,7 +218,7 @@ class SettingsActivity : AppCompatActivity() {
         applyButton.setOnClickListener {
             if (persistSettings(showFeedback = false)) {
                 finish()
-                overridePendingTransition(0, 0)
+                applyNoAnimationCloseTransition()
             }
         }
         chooseFolderButton.setOnClickListener { exportDirectoryLauncher.launch(selectedExportTreeUri) }

@@ -1,6 +1,7 @@
 package app.timetravel
 
 import android.app.Activity
+import android.os.Build
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import com.google.android.material.color.MaterialColors
@@ -17,5 +18,23 @@ internal fun Activity.applyTimeTravelSystemBars() {
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = useDarkSystemIcons
         isAppearanceLightNavigationBars = useDarkSystemIcons
+    }
+}
+
+internal fun Activity.applyNoAnimationOpenTransition() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
+    } else {
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+    }
+}
+
+internal fun Activity.applyNoAnimationCloseTransition() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+    } else {
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
     }
 }

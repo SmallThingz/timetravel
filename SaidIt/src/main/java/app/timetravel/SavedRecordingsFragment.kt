@@ -43,6 +43,7 @@ class SavedRecordingsFragment : Fragment() {
     private var latestRecordings: List<RecordingEntity> = emptyList()
     private var latestRecordingsById: Map<String, RecordingEntity> = emptyMap()
     private var pendingDeleteSnackbar: Snackbar? = null
+    private var playerDialog: RecordingPlayerDialog? = null
     private val adapter = SavedRecordingAdapter(
         onOpen = ::handleRecordingTap,
         onToggleSelection = ::toggleSelection,
@@ -86,7 +87,7 @@ class SavedRecordingsFragment : Fragment() {
             startActivity(
                 Intent(requireContext(), SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
             )
-            activity?.overridePendingTransition(0, 0)
+            activity?.applyNoAnimationOpenTransition()
         }
         selectionClearButton.setOnClickListener { clearSelection() }
         selectionDeleteButton.setOnClickListener { deleteSelectedRecordings() }
@@ -112,6 +113,8 @@ class SavedRecordingsFragment : Fragment() {
         pendingDeleteSnackbar?.removeCallback(pendingDeleteSnackbarCallback)
         pendingDeleteSnackbar?.dismiss()
         pendingDeleteSnackbar = null
+        playerDialog?.dismiss()
+        playerDialog = null
         if (pendingDeletionsById.isNotEmpty()) {
             finalizePendingDeletions()
         }
@@ -137,7 +140,7 @@ class SavedRecordingsFragment : Fragment() {
             toggleSelection(recording)
             return
         }
-        launchIntent(buildOpenRecordingIntent(requireContext(), recording))
+        showRecordingPlayer(recording)
     }
 
     private fun launchIntent(intent: Intent) {
@@ -146,6 +149,15 @@ class SavedRecordingsFragment : Fragment() {
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(requireContext(), R.string.no_app_available, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showRecordingPlayer(recording: RecordingEntity) {
+        playerDialog?.dismiss()
+        playerDialog = RecordingPlayerDialog(
+            context = requireContext(),
+            recording = recording,
+            onPlaybackFailed = { launchIntent(buildOpenRecordingIntent(requireContext(), recording)) },
+        ).also { it.show() }
     }
 
     private fun applyWindowInsets(root: View) {
@@ -375,19 +387,6 @@ class SavedRecordingsFragment : Fragment() {
         }.trim()
     }
 
-    private fun formatSavedRecordingDuration(durationMillis: Long): String {
-        val totalSeconds = (durationMillis / 1000L).coerceAtLeast(0L)
-        val hours = totalSeconds / 3600L
-        val minutes = (totalSeconds % 3600L) / 60L
-        val seconds = totalSeconds % 60L
-
-        return when {
-            hours > 0L -> "${hours}h ${minutes}m"
-            minutes > 0L && seconds > 0L -> "${minutes}m ${seconds}s"
-            minutes > 0L -> "$minutes min"
-            else -> "$seconds s"
-        }
-    }
 }
 
 private sealed class SavedRecordingListItem {

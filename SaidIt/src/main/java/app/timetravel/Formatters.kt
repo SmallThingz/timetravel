@@ -27,3 +27,21 @@ fun formatShortFileSize(size: Long): String {
     val value = size / 1024.0.pow(digitGroups.toDouble())
     return "${DecimalFormat("#,##0.#").format(value)} ${units[digitGroups]}"
 }
+
+fun formatSavedRecordingDuration(durationMillis: Long): String {
+    val totalSeconds = (durationMillis / 1000L).coerceAtLeast(0L)
+    val hours = totalSeconds / 3600L
+    val minutes = (totalSeconds % 3600L) / 60L
+    val seconds = totalSeconds % 60L
+
+    return when {
+        hours > 0L -> "${hours}h ${minutes}m"
+        minutes > 0L && seconds > 0L -> "${minutes}m ${seconds}s"
+        minutes > 0L -> "$minutes min"
+        else -> "$seconds s"
+    }
+}
+
+fun formatPlaybackTime(durationMillis: Int): String {
+    return formatShortTimer(durationMillis.coerceAtLeast(0) / 1000f)
+}

@@ -11,11 +11,14 @@ buildscript {
 }
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
-apply plugin: 'kotlin-kapt'
 
 repositories {
         mavenCentral()
         maven { url "https://maven.google.com" }
+}
+
+configurations.all {
+    exclude group: 'androidx.profileinstaller', module: 'profileinstaller'
 }
 
 android {
@@ -29,6 +32,7 @@ android {
         targetSdk 37
         versionCode 15
         versionName "3.0.0"
+        resConfigs "en", "xxhdpi"
     }
 
     signingConfigs {
@@ -43,6 +47,7 @@ android {
     buildTypes {
         release {
             minifyEnabled true
+            shrinkResources true
             proguardFile file('proguard.cfg')
             proguardFile getDefaultProguardFile('proguard-android-optimize.txt')
             signingConfig signingConfigs.release
@@ -56,7 +61,7 @@ android {
         abortOnError false
     }
     buildFeatures {
-        buildConfig true
+        buildConfig false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -64,6 +69,21 @@ android {
     }
     kotlinOptions {
         jvmTarget = '17'
+    }
+    packaging {
+        dex {
+            useLegacyPackaging true
+        }
+        resources {
+            excludes += [
+                'DebugProbesKt.bin',
+                'META-INF/LICENSE*',
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+                'META-INF/*.version',
+                'META-INF/androidx/**',
+            ]
+        }
     }
 
 }
@@ -73,18 +93,7 @@ dependencies {
     implementation 'androidx.activity:activity-ktx:1.10.1'
     implementation 'androidx.documentfile:documentfile:1.1.0'
     implementation 'androidx.fragment:fragment-ktx:1.8.9'
-    implementation 'androidx.dynamicanimation:dynamicanimation:1.1.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
-    implementation 'androidx.room:room-runtime:2.7.2'
-    implementation 'androidx.room:room-ktx:2.7.2'
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'com.google.android.material:material:1.13.0'
-    kapt 'androidx.room:room-compiler:2.7.2'
-}
-
-kapt {
-    correctErrorTypes = true
-    arguments {
-        arg("room.schemaLocation", "$projectDir/schemas")
-    }
 }

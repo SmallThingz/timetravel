@@ -120,6 +120,11 @@
     <string name="recording_details_mime">MIME:</string>
     <string name="recording_details_storage">Storage:</string>
     <string name="recording_details_location">Location:</string>
+    <string name="player_preparing">Preparing audio…</string>
+    <string name="player_ready">Playing</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_failed">Couldn\'t play recording.</string>
     <string name="close">Close</string>
 
     <plurals name="move_recordings_done">

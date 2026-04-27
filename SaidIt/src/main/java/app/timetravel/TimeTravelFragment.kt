@@ -28,9 +28,6 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.textfield.TextInputLayout
-import androidx.dynamicanimation.animation.DynamicAnimation
-import androidx.dynamicanimation.animation.SpringAnimation
-import androidx.dynamicanimation.animation.SpringForce
 import androidx.appcompat.app.AppCompatDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -78,7 +75,6 @@ class TimeTravelFragment : Fragment() {
     private var serviceBound = false
     private var currentPulseMode = PULSE_OFF
     private var pulseAnimators: List<ObjectAnimator> = emptyList()
-    private val springAnimations = mutableListOf<SpringAnimation>()
     private var savingSnackbar: Snackbar? = null
 
     private val updater: Runnable = object : Runnable {
@@ -232,7 +228,7 @@ class TimeTravelFragment : Fragment() {
             startActivity(
                 Intent(activity, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
             )
-            activity.overridePendingTransition(0, 0)
+            activity.applyNoAnimationOpenTransition()
         }
         clearBufferButton.setOnClickListener {
             if (!isSaving && !isRecording) {
@@ -407,33 +403,25 @@ class TimeTravelFragment : Fragment() {
         target: View,
         pressedScale: Float,
     ) {
-        val scaleX = SpringAnimation(target, DynamicAnimation.SCALE_X).apply {
-            spring = SpringForce(1f).apply {
-                dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-                stiffness = SpringForce.STIFFNESS_HIGH
-            }
-        }
-        val scaleY = SpringAnimation(target, DynamicAnimation.SCALE_Y).apply {
-            spring = SpringForce(1f).apply {
-                dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-                stiffness = SpringForce.STIFFNESS_HIGH
-            }
-        }
-        springAnimations += scaleX
-        springAnimations += scaleY
         target.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    scaleX.animateToFinalPosition(pressedScale)
-                    scaleY.animateToFinalPosition(pressedScale)
+                    target.animate()
+                        .scaleX(pressedScale)
+                        .scaleY(pressedScale)
+                        .setDuration(PRESS_ANIMATION_DURATION_MS)
+                        .start()
                 }
 
                 MotionEvent.ACTION_UP,
                 MotionEvent.ACTION_CANCEL,
                 MotionEvent.ACTION_OUTSIDE,
                 -> {
-                    scaleX.animateToFinalPosition(1f)
-                    scaleY.animateToFinalPosition(1f)
+                    target.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(PRESS_ANIMATION_DURATION_MS)
+                        .start()
                 }
             }
             false
@@ -441,8 +429,11 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun clearPressAnimations() {
-        springAnimations.forEach { it.cancel() }
-        springAnimations.clear()
+        listOf(settingsButton, listenSurface, recordMaxButton, recordCustomButton).forEach { target ->
+            target.animate().cancel()
+            target.scaleX = 1f
+            target.scaleY = 1f
+        }
     }
 
     private fun updateListenSurfaceAppearance() {
@@ -628,7 +619,7 @@ class TimeTravelFragment : Fragment() {
                 durationField.selectAll()
                 val imm =
                     context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-                imm?.showSoftInput(durationField, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                imm?.showSoftInput(durationField, 0)
             }
         }
 
@@ -686,6 +677,7 @@ class TimeTravelFragment : Fragment() {
         private const val PULSE_LIVE = 1
         private const val PULSE_RECORDING = 2
         private const val STATE_UPDATE_DELAY_MS = 150L
+        private const val PRESS_ANIMATION_DURATION_MS = 110L
 
         fun buildNotificationForFile(
             context: Context,
