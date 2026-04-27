@@ -1,1 +1,2 @@
+rootProject.name = 'TimeTravel'
 include ':SaidIt'
