@@ -26,7 +26,6 @@ private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
 private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
 private const val MIN_AAC_BITRATE_KBPS = 32
 private const val MAX_AAC_BITRATE_KBPS = 320
-private val DEFAULT_EXPORT_PRESETS = intArrayOf(60, 5 * 60, 30 * 60, 60 * 60)
 private val SAMPLE_RATE_CANDIDATES = intArrayOf(48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 11_025, 8_000)
 private val codecSupportCache = ConcurrentHashMap<CodecSupportKey, Boolean>()
 private val inputConfigCache = ConcurrentHashMap<InputConfigKey, Boolean>()
@@ -229,32 +228,6 @@ fun applyConfiguredThemeMode(context: Context) {
 
 fun getConfiguredRetentionSeconds(context: Context): Long {
     return max(60L, getRecorderPreferences(context).getLong(TimeTravelConfig.RETENTION_SECONDS_KEY, 30L * 60))
-}
-
-fun getConfiguredExportPresets(context: Context): IntArray {
-    val raw = getRecorderPreferences(context).getString(TimeTravelConfig.EXPORT_PRESETS_KEY, null)
-        ?: return DEFAULT_EXPORT_PRESETS.copyOf()
-    val parsed = raw.split(',')
-        .mapNotNull { it.trim().toIntOrNull() }
-        .filter { it > 0 }
-        .take(DEFAULT_EXPORT_PRESETS.size)
-        .toMutableList()
-    while (parsed.size < DEFAULT_EXPORT_PRESETS.size) {
-        parsed += DEFAULT_EXPORT_PRESETS[parsed.size]
-    }
-    return parsed.toIntArray()
-}
-
-fun saveConfiguredExportPresets(
-    context: Context,
-    presets: IntArray,
-) {
-    val normalized = presets
-        .mapIndexed { index, value ->
-            if (value > 0) value else DEFAULT_EXPORT_PRESETS.getOrElse(index) { DEFAULT_EXPORT_PRESETS.last() }
-        }
-        .joinToString(",")
-    getRecorderPreferences(context).edit().putString(TimeTravelConfig.EXPORT_PRESETS_KEY, normalized).apply()
 }
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {

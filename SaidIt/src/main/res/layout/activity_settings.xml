@@ -125,11 +125,12 @@
                             style="@style/TimeTravel.TextInputEditText"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:digits="0123456789:"
                             android:fontFamily="monospace"
                             android:importantForAutofill="no"
                             android:inputType="textNoSuggestions"
-                            android:maxLength="8"
                             android:maxLines="1"
+                            android:imeOptions="actionDone"
                             android:selectAllOnFocus="true"
                             tools:text="48:00:00" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -299,14 +300,6 @@
                         android:focusable="false"
                         android:inputType="none" />
                 </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/edit_presets_button"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/edit_presets" />
 
                 <com.google.android.material.divider.MaterialDivider
                     android:layout_width="match_parent"

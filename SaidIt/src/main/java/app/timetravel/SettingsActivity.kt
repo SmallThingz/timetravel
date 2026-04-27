@@ -52,7 +52,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var retentionSizeInput: EditText
     private lateinit var bitrateInput: EditText
     private lateinit var exportPathInput: EditText
-    private lateinit var editPresetsButton: MaterialButton
     private lateinit var chooseFolderButton: MaterialButton
     private lateinit var defaultFolderButton: MaterialButton
     private lateinit var moveRecordingsButton: MaterialButton
@@ -70,7 +69,6 @@ class SettingsActivity : AppCompatActivity() {
     private var service: TimeTravelService? = null
     private var serviceBound = false
     private var bindingUi = false
-    private var formattingTimeInput = false
     private var hasUnsavedChanges = false
     private var moveAvailabilityGeneration = 0
 
@@ -186,7 +184,6 @@ class SettingsActivity : AppCompatActivity() {
         retentionSizeInput = findViewById(R.id.retention_size_input)
         bitrateInput = findViewById(R.id.bitrate_input)
         exportPathInput = findViewById(R.id.export_path_input)
-        editPresetsButton = findViewById(R.id.edit_presets_button)
         chooseFolderButton = findViewById(R.id.choose_folder_button)
         defaultFolderButton = findViewById(R.id.default_folder_button)
         moveRecordingsButton = findViewById(R.id.move_recordings_button)
@@ -218,7 +215,6 @@ class SettingsActivity : AppCompatActivity() {
                 overridePendingTransition(0, 0)
             }
         }
-        editPresetsButton.setOnClickListener { showEditPresetsDialog() }
         chooseFolderButton.setOnClickListener { exportDirectoryLauncher.launch(selectedExportTreeUri) }
         defaultFolderButton.setOnClickListener {
             selectedExportTreeUri = null
@@ -306,15 +302,7 @@ class SettingsActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
 
             override fun afterTextChanged(s: Editable?) {
-                if (bindingUi || formattingTimeInput) return
-                val formatted = formatRetentionTimeInput(s?.toString().orEmpty())
-                if (formatted != s?.toString().orEmpty()) {
-                    formattingTimeInput = true
-                    retentionTimeInput.setText(formatted)
-                    retentionTimeInput.setSelection(formatted.length)
-                    formattingTimeInput = false
-                    return
-                }
+                if (bindingUi) return
                 updateRetentionValuesFromActiveInput()
                 refreshRetentionFields(preserveActiveInputs = true)
                 saveCurrentToSnapshot(currentSettings)
@@ -698,7 +686,7 @@ class SettingsActivity : AppCompatActivity() {
             val previousBindingUi = bindingUi
             bindingUi = true
             if (!preserveActiveInputs) {
-                retentionTimeInput.setText(formatRetentionTimeInput(""))
+                retentionTimeInput.setText("")
                 retentionSizeInput.setText("")
             }
             retentionTimeLayout.prefixText = null
@@ -724,13 +712,13 @@ class SettingsActivity : AppCompatActivity() {
             retentionTimeLayout.prefixText = null
             retentionSizeLayout.prefixText = estimatePrefix
             if (!preserveActiveInputs) {
-                retentionTimeInput.setText(formatRetentionTimeInput(formatDurationInput(retentionTimeSecondsValue)))
+                retentionTimeInput.setText(formatDurationInput(retentionTimeSecondsValue))
             }
             retentionSizeInput.setText(estimatedSizeMb)
         } else {
             retentionTimeLayout.prefixText = estimatePrefix
             retentionSizeLayout.prefixText = null
-            retentionTimeInput.setText(formatRetentionTimeInput(estimatedDuration))
+            retentionTimeInput.setText(estimatedDuration)
             if (!preserveActiveInputs) {
                 retentionSizeInput.setText(retentionSizeMbValue.toString())
             }
@@ -843,12 +831,6 @@ class SettingsActivity : AppCompatActivity() {
         return true
     }
 
-    private fun showEditPresetsDialog() {
-        ExportPresetEditor.show(this, getConfiguredExportPresets(this)) { presets ->
-            saveConfiguredExportPresets(this, presets)
-        }
-    }
-
     private fun clearErrors() {
         retentionTimeLayout.error = null
         retentionSizeLayout.error = null
@@ -936,9 +918,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun openBatteryOptimizationSettings() {
-        val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.fromParts("package", packageName, null)
-        }
         val intents = buildList {
             if (!isIgnoringBatteryOptimizations(this@SettingsActivity)) {
                 add(
@@ -947,16 +926,31 @@ class SettingsActivity : AppCompatActivity() {
                     },
                 )
             }
-            add(appDetailsIntent)
+            add(
+                Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL").apply {
+                    data = Uri.parse("package:$packageName")
+                    putExtra("package_name", packageName)
+                    putExtra("packageName", packageName)
+                },
+            )
+            add(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                },
+            )
             add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             add(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))
         }
 
-        val launched = intents.firstOrNull { intent ->
-            intent.resolveActivity(packageManager) != null
-        }?.let { intent ->
-            runCatching { startActivity(intent) }.isSuccess
-        } == true
+        val launched = intents.any { intent ->
+            if (intent.resolveActivity(packageManager) == null) {
+                return@any false
+            }
+            runCatching {
+                startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
 
         if (!launched) {
             Toast.makeText(this, R.string.no_app_available, Toast.LENGTH_SHORT).show()
@@ -1003,17 +997,6 @@ class SettingsActivity : AppCompatActivity() {
             }
             refreshMoveRecordingsAvailability()
             Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun formatRetentionTimeInput(value: String): String {
-        val digits = value.filter(Char::isDigit).takeLast(6).padStart(6, '0')
-        return buildString(8) {
-            append(digits.substring(0, 2))
-            append(':')
-            append(digits.substring(2, 4))
-            append(':')
-            append(digits.substring(4, 6))
         }
     }
 

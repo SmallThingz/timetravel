@@ -10,7 +10,6 @@ object TimeTravelConfig {
     const val WAKE_LOCK_ENABLED_KEY = "wake_lock_enabled"
     const val RETENTION_MODE_KEY = "retention_mode"
     const val RETENTION_SECONDS_KEY = "retention_seconds"
-    const val EXPORT_PRESETS_KEY = "export_presets"
     const val EXPORT_DIRECTORY_URI_KEY = "export_directory_uri"
     const val OUTPUT_CODEC_KEY = "output_codec"
     const val OUTPUT_BITRATE_KBPS_KEY = "output_bitrate_kbps"

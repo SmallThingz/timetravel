@@ -19,13 +19,12 @@
     <string name="buffer_status_paused">Buffer paused</string>
     <string name="clear_buffer">Clear</string>
 
-    <string name="record_all_memory">Full</string>
-    <string name="custom_time">Custom</string>
+    <string name="record_all_memory">Export full</string>
+    <string name="custom_time">Export custom</string>
     <string name="custom_export_duration_label">Time</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_supporting">Use MM:SS or HH:MM:SS</string>
     <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="preset_invalid">Invalid time format.</string>
     <string name="saving">Saving…</string>
     <string name="saved_snackbar">Saved</string>
     <string name="save_failed">Couldn\'t save recording.</string>
@@ -33,17 +32,11 @@
     <string name="settings_apply">Apply</string>
     <string name="tab_capture">Capture</string>
     <string name="tab_files">Files</string>
-    <string name="edit_presets">Presets</string>
-    <string name="preset_editor_title">Edit presets</string>
-    <string name="preset_editor_message">MM:SS or HH:MM:SS</string>
-    <string name="preset_one_label">1</string>
-    <string name="preset_two_label">2</string>
-    <string name="preset_three_label">3</string>
-    <string name="preset_four_label">4</string>
     <string name="open">Open</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
     <string name="save">Save</string>
+    <string name="export">Export</string>
     <string name="cancel">Cancel</string>
     <string name="no_app_available">No compatible app available.</string>
 

@@ -54,7 +54,6 @@ import kotlinx.coroutines.launch
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
-    private lateinit var presetButtons: List<MaterialButton>
     private lateinit var recordMaxButton: MaterialButton
     private lateinit var recordCustomButton: MaterialButton
     private lateinit var contentScroll: View
@@ -77,7 +76,6 @@ class TimeTravelFragment : Fragment() {
     private var isSaving = false
     private var recorder: TimeTravelService? = null
     private var serviceBound = false
-    private var exportPresets = IntArray(4)
     private var currentPulseMode = PULSE_OFF
     private var pulseAnimators: List<ObjectAnimator> = emptyList()
     private val springAnimations = mutableListOf<SpringAnimation>()
@@ -220,13 +218,6 @@ class TimeTravelFragment : Fragment() {
         listenTitle = view.findViewById(R.id.listen_title)
         listenCaption = view.findViewById(R.id.listen_caption)
 
-        presetButtons = listOf(
-            view.findViewById(R.id.record_preset_1),
-            view.findViewById(R.id.record_preset_2),
-            view.findViewById(R.id.record_preset_3),
-            view.findViewById(R.id.record_preset_4),
-        )
-
         historySize.typeface = Typeface.MONOSPACE
         recTime.typeface = Typeface.MONOSPACE
         configureListenSurface()
@@ -234,7 +225,6 @@ class TimeTravelFragment : Fragment() {
         settingsButton = view.findViewById(R.id.settings_button)
         installPressAnimation(settingsButton, 0.92f)
         installPressAnimation(listenSurface, 0.965f)
-        presetButtons.forEach { installPressAnimation(it, 0.98f) }
         installPressAnimation(recordMaxButton, 0.98f)
         installPressAnimation(recordCustomButton, 0.98f)
 
@@ -259,14 +249,8 @@ class TimeTravelFragment : Fragment() {
         }
 
         val exportClickListener = ExportButtonClickListener()
-        presetButtons.forEach { button ->
-            button.setOnClickListener(exportClickListener)
-            button.setOnLongClickListener(exportClickListener)
-        }
         recordMaxButton.setOnClickListener(exportClickListener)
-        recordMaxButton.setOnLongClickListener(exportClickListener)
         recordCustomButton.setOnClickListener(exportClickListener)
-        recordCustomButton.setOnLongClickListener(exportClickListener)
 
         refreshConfiguredUi()
         updateListenSurfaceAppearance()
@@ -324,12 +308,6 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun refreshConfiguredUi() {
-        val context = context ?: return
-        exportPresets = getConfiguredExportPresets(context)
-        presetButtons.zip(exportPresets.toList()).forEach { (button, seconds) ->
-            button.text = formatDurationInput(seconds)
-            button.tag = seconds
-        }
         updateBufferSummary()
         clearBufferButton.isEnabled = !isRecording && !isSaving
         clearBufferButton.alpha = if (isRecording || isSaving) 0.5f else 1f
@@ -578,24 +556,18 @@ class TimeTravelFragment : Fragment() {
         }
     }
 
-    private inner class ExportButtonClickListener : View.OnClickListener, View.OnLongClickListener {
+    private inner class ExportButtonClickListener : View.OnClickListener {
         override fun onClick(v: View) {
-            export(v, keepRecording = false)
-        }
-
-        override fun onLongClick(v: View): Boolean {
-            export(v, keepRecording = true)
-            return true
+            export(v)
         }
 
         private fun export(
             button: View,
-            keepRecording: Boolean,
         ) {
             if (isSaving) return
             button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             if (button.id == R.id.record_last_custom) {
-                promptForCustomDuration(keepRecording)
+                promptForCustomDuration()
                 return
             }
 
@@ -606,15 +578,11 @@ class TimeTravelFragment : Fragment() {
             }
 
             val service = recorder ?: return
-            if (keepRecording) {
-                service.startRecording(seconds)
-            } else {
-                setSavingInProgress(true)
-                service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
-            }
+            setSavingInProgress(true)
+            service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
         }
 
-        private fun promptForCustomDuration(keepRecording: Boolean) {
+        private fun promptForCustomDuration() {
             val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null, false)
             val durationLayout = content.findViewById<TextInputLayout>(R.id.custom_duration_layout)
             val durationField = content.findViewById<TextInputEditText>(R.id.custom_duration_value)
@@ -624,7 +592,7 @@ class TimeTravelFragment : Fragment() {
                 context = requireContext(),
                 title = getString(R.string.custom_time),
                 content = content,
-                positiveText = getString(R.string.save),
+                positiveText = getString(R.string.export),
             )
 
             fun submit(): Boolean {
@@ -636,12 +604,8 @@ class TimeTravelFragment : Fragment() {
 
                 durationLayout.error = null
                 val service = recorder ?: return false
-                if (keepRecording) {
-                    service.startRecording(seconds)
-                } else {
-                    setSavingInProgress(true)
-                    service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
-                }
+                setSavingInProgress(true)
+                service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
                 handle.dialog.dismiss()
                 return true
             }
@@ -658,14 +622,20 @@ class TimeTravelFragment : Fragment() {
                 }
             }
 
-            durationField.requestFocus()
             handle.dialog.show()
+            durationField.post {
+                durationField.requestFocus()
+                durationField.selectAll()
+                val imm =
+                    context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                imm?.showSoftInput(durationField, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+            }
         }
 
         private fun getPrependedSeconds(button: View): Float {
             return when (button.id) {
                 R.id.record_last_max -> FULL_BUFFER_SECONDS
-                else -> (button.tag as? Int)?.toFloat() ?: 0f
+                else -> 0f
             }
         }
     }
@@ -673,7 +643,6 @@ class TimeTravelFragment : Fragment() {
     private fun setSavingInProgress(inProgress: Boolean) {
         isSaving = inProgress
         val enabled = !inProgress
-        presetButtons.forEach { it.isEnabled = enabled }
         recordMaxButton.isEnabled = enabled
         recordCustomButton.isEnabled = enabled
         settingsButton.isEnabled = enabled
