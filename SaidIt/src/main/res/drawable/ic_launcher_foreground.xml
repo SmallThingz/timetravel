@@ -8,13 +8,13 @@
     <path
         android:fillAlpha="0.18"
         android:fillColor="#FFFFFF"
-        android:pathData="M31,46h6v12h-6zM39,39h6v26h-6zM47,32h6v40h-6zM55,39h6v26h-6zM63,46h6v12h-6z" />
+        android:pathData="M31,48h6v8h-6zM39,41h6v22h-6zM47,34h6v36h-6zM55,41h6v22h-6zM63,48h6v8h-6z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M32,46h4v12h-4zM40,39h4v26h-4zM48,32h4v40h-4zM56,39h4v26h-4zM64,46h4v12h-4z" />
+        android:pathData="M32,48h4v8h-4zM40,41h4v22h-4zM48,34h4v36h-4zM56,41h4v22h-4zM64,48h4v8h-4z" />
     <path
         android:fillType="evenOdd"
-        android:pathData="M48.5,12L60.5,20L48.5,28z">
+        android:pathData="M48,15.5L61.5,24L48,32.5z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:endX="68.4"

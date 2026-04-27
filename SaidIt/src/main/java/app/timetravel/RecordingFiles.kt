@@ -36,9 +36,10 @@ data class RecordingOutputTarget(
     val uri: Uri? = null,
 )
 
-fun getSavedRecordingsDirectory(): File {
-    val recordingsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC + "/Recordings")
-    return File(recordingsDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
+fun getSavedRecordingsDirectory(context: Context): File {
+    val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
+        ?: File(context.filesDir, "recordings")
+    return File(baseDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
 }
 
 fun getConfiguredExportTreeUri(context: Context): Uri? {
@@ -56,11 +57,14 @@ fun setConfiguredExportTreeUri(
 }
 
 fun getConfiguredOutputDirectoryId(context: Context): String {
-    return getOutputDirectoryId(getConfiguredExportTreeUri(context))
+    return getOutputDirectoryId(context, getConfiguredExportTreeUri(context))
 }
 
-fun getOutputDirectoryId(treeUri: Uri?): String {
-    return treeUri?.toString() ?: getSavedRecordingsDirectory().absolutePath
+fun getOutputDirectoryId(
+    context: Context,
+    treeUri: Uri?,
+): String {
+    return treeUri?.toString() ?: getSavedRecordingsDirectory(context).absolutePath
 }
 
 fun describeConfiguredOutputDirectory(context: Context): String {
@@ -72,7 +76,7 @@ fun describeOutputDirectory(
     treeUri: Uri?,
 ): String {
     if (treeUri == null) {
-        return "Music/Recordings/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
+        return "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
     }
     val name = DocumentFile.fromTreeUri(context, treeUri)?.name
     return name ?: treeUri.toString()
@@ -162,10 +166,14 @@ fun buildCodecSummary(
     codec: ExportCodec,
     sampleRate: Int,
     channelCount: Int,
+    aacBitrateKbps: Int? = null,
 ): String {
     val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
     return when (codec) {
-        ExportCodec.AAC -> "AAC • ${sampleRateLabel(sampleRate)} • $channelLabel • ${aacBitrateForSampleRate(sampleRate, channelCount) / 1000} kbps"
+        ExportCodec.AAC -> {
+            val bitrateKbps = aacBitrateForSampleRate(sampleRate, channelCount, aacBitrateKbps) / 1000
+            "AAC • ${sampleRateLabel(sampleRate)} • $channelLabel • ${bitrateKbps} kbps"
+        }
         ExportCodec.WAV -> "WAV • ${sampleRateLabel(sampleRate)} • $channelLabel"
     }
 }
@@ -269,7 +277,7 @@ fun createOutputTarget(
 ): RecordingOutputTarget {
     val treeUri = getConfiguredExportTreeUri(context)
     return if (treeUri == null) {
-        createLocalOutputTarget(requestedDisplayName, mimeType, startedAtMillis)
+        createLocalOutputTarget(context, requestedDisplayName, mimeType, startedAtMillis)
     } else {
         createDocumentOutputTarget(context, treeUri, requestedDisplayName, mimeType, startedAtMillis)
     }
@@ -406,7 +414,7 @@ fun copyRecordingToConfiguredDirectory(
 fun listCurrentOutputDirectoryRecordings(context: Context): List<RecordingEntity> {
     val treeUri = getConfiguredExportTreeUri(context)
     return if (treeUri == null) {
-        val directory = getSavedRecordingsDirectory()
+        val directory = getSavedRecordingsDirectory(context)
         directory.listFiles()
             ?.asSequence()
             ?.filter { it.isFile && it.length() > 0L && !it.name.startsWith(".") }
@@ -462,11 +470,12 @@ private fun openRecordingInputStream(
 }
 
 private fun createLocalOutputTarget(
+    context: Context,
     requestedDisplayName: String,
     mimeType: String,
     startedAtMillis: Long,
 ): RecordingOutputTarget {
-    val storageDir = getSavedRecordingsDirectory()
+    val storageDir = getSavedRecordingsDirectory(context)
     if (!storageDir.exists()) {
         storageDir.mkdirs()
     }

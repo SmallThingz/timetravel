@@ -409,7 +409,9 @@ private class SavedRecordingAdapter(
 
     fun updateSelection(selection: Set<String>) {
         selectedIds = selection.toSet()
-        notifyDataSetChanged()
+        if (itemCount > 0) {
+            notifyItemRangeChanged(0, itemCount, PAYLOAD_SELECTION)
+        }
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -435,17 +437,35 @@ private class SavedRecordingAdapter(
         holder: RecyclerView.ViewHolder,
         position: Int,
     ) {
+        onBindViewHolder(holder, position, mutableListOf())
+    }
+
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>,
+    ) {
         when (val item = getItem(position)) {
             is SavedRecordingListItem.Header -> (holder as HeaderViewHolder).bind(item)
             is SavedRecordingListItem.Recording -> {
                 val selectionActive = selectedIds.isNotEmpty()
-                (holder as SavedRecordingViewHolder).bind(
-                    item = item,
-                    selectionActive = selectionActive,
-                    selected = item.recording.id in selectedIds,
-                )
+                val selected = item.recording.id in selectedIds
+                val typedHolder = holder as SavedRecordingViewHolder
+                if (PAYLOAD_SELECTION in payloads) {
+                    typedHolder.bindSelection(selectionActive, selected)
+                } else {
+                    typedHolder.bind(
+                        item = item,
+                        selectionActive = selectionActive,
+                        selected = selected,
+                    )
+                }
             }
         }
+    }
+
+    private companion object {
+        const val PAYLOAD_SELECTION = "selection"
     }
 }
 
@@ -477,7 +497,7 @@ private class SavedRecordingViewHolder(
         name.text = item.fileName
         duration.text = item.durationLabel
         size.text = item.sizeLabel
-        row.isActivated = selected
+        bindSelection(selectionActive, selected)
 
         itemView.setOnClickListener {
             if (selectionActive) {
@@ -490,6 +510,14 @@ private class SavedRecordingViewHolder(
             onToggleSelection(item.recording)
             true
         }
+    }
+
+    fun bindSelection(
+        selectionActive: Boolean,
+        selected: Boolean,
+    ) {
+        row.isActivated = selected
+        row.alpha = if (selectionActive && !selected) 0.75f else 1f
     }
 }
 

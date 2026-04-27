@@ -343,7 +343,7 @@ class TimeTravelService : Service() {
                                     this@TimeTravelService,
                                     outTarget,
                                     snapshot.durationUs / 1000L,
-                                    buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount),
+                                    currentCodecSummary(),
                                 ),
                             )
                         } catch (e: IOException) {
@@ -374,7 +374,7 @@ class TimeTravelService : Service() {
                             this@TimeTravelService,
                             outTarget,
                             durationMillis,
-                            buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount),
+                            currentCodecSummary(),
                         ),
                     )
                 } catch (e: IOException) {
@@ -546,7 +546,7 @@ class TimeTravelService : Service() {
                     this@TimeTravelService,
                     target,
                     runtimeMillis,
-                    buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount),
+                    currentCodecSummary(),
                 ),
             )
         }
@@ -578,7 +578,15 @@ class TimeTravelService : Service() {
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
         return when (effectiveOutputCodec) {
-            ExportCodec.AAC -> AacAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
+            ExportCodec.AAC -> {
+                AacAudioFileWriter(
+                    this,
+                    target,
+                    sampleRate,
+                    channelMode.channelCount,
+                    aacBitrateForSampleRate(sampleRate, channelMode.channelCount, getConfiguredAacBitrateKbps(this, sampleRate, channelMode.channelCount)),
+                )
+            }
             ExportCodec.WAV -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
         }
     }
@@ -595,6 +603,12 @@ class TimeTravelService : Service() {
                 }
             }
         }
+    }
+
+    private fun currentCodecSummary(): String {
+        val aacBitrateKbps =
+            if (effectiveOutputCodec == ExportCodec.AAC) getConfiguredAacBitrateKbps(this, sampleRate, channelMode.channelCount) else null
+        return buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount, aacBitrateKbps)
     }
 
     private fun flushAudioRecord() {
@@ -914,6 +928,8 @@ class TimeTravelService : Service() {
 
     private fun configureLiveExportHistory() {
         val retentionDurationUs = getConfiguredMemorySizeBytes(this, sampleRate, channelMode) * 1_000_000L / maxOf(fillRate, 1)
+        val aacBitrateBitsPerSecond =
+            aacBitrateForSampleRate(sampleRate, channelMode.channelCount, getConfiguredAacBitrateKbps(this, sampleRate, channelMode.channelCount))
         audioHandler.post {
             val shouldUseAacHistory = effectiveOutputCodec == ExportCodec.AAC
             if (!shouldUseAacHistory) {
@@ -923,9 +939,14 @@ class TimeTravelService : Service() {
             }
 
             val current = liveAacExportHistory
-            if (current == null || current.sampleRate != sampleRate || current.channelCount != channelMode.channelCount) {
+            if (
+                current == null ||
+                current.sampleRate != sampleRate ||
+                current.channelCount != channelMode.channelCount ||
+                current.bitrateBitsPerSecond != aacBitrateBitsPerSecond
+            ) {
                 current?.close()
-                liveAacExportHistory = LiveAacExportHistory(sampleRate, channelMode.channelCount).also {
+                liveAacExportHistory = LiveAacExportHistory(sampleRate, channelMode.channelCount, aacBitrateBitsPerSecond).also {
                     it.setMaxDurationUs(retentionDurationUs)
                 }
             } else {

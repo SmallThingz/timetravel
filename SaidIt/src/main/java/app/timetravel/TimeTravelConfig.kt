@@ -13,6 +13,7 @@ object TimeTravelConfig {
     const val EXPORT_PRESETS_KEY = "export_presets"
     const val EXPORT_DIRECTORY_URI_KEY = "export_directory_uri"
     const val OUTPUT_CODEC_KEY = "output_codec"
+    const val OUTPUT_BITRATE_KBPS_KEY = "output_bitrate_kbps"
     const val AUDIO_SOURCE_KEY = "audio_source"
     const val CHANNEL_MODE_KEY = "channel_mode"
     const val INPUT_ROUTE_KEY = "input_route"

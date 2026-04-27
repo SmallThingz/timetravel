@@ -24,6 +24,8 @@ private const val WAV_HEADER_BYTES = 44L
 private const val MP4_CONTAINER_BASE_OVERHEAD_BYTES = 1536L
 private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
 private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
+private const val MIN_AAC_BITRATE_KBPS = 32
+private const val MAX_AAC_BITRATE_KBPS = 320
 private val DEFAULT_EXPORT_PRESETS = intArrayOf(60, 5 * 60, 30 * 60, 60 * 60)
 private val SAMPLE_RATE_CANDIDATES = intArrayOf(48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 11_025, 8_000)
 private val codecSupportCache = ConcurrentHashMap<CodecSupportKey, Boolean>()
@@ -261,6 +263,18 @@ fun getConfiguredOutputCodec(context: Context): ExportCodec {
     return ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, preferred.prefValue))
 }
 
+fun aacBitrateRangeKbps(): IntRange = MIN_AAC_BITRATE_KBPS..MAX_AAC_BITRATE_KBPS
+
+fun getConfiguredAacBitrateKbps(
+    context: Context,
+    sampleRate: Int,
+    channelCount: Int = 1,
+): Int {
+    val fallback = aacBitrateForSampleRate(sampleRate, channelCount) / 1000
+    val stored = getRecorderPreferences(context).getInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, fallback)
+    return stored.coerceIn(aacBitrateRangeKbps())
+}
+
 fun getConfiguredAudioSourceMode(context: Context): AudioSourceMode {
     return AudioSourceMode.fromSourceValue(
         getRecorderPreferences(context).getInt(
@@ -374,7 +388,11 @@ fun getPreferredOutputCodec(): ExportCodec {
 fun aacBitrateForSampleRate(
     sampleRate: Int,
     channelCount: Int = 1,
+    bitrateKbps: Int? = null,
 ): Int {
+    bitrateKbps?.takeIf { it > 0 }?.let {
+        return it.coerceIn(aacBitrateRangeKbps()) * 1000
+    }
     return when {
         channelCount >= 2 && sampleRate >= 48_000 -> 192_000
         channelCount >= 2 && sampleRate >= 24_000 -> 160_000
@@ -390,6 +408,7 @@ fun estimateExportSizeBytes(
     sampleRate: Int,
     channelCount: Int,
     durationSeconds: Long,
+    aacBitrateKbps: Int? = null,
 ): Long {
     if (sampleRate <= 0 || channelCount <= 0 || durationSeconds <= 0L) {
         return 0L
@@ -401,7 +420,7 @@ fun estimateExportSizeBytes(
         }
 
         ExportCodec.AAC -> {
-            val audioBytes = durationSeconds * aacBitrateForSampleRate(sampleRate, channelCount).toLong() / 8L
+            val audioBytes = durationSeconds * aacBitrateForSampleRate(sampleRate, channelCount, aacBitrateKbps).toLong() / 8L
             val accessUnits = ((durationSeconds * sampleRate.toLong()) + AAC_SAMPLES_PER_ACCESS_UNIT - 1L) / AAC_SAMPLES_PER_ACCESS_UNIT
             audioBytes + MP4_CONTAINER_BASE_OVERHEAD_BYTES + accessUnits * MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT
         }
@@ -413,6 +432,7 @@ fun estimateExportDurationSeconds(
     sampleRate: Int,
     channelCount: Int,
     sizeBytes: Long,
+    aacBitrateKbps: Int? = null,
 ): Long {
     if (sampleRate <= 0 || channelCount <= 0 || sizeBytes <= 0L) {
         return 0L
@@ -425,7 +445,7 @@ fun estimateExportDurationSeconds(
         }
 
         ExportCodec.AAC -> {
-            val bitrateBytesPerSecond = aacBitrateForSampleRate(sampleRate, channelCount).toLong() / 8L
+            val bitrateBytesPerSecond = aacBitrateForSampleRate(sampleRate, channelCount, aacBitrateKbps).toLong() / 8L
             if (bitrateBytesPerSecond <= 0L) {
                 0L
             } else {

@@ -14,6 +14,7 @@ import java.util.ArrayDeque
 internal class LiveAacExportHistory(
     internal val sampleRate: Int,
     internal val channelCount: Int,
+    internal val bitrateBitsPerSecond: Int,
 ) : Closeable {
     private val codec: MediaCodec
     private val bufferInfo = MediaCodec.BufferInfo()
@@ -28,7 +29,7 @@ internal class LiveAacExportHistory(
     init {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, aacBitrateForSampleRate(sampleRate, channelCount))
+            setInteger(MediaFormat.KEY_BIT_RATE, bitrateBitsPerSecond)
             setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
         }
         codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).apply {

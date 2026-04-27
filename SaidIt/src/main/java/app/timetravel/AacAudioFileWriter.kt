@@ -16,6 +16,7 @@ internal class AacAudioFileWriter(
     override val target: RecordingOutputTarget,
     private val sampleRate: Int,
     private val channelCount: Int,
+    private val bitrateBitsPerSecond: Int,
 ) : AudioFileWriter {
     private val codec: MediaCodec
     private val muxer: MediaMuxer
@@ -31,7 +32,7 @@ internal class AacAudioFileWriter(
     init {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, aacBitrateForSampleRate(sampleRate, channelCount))
+            setInteger(MediaFormat.KEY_BIT_RATE, bitrateBitsPerSecond)
             setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
         }
 

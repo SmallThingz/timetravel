@@ -14,9 +14,6 @@
 
     <string name="buffer_active_summary">ON</string>
     <string name="buffer_inactive_summary">OFF</string>
-    <string name="buffer_active_hint">Tap to pause</string>
-    <string name="buffer_inactive_hint">Tap to start</string>
-    <string name="buffer_recording_hint">Recording</string>
     <string name="buffer_status_time">Recording the past %1$s</string>
     <string name="buffer_status_size">Keeping %1$s of audio ready</string>
     <string name="buffer_status_paused">Buffer paused</string>
@@ -43,7 +40,6 @@
     <string name="preset_two_label">2</string>
     <string name="preset_three_label">3</string>
     <string name="preset_four_label">4</string>
-    <string name="send">Share</string>
     <string name="open">Open</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
@@ -51,8 +47,6 @@
     <string name="cancel">Cancel</string>
     <string name="no_app_available">No compatible app available.</string>
 
-    <string name="settings_return">Back</string>
-    <string name="settings_title">Settings</string>
     <string name="undo">Undo</string>
     <string name="theme_title">Theme</string>
     <string name="theme_system">System</string>
@@ -63,9 +57,6 @@
     <string name="retention_mode_size">Size</string>
     <string name="retention_time_label">Time</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="hours_label_short">Hr</string>
-    <string name="minutes_label_short">Min</string>
-    <string name="seconds_label_short">Sec</string>
     <string name="retention_size_label">Size (MB)</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Storage</string>
@@ -73,6 +64,9 @@
     <string name="codec_label">Codec</string>
     <string name="codec_aac">AAC / M4A</string>
     <string name="codec_wav">WAV / PCM</string>
+    <string name="codec_bitrate_label">Bitrate</string>
+    <string name="codec_bitrate_suffix">kbps</string>
+    <string name="codec_bitrate_invalid">Use %1$d-%2$d kbps.</string>
     <string name="sample_rate_label">Rate</string>
     <string name="audio_source_label">Source</string>
     <string name="channel_mode_label">Channels</string>
@@ -85,15 +79,13 @@
     <string name="audio_source_unprocessed">Unprocessed</string>
     <string name="audio_source_voice_performance">Voice perf</string>
     <string name="input_route_label">Route</string>
-    <string name="input_route_auto">Auto</string>
-    <string name="input_route_builtin_mic">Built-in</string>
+    <string name="input_route_auto">System chosen input</string>
+    <string name="input_route_builtin_mic">Prefer phone mic</string>
     <string name="export_folder_label">Folder</string>
     <string name="choose_folder">Choose</string>
     <string name="default_folder">Default</string>
     <string name="move_recordings">Move existing</string>
     <string name="move_recordings_none">No recordings to move.</string>
-    <string name="move_recordings_done">Moved %1$d recordings.</string>
-    <string name="move_recordings_done_with_cleanup">Moved %1$d. Removed %2$d missing.</string>
     <string name="persistent_buffer_cache_label">Keep buffer on restart</string>
     <string name="persistent_buffer_cache_summary">Write live buffer to disk and restore it after process death or reopen.</string>
     <string name="aggressive_restart_label">Aggressive restart</string>
@@ -113,7 +105,6 @@
 
     <string name="permission_required">Permission required</string>
     <string name="permission_required_message">Microphone access required.</string>
-    <string name="recordings_title">Recordings</string>
     <string name="recordings_empty_title">No saved clips</string>
     <string name="recordings_empty_body">Exports and live saves show up here.</string>
     <string name="delete_recording">Delete</string>
@@ -133,4 +124,14 @@
     <string name="recording_details_storage">Storage:</string>
     <string name="recording_details_location">Location:</string>
     <string name="close">Close</string>
+
+    <plurals name="move_recordings_done">
+        <item quantity="one">Moved %1$d recording.</item>
+        <item quantity="other">Moved %1$d recordings.</item>
+    </plurals>
+
+    <plurals name="move_recordings_removed_missing">
+        <item quantity="one">Removed %1$d missing entry.</item>
+        <item quantity="other">Removed %1$d missing entries.</item>
+    </plurals>
 </resources>
