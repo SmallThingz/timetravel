@@ -39,10 +39,10 @@
 
     <style name="TextView" parent="TextBase" />
 
-    <style name="TextAppearance.TimeTravel.BrandBase" parent="TextAppearance.Material3.TitleLarge">
+    <style name="TextAppearance.TimeTravel.BrandBase" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">-0.02</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">-0.03</item>
+        <item name="android:fontFamily">sans-serif-black</item>
     </style>
 
     <style name="TextAppearance.TimeTravel.BrandAccent" parent="TextAppearance.TimeTravel.BrandBase">

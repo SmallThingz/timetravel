@@ -82,6 +82,8 @@ android {
                 'META-INF/LGPL2.1',
                 'META-INF/*.version',
                 'META-INF/androidx/**',
+                'META-INF/version-control-info.textproto',
+                'kotlin-tooling-metadata.json',
             ]
         }
     }

@@ -75,14 +75,15 @@ class TimeTravelService : Service() {
     override fun onCreate() {
         loadConfiguration()
         persistentAudioRingStore = PersistentAudioRingStore(this)
+        adoptPersistedBufferConfigurationIfNeeded()
         audioThread = HandlerThread("timeTravelAudioThread", Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
         exportHandler = Handler(exportThread.looper)
         audioHandler.post {
-            warmRecorderCapabilityCache(applicationContext)
             restorePersistedBufferIfNeeded()
         }
+        scheduleRecorderCapabilityCacheWarm(applicationContext)
 
         if (isListeningEnabled()) {
             innerStartListening()
@@ -255,6 +256,7 @@ class TimeTravelService : Service() {
         updateWakeLockState()
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
+            syncPersistentBufferFromMemory()
             releaseAudioRecord()
         }
     }
@@ -273,6 +275,7 @@ class TimeTravelService : Service() {
 
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
+            syncPersistentBufferFromMemory()
             releaseAudioRecord()
         }
     }
@@ -758,6 +761,7 @@ class TimeTravelService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        audioHandler.post { syncPersistentBufferFromMemory() }
         scheduleRestartIfNeeded()
     }
 
@@ -796,11 +800,21 @@ class TimeTravelService : Service() {
             persistentAudioRingStore.clear()
             return
         }
-        if (memorySize <= 0L) {
+        val persisted = persistentAudioRingStore.peekSnapshot()
+        val restoredCapacityBytes = persisted?.capacityBytes?.toLong() ?: 0L
+        val targetMemorySize = maxOf(memorySize, restoredCapacityBytes)
+        if (targetMemorySize <= 0L) {
             return
         }
-        if (audioMemory.allocatedMemorySize != memorySize) {
-            audioMemory.allocate(memorySize)
+        persisted?.let { snapshot ->
+            if (audioMemory.countFilled() == 0 && snapshot.sampleRate > 0 && snapshot.channelCount > 0) {
+                sampleRate = snapshot.sampleRate
+                channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
+                fillRate = sampleRate * channelMode.channelCount * 2
+            }
+        }
+        if (audioMemory.allocatedMemorySize != targetMemorySize) {
+            audioMemory.allocate(targetMemorySize)
         }
         if (audioMemory.countFilled() > 0) {
             return
@@ -808,7 +822,7 @@ class TimeTravelService : Service() {
 
         val restored = persistentAudioRingStore.restoreInto(
             audioMemory = audioMemory,
-            capacityBytes = memorySize,
+            capacityBytes = targetMemorySize,
             sampleRate = sampleRate,
             channelCount = channelMode.channelCount,
         )
@@ -826,6 +840,13 @@ class TimeTravelService : Service() {
             return
         }
         persistentAudioRingStore.replaceWith(audioMemory, sampleRate, channelMode.channelCount)
+    }
+
+    private fun adoptPersistedBufferConfigurationIfNeeded() {
+        val snapshot = persistentAudioRingStore.peekSnapshot() ?: return
+        sampleRate = snapshot.sampleRate
+        channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
+        fillRate = sampleRate * channelMode.channelCount * 2
     }
 
     private fun updateWakeLockState() {

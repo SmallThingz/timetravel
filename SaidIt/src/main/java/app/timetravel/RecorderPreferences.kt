@@ -18,6 +18,8 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
 private const val BYTES_PER_PCM_SAMPLE = 2L
@@ -34,6 +36,13 @@ private val sampleRatesCache = ConcurrentHashMap<SampleRatesKey, List<Int>>()
 private val sourceModesCache = ConcurrentHashMap<SourceModesKey, List<AudioSourceMode>>()
 private val channelModesCache = ConcurrentHashMap<ChannelModesKey, List<ChannelMode>>()
 private val capabilityWarmLock = Any()
+private val capabilityWarmExecutor = Executors.newSingleThreadExecutor { runnable ->
+    Thread(runnable, "timetravel-capability-warm").apply {
+        isDaemon = true
+        priority = Thread.MIN_PRIORITY
+    }
+}
+private val capabilityWarmScheduled = AtomicBoolean(false)
 
 @Volatile
 private var cachedSupportedCodecs: List<ExportCodec>? = null
@@ -767,6 +776,20 @@ fun warmRecorderCapabilityCache(context: Context) {
             }
         }
         capabilityCacheWarm = true
+    }
+}
+
+fun scheduleRecorderCapabilityCacheWarm(context: Context) {
+    if (capabilityCacheWarm || !capabilityWarmScheduled.compareAndSet(false, true)) {
+        return
+    }
+    val appContext = context.applicationContext
+    capabilityWarmExecutor.execute {
+        try {
+            warmRecorderCapabilityCache(appContext)
+        } finally {
+            capabilityWarmScheduled.set(false)
+        }
     }
 }
 

@@ -33,6 +33,34 @@ internal class PersistentAudioRingStore(
         val lastWriteAtMillis: Long,
     )
 
+    data class Snapshot(
+        val capacityBytes: Int,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val filledBytes: Int,
+        val lastWriteAtMillis: Long,
+    )
+
+    @Synchronized
+    fun peekSnapshot(): Snapshot? {
+        ensureMetaMapped()
+        val meta = metaMap ?: return null
+        val capacityBytes = meta.readCapacityBytes()
+        val sampleRate = meta.readSampleRate()
+        val channelCount = meta.readChannelCount()
+        val filledBytes = meta.readFilledBytes()
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0) {
+            return null
+        }
+        return Snapshot(
+            capacityBytes = capacityBytes,
+            sampleRate = sampleRate,
+            channelCount = channelCount,
+            filledBytes = filledBytes,
+            lastWriteAtMillis = meta.readLastWriteAtMillis(),
+        )
+    }
+
     @Synchronized
     fun restoreInto(
         audioMemory: AudioMemory,
@@ -208,10 +236,8 @@ internal class PersistentAudioRingStore(
 
         val sameFormat = meta.readSampleRate() == sampleRate && meta.readChannelCount() == channelCount
         val sameCapacity = meta.readCapacityBytes() == capacityBytes
-        if (sameFormat && sameCapacity && dataMap != null) {
-            mappedCapacityBytes = capacityBytes
-            mappedSampleRate = sampleRate
-            mappedChannelCount = channelCount
+        if (sameFormat && sameCapacity) {
+            remap(capacityBytes, sampleRate, channelCount, clearContents = false)
             return
         }
 
