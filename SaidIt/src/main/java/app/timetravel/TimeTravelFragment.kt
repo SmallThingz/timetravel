@@ -66,7 +66,7 @@ class TimeTravelFragment : Fragment() {
     private lateinit var listenSurface: View
     private lateinit var listenRing: View
     private lateinit var listenTitle: TextView
-    private lateinit var listenCaption: TextView
+
     private lateinit var settingsButton: View
     private lateinit var listenSurfaceDrawable: MaterialShapeDrawable
     private lateinit var listenRingDrawable: MaterialShapeDrawable
@@ -210,13 +210,13 @@ class TimeTravelFragment : Fragment() {
         clearBufferButton = view.findViewById(R.id.clear_buffer_button)
         recordMaxButton = view.findViewById(R.id.record_last_max)
         recordCustomButton = view.findViewById(R.id.record_last_custom)
-        recTime = view.findViewById(R.id.rec_time)
+        recTime = view.findViewById(R.id.rec_button_circle)
         recTouchArea = view.findViewById(R.id.rec_touch_area)
-        recButtonCircle = view.findViewById(R.id.rec_button_circle)
+        recButtonCircle = recTime
         listenSurface = view.findViewById(R.id.bottom_bar)
         listenRing = view.findViewById(R.id.listen_ring)
         listenTitle = view.findViewById(R.id.listen_title)
-        listenCaption = view.findViewById(R.id.listen_caption)
+
 
         historySize.typeface = Typeface.MONOSPACE
         recTime.typeface = Typeface.MONOSPACE
@@ -448,7 +448,7 @@ class TimeTravelFragment : Fragment() {
     private fun updateListenSurfaceAppearance() {
         val active = isListening || isRecording
         listenTitle.setText(if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary)
-        listenCaption.visibility = View.GONE
+
         listenSurface.isEnabled = !isRecording && !isSaving
         clearBufferButton.isEnabled = !isRecording && !isSaving
         clearBufferButton.alpha = if (isRecording || isSaving) 0.5f else 1f

@@ -68,18 +68,11 @@
                 android:paddingHorizontal="16dp"
                 android:paddingVertical="24dp">
 
-                <TextView
-                    style="?attr/textAppearanceLabelLarge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/theme_title" />
-
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/theme_layout"
                     style="@style/TimeTravel.TextInputLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
                     android:hint="@string/theme_title"
                     app:endIconMode="dropdown_menu">
 
@@ -214,29 +207,50 @@
                         </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/bitrate_layout"
-                    style="@style/TimeTravel.TextInputLayout"
+                <LinearLayout
+                    android:id="@+id/bitrate_group"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:hint="@string/codec_bitrate_label"
                     android:visibility="gone"
-                    app:suffixText="@string/codec_bitrate_suffix">
+                    android:orientation="vertical">
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/bitrate_input"
-                        style="@style/TimeTravel.TextInputEditText"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:digits="0123456789"
-                        android:importantForAutofill="no"
-                        android:inputType="number"
-                        android:maxLength="3"
-                        android:maxLines="1"
-                        android:selectAllOnFocus="true"
-                        tools:text="128" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            style="?attr/textAppearanceLabelLarge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/codec_bitrate_label" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            android:layout_weight="1" />
+
+                        <TextView
+                            android:id="@+id/bitrate_value"
+                            style="?attr/textAppearanceBodyMedium"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            tools:text="128 kbps" />
+                    </LinearLayout>
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/bitrate_slider"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@string/codec_bitrate_label"
+                        android:valueFrom="32"
+                        android:valueTo="320"
+                        android:stepSize="8"
+                        android:value="128" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -314,50 +328,41 @@
                     android:layout_height="wrap_content"
                     android:text="@string/storage_settings_title" />
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/export_path_layout"
-                    style="@style/TimeTravel.TextInputLayout"
+                <TextView
+                    android:id="@+id/export_path_value"
+                    style="?attr/textAppearanceBodyLarge"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:hint="@string/export_folder_label">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/export_path_input"
-                        style="@style/TimeTravel.TextInputEditText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:focusable="false"
-                        android:inputType="none"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="App storage/Timetravel" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:orientation="vertical">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/choose_folder_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/choose_folder" />
+                        android:orientation="horizontal">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/default_folder_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="@string/default_folder" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/choose_folder_button"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/choose_folder" />
 
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="0dp"
-                        android:layout_weight="1" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/default_folder_button"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:text="@string/default_folder" />
+                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/move_recordings_button"
@@ -494,22 +499,30 @@
                         android:layout_height="wrap_content" />
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/battery_optimization_status"
-                    style="?attr/textAppearanceBodySmall"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    tools:text="Battery optimization: unrestricted" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/battery_optimization_button"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/battery_optimization_button" />
+                    <TextView
+                        android:id="@+id/battery_optimization_status"
+                        style="?attr/textAppearanceBodySmall"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        tools:text="Battery optimization: restricted" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/battery_optimization_button"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:text="@string/battery_optimization_button" />
+                </LinearLayout>
             </LinearLayout>
         </ScrollView>
     </LinearLayout>

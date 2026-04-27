@@ -6,34 +6,6 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 
-data class NaturalLanguageResult(
-    var text: String = "",
-    var count: Int = 0,
-)
-
-fun formatNaturalLanguage(
-    secondsFloat: Float,
-    outResult: NaturalLanguageResult,
-) {
-    val totalSeconds = floor(secondsFloat).toInt().coerceAtLeast(0)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-
-    outResult.count = if (hours > 0) hours else if (minutes > 0) minutes else seconds
-
-    val text = buildString {
-        if (hours > 0) {
-            append(String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds))
-        } else if (minutes > 0) {
-            append(String.format(Locale.US, "%d:%02d", minutes, seconds))
-        } else {
-            append(String.format(Locale.US, "0:%02d", seconds))
-        }
-    }
-
-    outResult.text = text
-}
 
 fun formatShortTimer(seconds: Float): String {
     val totalSeconds = floor(seconds).toInt().coerceAtLeast(0)

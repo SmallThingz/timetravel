@@ -1,22 +1,18 @@
 package app.timetravel
 
 import android.content.Context
-import android.media.AudioFormat
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.os.ParcelFileDescriptor
-import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
 
-internal class AacAudioFileWriter(
+internal class EncodedAudioFileWriter(
     context: Context,
     override val target: RecordingOutputTarget,
+    private val codecConfig: ExportCodec,
     private val sampleRate: Int,
     private val channelCount: Int,
-    private val bitrateBitsPerSecond: Int,
+    private val bitrateKbps: Int?,
 ) : AudioFileWriter {
     private val codec: MediaCodec
     private val muxer: MediaMuxer
@@ -30,18 +26,13 @@ internal class AacAudioFileWriter(
         private set
 
     init {
-        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount).apply {
-            setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, bitrateBitsPerSecond)
-            setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
-        }
-
-        codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).apply {
+        val format = buildEncoderFormat(codecConfig, sampleRate, channelCount, bitrateKbps)
+        codec = MediaCodec.createEncoderByType(requireNotNull(codecConfig.encoderMimeType)).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             start()
         }
         parcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
-        muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(codecConfig.muxerOutputFormat))
     }
 
     override fun write(
@@ -58,7 +49,7 @@ internal class AacAudioFileWriter(
                 continue
             }
 
-            val inputBuffer = codec.getInputBuffer(inputIndex) ?: throw IOException("AAC encoder input buffer is null")
+            val inputBuffer = codec.getInputBuffer(inputIndex) ?: throw IOException("Encoder input buffer is null")
             inputBuffer.clear()
             val toWrite = minOf(remaining, inputBuffer.remaining())
             val presentationTimeUs = bytesToDurationUs(totalSampleBytesWritten)
@@ -111,21 +102,22 @@ internal class AacAudioFileWriter(
                 MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return
                 MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     if (muxerStarted) {
-                        throw IOException("AAC muxer format changed twice")
+                        throw IOException("Encoder muxer format changed twice")
                     }
                     trackIndex = muxer.addTrack(codec.outputFormat)
                     muxer.start()
                     muxerStarted = true
                 }
+
                 else -> if (outputIndex >= 0) {
                     val outputBuffer = codec.getOutputBuffer(outputIndex)
-                        ?: throw IOException("AAC encoder output buffer is null")
+                        ?: throw IOException("Encoder output buffer is null")
                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
                         bufferInfo.size = 0
                     }
                     if (bufferInfo.size > 0) {
                         if (!muxerStarted) {
-                            throw IOException("AAC muxer not started")
+                            throw IOException("Muxer not started")
                         }
                         outputBuffer.position(bufferInfo.offset)
                         outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
@@ -142,8 +134,9 @@ internal class AacAudioFileWriter(
 
     private fun bytesToDurationUs(pcmBytes: Int): Long {
         val frames = pcmBytes / maxOf(channelCount * 2, 1)
-        return frames * 1_000_000L / sampleRate
+        return frames * 1_000_000L / sampleRate.coerceAtLeast(1)
     }
+
     private companion object {
         const val TIMEOUT_US = 10_000L
     }

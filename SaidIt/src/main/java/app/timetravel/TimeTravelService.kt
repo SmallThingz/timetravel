@@ -69,7 +69,7 @@ class TimeTravelService : Service() {
     private lateinit var exportThread: HandlerThread
     private lateinit var exportHandler: Handler
     private lateinit var persistentAudioRingStore: PersistentAudioRingStore
-    private var liveAacExportHistory: LiveAacExportHistory? = null
+
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
@@ -83,7 +83,7 @@ class TimeTravelService : Service() {
             warmRecorderCapabilityCache(applicationContext)
             restorePersistedBufferIfNeeded()
         }
-        configureLiveExportHistory()
+
         if (isListeningEnabled()) {
             innerStartListening()
         }
@@ -95,13 +95,22 @@ class TimeTravelService : Service() {
         releaseAudioRecord()
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        liveAacExportHistory?.close()
-        liveAacExportHistory = null
+
         persistentAudioRingStore.close()
         audioThread.quitSafely()
         exportThread.quitSafely()
         scheduleRestartIfNeeded()
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        audioHandler.post { syncPersistentBufferFromMemory() }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        audioHandler.post { syncPersistentBufferFromMemory() }
     }
 
     override fun onBind(intent: Intent): IBinder = BackgroundRecorderBinder()
@@ -141,49 +150,54 @@ class TimeTravelService : Service() {
                 supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, ChannelMode.MONO).isNotEmpty()
             ) {
                 selectedChannelMode = ChannelMode.MONO
-            } else if (
-                selectedCodec != ExportCodec.WAV &&
-                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, ExportCodec.WAV, selectedChannelMode).isNotEmpty()
-            ) {
-                selectedCodec = ExportCodec.WAV
             } else {
-                selectedRouteMode = InputRouteMode.AUTO
-                selectedSourceMode = AudioSourceMode.MIC
-                selectedChannelMode = ChannelMode.MONO
-                selectedCodec = ExportCodec.WAV
+                selectedCodec =
+                    supportedCodecs().firstOrNull {
+                        supportedSampleRates(this, selectedSourceMode, selectedRouteMode, it, selectedChannelMode).isNotEmpty()
+                    }
+                        ?: ExportCodec.WAV
             }
         }
 
         if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode).isEmpty()) {
-            if (
-                selectedCodec != ExportCodec.WAV &&
-                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, ExportCodec.WAV, selectedChannelMode).isNotEmpty()
-            ) {
-                selectedCodec = ExportCodec.WAV
+            val codecFallback =
+                supportedCodecs().firstOrNull {
+                    supportedSampleRates(this, selectedSourceMode, selectedRouteMode, it, selectedChannelMode).isNotEmpty()
+                }
+            if (codecFallback != null) {
+                selectedCodec = codecFallback
             } else {
                 selectedRouteMode = InputRouteMode.AUTO
                 selectedSourceMode = AudioSourceMode.MIC
                 selectedChannelMode = ChannelMode.MONO
-                selectedCodec = ExportCodec.WAV
+                selectedCodec =
+                    supportedCodecs().firstOrNull {
+                        supportedSampleRates(this, selectedSourceMode, selectedRouteMode, it, selectedChannelMode).isNotEmpty()
+                    }
+                        ?: ExportCodec.WAV
             }
         }
 
-        val supportedRates = supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode)
-        var preferredRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode)
-        if (supportedRates.isNotEmpty() && preferredRate !in supportedRates) {
-            preferredRate = supportedRates.first()
-        }
+        val requestedRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode)
+        val preferredRate = resolveOperationalSampleRate(
+            this,
+            requestedRate,
+            selectedSourceMode,
+            selectedRouteMode,
+            selectedCodec,
+            selectedChannelMode,
+        )
 
         sampleRate = if (preferredRate > 0) preferredRate else 48_000
         fillRate = sampleRate * selectedChannelMode.channelCount * 2
         sourceMode = selectedSourceMode
         channelMode = selectedChannelMode
         audioSource = selectedSourceMode.sourceValue
-        outputCodec = if (isCodecSupported(selectedCodec, sampleRate, selectedChannelMode)) selectedCodec else ExportCodec.WAV
+        outputCodec = supportedCodecs().firstOrNull { it == selectedCodec && isCodecSupported(it, sampleRate, selectedChannelMode) }
+            ?: supportedCodecs().firstOrNull { isCodecSupported(it, sampleRate, selectedChannelMode) }
+            ?: ExportCodec.WAV
         inputRouteMode = selectedRouteMode
-        if (this::audioHandler.isInitialized) {
-            configureLiveExportHistory()
-        }
+
     }
 
     private fun innerStartListening() {
@@ -331,32 +345,7 @@ class TimeTravelService : Service() {
                 return@post
             }
 
-            if (effectiveOutputCodec == ExportCodec.AAC) {
-                val snapshot = liveAacExportHistory?.snapshotLastDuration((useBytes * 1_000_000L) / maxOf(fillRate, 1))
-                if (snapshot != null && snapshot.frames.isNotEmpty()) {
-                    exportHandler.post {
-                        try {
-                            AacSnapshotExporter.export(this@TimeTravelService, snapshot, outTarget)
-                            notifyReceiver(
-                                receiver,
-                                buildRecordingEntity(
-                                    this@TimeTravelService,
-                                    outTarget,
-                                    snapshot.durationUs / 1000L,
-                                    currentCodecSummary(),
-                                ),
-                            )
-                        } catch (e: IOException) {
-                            Log.e(TAG, "Error while writing cached AAC export into ${outTarget.displayName}", e)
-                            val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
-                            showToast(message)
-                            notifyReceiverFailure(receiver, message)
-                            deleteIfEmpty(outTarget)
-                        }
-                    }
-                    return@post
-                }
-            }
+
 
             exportHandler.post {
                 try {
@@ -469,14 +458,23 @@ class TimeTravelService : Service() {
         val newChannelMode = getConfiguredChannelMode(this)
         val newRouteMode = getConfiguredInputRouteMode(this)
         val newCodec = getConfiguredOutputCodec(this)
-        val newSampleRate = getConfiguredSampleRate(this, newSourceMode, newRouteMode, newCodec, newChannelMode)
+        val newSampleRate = resolveOperationalSampleRate(
+            this,
+            getConfiguredSampleRate(this, newSourceMode, newRouteMode, newCodec, newChannelMode),
+            newSourceMode,
+            newRouteMode,
+            newCodec,
+            newChannelMode,
+        )
         val captureConfigChanged =
             newSampleRate != sampleRate ||
                 newSourceMode != sourceMode ||
                 newChannelMode != channelMode ||
                 newRouteMode != inputRouteMode
 
-        outputCodec = if (isCodecSupported(newCodec, newSampleRate, newChannelMode)) newCodec else ExportCodec.WAV
+        outputCodec = supportedCodecs().firstOrNull { it == newCodec && isCodecSupported(it, newSampleRate, newChannelMode) }
+            ?: supportedCodecs().firstOrNull { isCodecSupported(it, newSampleRate, newChannelMode) }
+            ?: ExportCodec.WAV
         updateWakeLockState()
 
         if (state != STATE_LISTENING || !isListeningEnabled()) {
@@ -573,21 +571,26 @@ class TimeTravelService : Service() {
     }
 
     private val effectiveOutputCodec: ExportCodec
-        get() = if (isCodecSupported(outputCodec, sampleRate, channelMode)) outputCodec else ExportCodec.WAV
+        get() = if (isCodecSupported(outputCodec, sampleRate, channelMode)) {
+            outputCodec
+        } else {
+            supportedCodecs().firstOrNull { isCodecSupported(it, sampleRate, channelMode) } ?: ExportCodec.WAV
+        }
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
         return when (effectiveOutputCodec) {
-            ExportCodec.AAC -> {
-                AacAudioFileWriter(
+            ExportCodec.WAV -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
+            else -> {
+                EncodedAudioFileWriter(
                     this,
                     target,
+                    effectiveOutputCodec,
                     sampleRate,
                     channelMode.channelCount,
-                    aacBitrateForSampleRate(sampleRate, channelMode.channelCount, getConfiguredAacBitrateKbps(this, sampleRate, channelMode.channelCount)),
+                    getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount),
                 )
             }
-            ExportCodec.WAV -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
         }
     }
 
@@ -606,9 +609,12 @@ class TimeTravelService : Service() {
     }
 
     private fun currentCodecSummary(): String {
-        val aacBitrateKbps =
-            if (effectiveOutputCodec == ExportCodec.AAC) getConfiguredAacBitrateKbps(this, sampleRate, channelMode.channelCount) else null
-        return buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount, aacBitrateKbps)
+        return buildCodecSummary(
+            effectiveOutputCodec,
+            sampleRate,
+            channelMode.channelCount,
+            getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount),
+        )
     }
 
     private fun flushAudioRecord() {
@@ -643,7 +649,7 @@ class TimeTravelService : Service() {
             writer.write(array, offset, read)
         }
         if (read > 0) {
-            liveAacExportHistory?.appendPcm(array, offset, read)
+
             if (isDiskBufferCacheEnabled(this@TimeTravelService)) {
                 persistentAudioRingStore.append(
                     array = array,
@@ -721,7 +727,7 @@ class TimeTravelService : Service() {
         }
         audioHandler.post {
             audioMemory.clear()
-            liveAacExportHistory?.clear()
+
             persistentAudioRingStore.clear()
         }
     }
@@ -807,7 +813,7 @@ class TimeTravelService : Service() {
             channelCount = channelMode.channelCount,
         )
         if (restored.restoredBytes > 0) {
-            liveAacExportHistory?.clear()
+
             if (!isListeningEnabled() && state == STATE_READY) {
                 state = STATE_PAUSED
             }
@@ -926,32 +932,4 @@ class TimeTravelService : Service() {
         const val STATE_PAUSED = 3
     }
 
-    private fun configureLiveExportHistory() {
-        val retentionDurationUs = getConfiguredMemorySizeBytes(this, sampleRate, channelMode) * 1_000_000L / maxOf(fillRate, 1)
-        val aacBitrateBitsPerSecond =
-            aacBitrateForSampleRate(sampleRate, channelMode.channelCount, getConfiguredAacBitrateKbps(this, sampleRate, channelMode.channelCount))
-        audioHandler.post {
-            val shouldUseAacHistory = effectiveOutputCodec == ExportCodec.AAC
-            if (!shouldUseAacHistory) {
-                liveAacExportHistory?.close()
-                liveAacExportHistory = null
-                return@post
-            }
-
-            val current = liveAacExportHistory
-            if (
-                current == null ||
-                current.sampleRate != sampleRate ||
-                current.channelCount != channelMode.channelCount ||
-                current.bitrateBitsPerSecond != aacBitrateBitsPerSecond
-            ) {
-                current?.close()
-                liveAacExportHistory = LiveAacExportHistory(sampleRate, channelMode.channelCount, aacBitrateBitsPerSecond).also {
-                    it.setMaxDurationUs(retentionDurationUs)
-                }
-            } else {
-                current.setMaxDurationUs(retentionDurationUs)
-            }
-        }
-    }
 }

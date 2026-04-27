@@ -18,7 +18,7 @@ import java.io.RandomAccessFile
 import java.util.Locale
 
 private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
-private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "aac")
+private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "aac", "3gp")
 
 enum class RecordingStorageType {
     FILE,
@@ -170,18 +170,43 @@ fun buildCodecSummary(
 ): String {
     val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
     return when (codec) {
-        ExportCodec.AAC -> {
-            val bitrateKbps = aacBitrateForSampleRate(sampleRate, channelCount, aacBitrateKbps) / 1000
-            "AAC • ${sampleRateLabel(sampleRate)} • $channelLabel • ${bitrateKbps} kbps"
-        }
         ExportCodec.WAV -> "WAV • ${sampleRateLabel(sampleRate)} • $channelLabel"
+        else -> {
+            val bitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
+                ?.let { aacBitrateKbps ?: it }
+            buildString {
+                append(
+                    when (codec) {
+                        ExportCodec.AAC_LC -> "AAC-LC"
+                        ExportCodec.HE_AAC -> "HE-AAC"
+                        ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
+                        ExportCodec.XHE_AAC -> "xHE-AAC"
+                        ExportCodec.AMR_WB -> "AMR-WB"
+                        ExportCodec.AMR_NB -> "AMR-NB"
+                        ExportCodec.WAV -> "WAV"
+                    },
+                )
+                append(" • ")
+                append(sampleRateLabel(sampleRate))
+                append(" • ")
+                append(channelLabel)
+                bitrateKbps?.let {
+                    append(" • ")
+                    append(it)
+                    append(" kbps")
+                }
+            }
+        }
     }
 }
 
-fun describeRecordingLocation(recording: RecordingEntity): String {
+fun describeRecordingLocation(
+    context: Context,
+    recording: RecordingEntity,
+): String {
     return when (RecordingStorageType.valueOf(recording.storageType)) {
-        RecordingStorageType.FILE -> recording.id
-        RecordingStorageType.DOCUMENT -> recording.id
+        RecordingStorageType.FILE -> describeFileRecordingLocation(context, File(recording.id))
+        RecordingStorageType.DOCUMENT -> describeDocumentRecordingLocation(context, recording)
     }
 }
 
@@ -195,6 +220,100 @@ private fun resolveRecordingCodecInfo(
         return "$ext • $kbps kbps"
     }
     return ext
+}
+
+private fun describeFileRecordingLocation(
+    context: Context,
+    file: File,
+): String {
+    val normalizedPath = file.absolutePath.replace('\\', '/')
+    val appStoragePath = getSavedRecordingsDirectory(context).absolutePath.replace('\\', '/').trimEnd('/')
+    if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
+        val relativePath = normalizedPath.removePrefix(appStoragePath).trimStart('/')
+        return buildAppStorageLocationLabel(relativePath)
+    }
+    return normalizedPath
+}
+
+private fun describeDocumentRecordingLocation(
+    context: Context,
+    recording: RecordingEntity,
+): String {
+    val documentUri = Uri.parse(recording.id)
+    val directoryUri = recording.directoryId.takeIf { it.isNotBlank() }?.let(Uri::parse)
+
+    describeDocumentIdPath(context, runCatching { DocumentsContract.getDocumentId(documentUri) }.getOrNull())?.let {
+        return it
+    }
+    describeDocumentIdPath(context, directoryUri?.let { runCatching { DocumentsContract.getTreeDocumentId(it) }.getOrNull() })?.let {
+        return appendDisplayNameIfMissing(it, recording.displayName)
+    }
+    return Uri.decode(documentUri.toString())
+}
+
+private fun describeDocumentIdPath(
+    context: Context,
+    documentId: String?,
+): String? {
+    val decodedDocumentId = documentId?.let(Uri::decode)?.takeIf { it.isNotBlank() } ?: return null
+    val separatorIndex = decodedDocumentId.indexOf(':')
+    if (separatorIndex <= 0) {
+        return decodedDocumentId
+    }
+
+    val volumeId = decodedDocumentId.substring(0, separatorIndex)
+    val relativePath = decodedDocumentId.substring(separatorIndex + 1).trim('/')
+    describeAppStorageRelativePath(context, relativePath)?.let { return it }
+
+    val rootLabel = when {
+        volumeId.equals("primary", ignoreCase = true) -> "Internal shared storage"
+        volumeId.equals("home", ignoreCase = true) -> "Documents"
+        else -> "Storage $volumeId"
+    }
+    return appendRelativePath(rootLabel, relativePath)
+}
+
+private fun describeAppStorageRelativePath(
+    context: Context,
+    relativePath: String,
+): String? {
+    val normalizedPath = relativePath.replace('\\', '/').trim('/')
+    val appStorageRelativeRoot = "Android/data/${context.packageName}/files/${Environment.DIRECTORY_MUSIC}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
+    if (normalizedPath == appStorageRelativeRoot || normalizedPath.startsWith("$appStorageRelativeRoot/")) {
+        val tail = normalizedPath.removePrefix(appStorageRelativeRoot).trimStart('/')
+        return buildAppStorageLocationLabel(tail)
+    }
+    return null
+}
+
+private fun buildAppStorageLocationLabel(relativePath: String): String {
+    val baseLabel = "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
+    val normalizedTail = relativePath.replace('\\', '/').trim('/')
+    return appendRelativePath(baseLabel, normalizedTail)
+}
+
+private fun appendDisplayNameIfMissing(
+    basePath: String,
+    displayName: String,
+): String {
+    val normalizedBasePath = basePath.trimEnd('/')
+    return if (normalizedBasePath.endsWith("/$displayName") || normalizedBasePath == displayName) {
+        normalizedBasePath
+    } else {
+        "$normalizedBasePath/$displayName"
+    }
+}
+
+private fun appendRelativePath(
+    basePath: String,
+    relativePath: String,
+): String {
+    val normalizedRelativePath = relativePath.trim('/')
+    return if (normalizedRelativePath.isEmpty()) {
+        basePath
+    } else {
+        "$basePath/$normalizedRelativePath"
+    }
 }
 
 fun resolveRecordingStartTimeMillis(file: File): Long {
@@ -262,10 +381,7 @@ fun createOutputTarget(
         if (requestedName.isNullOrBlank()) buildRecordingBaseName(startedAtMillis) else requestedName.trim(),
     )
     val displayName = "$baseName.${codec.extension}"
-    val mimeType = when (codec) {
-        ExportCodec.AAC -> "audio/mp4"
-        ExportCodec.WAV -> "audio/wav"
-    }
+    val mimeType = codec.outputMimeType
     return createOutputTarget(context, displayName, mimeType, startedAtMillis)
 }
 

@@ -209,7 +209,7 @@ class SavedRecordingsFragment : Fragment() {
                     recording = recording,
                     timestampLabel = formatRecordingStartTimestamp(requireContext(), recording.startedAtMillis),
                     fileName = recording.displayName,
-                    durationLabel = formatSavedRecordingDuration(recording.durationMillis),
+                    durationLabel = "${formatSavedRecordingDuration(recording.durationMillis)} • ${recording.codecSummary}",
                     sizeLabel = formatShortFileSize(recording.sizeBytes),
                 ),
             )
@@ -371,7 +371,7 @@ class SavedRecordingsFragment : Fragment() {
             appendLine("${getString(R.string.recording_details_codec)} ${recording.codecSummary}")
             appendLine("${getString(R.string.recording_details_mime)} ${recording.mimeType}")
             appendLine("${getString(R.string.recording_details_storage)} ${recording.storageType}")
-            append("${getString(R.string.recording_details_location)} ${describeRecordingLocation(recording)}")
+            append("${getString(R.string.recording_details_location)} ${describeRecordingLocation(requireContext(), recording)}")
         }.trim()
     }
 

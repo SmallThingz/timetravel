@@ -20,6 +20,7 @@
             android:paddingBottom="8dp"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface"
-            android:typeface="monospace" />
+            android:typeface="monospace"
+            android:lineSpacingExtra="4dp" />
     </ScrollView>
 </FrameLayout>

@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.launch
@@ -36,12 +37,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var retentionTimeLayout: TextInputLayout
     private lateinit var retentionSizeLayout: TextInputLayout
     private lateinit var codecLayout: TextInputLayout
-    private lateinit var bitrateLayout: TextInputLayout
     private lateinit var sampleRateLayout: TextInputLayout
     private lateinit var audioSourceLayout: TextInputLayout
     private lateinit var channelModeLayout: TextInputLayout
     private lateinit var inputRouteLayout: TextInputLayout
-    private lateinit var exportPathLayout: TextInputLayout
+    private lateinit var bitrateGroup: View
+    private lateinit var bitrateValue: TextView
+    private lateinit var bitrateSlider: Slider
     private lateinit var themeDropdown: MaterialAutoCompleteTextView
     private lateinit var codecDropdown: MaterialAutoCompleteTextView
     private lateinit var sampleRateDropdown: MaterialAutoCompleteTextView
@@ -50,8 +52,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var inputRouteDropdown: MaterialAutoCompleteTextView
     private lateinit var retentionTimeInput: EditText
     private lateinit var retentionSizeInput: EditText
-    private lateinit var bitrateInput: EditText
-    private lateinit var exportPathInput: EditText
+    private lateinit var exportPathValue: TextView
     private lateinit var chooseFolderButton: MaterialButton
     private lateinit var defaultFolderButton: MaterialButton
     private lateinit var moveRecordingsButton: MaterialButton
@@ -168,12 +169,13 @@ class SettingsActivity : AppCompatActivity() {
         retentionTimeLayout = findViewById(R.id.retention_time_layout)
         retentionSizeLayout = findViewById(R.id.retention_size_layout)
         codecLayout = findViewById(R.id.codec_layout)
-        bitrateLayout = findViewById(R.id.bitrate_layout)
         sampleRateLayout = findViewById(R.id.sample_rate_layout)
         audioSourceLayout = findViewById(R.id.audio_source_layout)
         channelModeLayout = findViewById(R.id.channel_mode_layout)
         inputRouteLayout = findViewById(R.id.input_route_layout)
-        exportPathLayout = findViewById(R.id.export_path_layout)
+        bitrateGroup = findViewById(R.id.bitrate_group)
+        bitrateValue = findViewById(R.id.bitrate_value)
+        bitrateSlider = findViewById(R.id.bitrate_slider)
         themeDropdown = findViewById(R.id.theme_dropdown)
         codecDropdown = findViewById(R.id.codec_dropdown)
         sampleRateDropdown = findViewById(R.id.sample_rate_dropdown)
@@ -182,8 +184,7 @@ class SettingsActivity : AppCompatActivity() {
         inputRouteDropdown = findViewById(R.id.input_route_dropdown)
         retentionTimeInput = findViewById(R.id.retention_time_input)
         retentionSizeInput = findViewById(R.id.retention_size_input)
-        bitrateInput = findViewById(R.id.bitrate_input)
-        exportPathInput = findViewById(R.id.export_path_input)
+        exportPathValue = findViewById(R.id.export_path_value)
         chooseFolderButton = findViewById(R.id.choose_folder_button)
         defaultFolderButton = findViewById(R.id.default_folder_button)
         moveRecordingsButton = findViewById(R.id.move_recordings_button)
@@ -323,18 +324,14 @@ class SettingsActivity : AppCompatActivity() {
             }
         })
 
-        bitrateInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-
-            override fun afterTextChanged(s: Editable?) {
-                if (bindingUi) return
-                bitrateLayout.error = null
-                refreshRetentionFields(preserveActiveInputs = true)
-                saveCurrentToSnapshot(currentSettings)
-                pushUndoState()
-            }
-        })
+        bitrateSlider.addOnChangeListener { _, value, fromUser ->
+            if (bindingUi) return@addOnChangeListener
+            updateBitrateValueLabel(value.toInt())
+            if (!fromUser) return@addOnChangeListener
+            refreshRetentionFields(preserveActiveInputs = true)
+            saveCurrentToSnapshot(currentSettings)
+            pushUndoState()
+        }
 
         themeDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
@@ -359,10 +356,12 @@ class SettingsActivity : AppCompatActivity() {
         inputRouteDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(inputRouteDropdown)
-                refreshSourceModes(
+                refreshCodecOptions(
+                    preferredCodec = currentCodec(),
                     preferredSource = currentSourceMode(),
                     preferredChannelMode = currentChannelMode(),
                     preferredRate = currentSampleRate(),
+                    preferredBitrateKbps = currentBitrateKbpsOrNull(),
                 )
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
@@ -442,7 +441,7 @@ class SettingsActivity : AppCompatActivity() {
         val configuredSource = getConfiguredAudioSourceMode(this)
         val configuredChannelMode = getConfiguredChannelMode(this)
         val configuredRate = getConfiguredSampleRate(this, configuredSource, configuredRoute, configuredCodec, configuredChannelMode)
-        val configuredBitrateKbps = getConfiguredAacBitrateKbps(this, configuredRate, configuredChannelMode.channelCount)
+        val configuredBitrateKbps = getConfiguredCodecBitrateKbps(this, configuredCodec, configuredRate, configuredChannelMode.channelCount) ?: 0
         val configuredExportTreeUri = getConfiguredExportTreeUri(this)
         val configuredPersistentBuffer = isDiskBufferCacheEnabled(this)
         val configuredAggressiveRestart = isAggressiveRestartEnabled(this)
@@ -460,14 +459,6 @@ class SettingsActivity : AppCompatActivity() {
             getString(configuredThemeMode.labelRes),
         )
 
-        availableCodecs = supportedCodecs()
-        val selectedCodec = availableCodecs.firstOrNull { it == configuredCodec } ?: availableCodecs.first()
-        setDropdownItems(
-            codecDropdown,
-            availableCodecs.map { getString(it.labelRes) },
-            getString(selectedCodec.labelRes),
-        )
-
         availableRouteModes = supportedInputRouteModes(this)
         val selectedRoute = availableRouteModes.firstOrNull { it == configuredRoute } ?: availableRouteModes.first()
         setDropdownItems(
@@ -476,9 +467,14 @@ class SettingsActivity : AppCompatActivity() {
             getString(selectedRoute.labelRes),
         )
 
-        refreshSourceModes(configuredSource, configuredChannelMode, configuredRate)
+        refreshCodecOptions(
+            preferredCodec = configuredCodec,
+            preferredSource = configuredSource,
+            preferredChannelMode = configuredChannelMode,
+            preferredRate = configuredRate,
+            preferredBitrateKbps = configuredBitrateKbps,
+        )
         bindingUi = true
-        refreshBitrateField(preferredKbps = configuredBitrateKbps)
 
         persistentBufferSwitch.isChecked = configuredPersistentBuffer
         aggressiveRestartSwitch.isChecked = configuredAggressiveRestart
@@ -489,20 +485,7 @@ class SettingsActivity : AppCompatActivity() {
         refreshExportDirectoryUi()
         refreshMoveRecordingsAvailability()
         refreshBatteryOptimizationUi()
-        currentSettings.themeMode = configuredThemeMode
-        currentSettings.retentionMode = configuredMode
-        currentSettings.retentionTime = retentionTimeSecondsValue
-        currentSettings.retentionSizeMb = retentionSizeMbValue
-        currentSettings.codec = configuredCodec
-        currentSettings.bitrateKbps = configuredBitrateKbps
-        currentSettings.source = configuredSource
-        currentSettings.channelMode = configuredChannelMode
-        currentSettings.route = configuredRoute
-        currentSettings.sampleRate = configuredRate
-        currentSettings.exportDirectoryUri = configuredExportTreeUri?.toString()
-        currentSettings.persistentBufferEnabled = configuredPersistentBuffer
-        currentSettings.aggressiveRestartEnabled = configuredAggressiveRestart
-        currentSettings.wakeLockEnabled = configuredWakeLock
+        saveCurrentToSnapshot(currentSettings)
         originalSettings.copyFrom(currentSettings)
         hasUnsavedChanges = false
         updateUndoButton(false)
@@ -514,7 +497,7 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.retentionTime = retentionTimeSecondsValue
         snapshot.retentionSizeMb = retentionSizeMbValue
         snapshot.codec = currentCodec()
-        snapshot.bitrateKbps = effectiveAacBitrateKbps()
+        snapshot.bitrateKbps = effectiveCodecBitrateKbps() ?: 0
         snapshot.source = currentSourceMode()
         snapshot.channelMode = currentChannelMode()
         snapshot.route = currentRouteMode()
@@ -559,8 +542,13 @@ class SettingsActivity : AppCompatActivity() {
             getString(previous.route?.labelRes ?: availableRouteModes.first().labelRes),
         )
 
-        refreshSourceModes(previous.source, previous.channelMode, previous.sampleRate)
-        refreshBitrateField(preferredKbps = previous.bitrateKbps)
+        refreshCodecOptions(
+            preferredCodec = previous.codec,
+            preferredSource = previous.source,
+            preferredChannelMode = previous.channelMode,
+            preferredRate = previous.sampleRate,
+            preferredBitrateKbps = previous.bitrateKbps,
+        )
 
         bindingUi = false
         refreshRetentionFields()
@@ -571,6 +559,24 @@ class SettingsActivity : AppCompatActivity() {
         currentSettings.copyFrom(previous)
         hasUnsavedChanges = false
         updateUndoButton(false)
+    }
+
+    private fun refreshCodecOptions(
+        preferredCodec: ExportCodec? = null,
+        preferredSource: AudioSourceMode? = null,
+        preferredChannelMode: ChannelMode? = null,
+        preferredRate: Int? = null,
+        preferredBitrateKbps: Int? = null,
+    ) {
+        availableCodecs = supportedCodecs()
+        val selectedCodec = preferredCodec?.takeIf { it in availableCodecs } ?: availableCodecs.first()
+        setDropdownItems(
+            codecDropdown,
+            availableCodecs.map { getString(it.labelRes) },
+            getString(selectedCodec.labelRes),
+        )
+        refreshSourceModes(preferredSource, preferredChannelMode, preferredRate)
+        refreshBitrateField(preferredKbps = preferredBitrateKbps)
     }
 
     private fun refreshSourceModes(
@@ -622,7 +628,7 @@ class SettingsActivity : AppCompatActivity() {
             sampleRateDropdown.isEnabled = false
         } else {
             sampleRateDropdown.isEnabled = true
-            val selectedRate = preferredRate?.takeIf { it in availableSampleRates } ?: availableSampleRates.first()
+            val selectedRate = orderSampleRatesByPreference(availableSampleRates, preferredRate ?: 0).first()
             setDropdownItems(
                 sampleRateDropdown,
                 availableSampleRates.map(::sampleRateLabel),
@@ -635,26 +641,26 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun refreshBitrateField(preferredKbps: Int? = null) {
         val codec = currentCodec()
-        val isAac = codec == ExportCodec.AAC
-        bitrateLayout.isVisible = isAac
-        if (!isAac) {
-            bitrateLayout.error = null
+        val range = codecBitrateRangeKbps(codec)
+        bitrateGroup.isVisible = range != null
+        if (range == null) {
             return
         }
 
         val sampleRate = currentSampleRate() ?: availableSampleRates.firstOrNull() ?: 48_000
-        val defaultBitrateKbps = aacBitrateForSampleRate(sampleRate, currentChannelMode().channelCount) / 1000
-        val currentBitrateKbps = bitrateInput.text?.toString()?.trim()?.toIntOrNull()
-        val resolvedBitrateKbps = (preferredKbps ?: currentBitrateKbps ?: defaultBitrateKbps).coerceIn(aacBitrateRangeKbps())
-        val text = resolvedBitrateKbps.toString()
+        val defaultBitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, currentChannelMode().channelCount) ?: range.first
+        val currentBitrateKbps = currentBitrateKbpsOrNull()
+        val resolvedBitrateKbps = (preferredKbps ?: currentBitrateKbps ?: defaultBitrateKbps).coerceIn(range)
 
         val previousBindingUi = bindingUi
         bindingUi = true
-        if (bitrateInput.text?.toString() != text) {
-            bitrateInput.setText(text)
-        }
-        bitrateInput.setSelection(text.length)
+        bitrateSlider.valueFrom = range.first.toFloat()
+        bitrateSlider.valueTo = range.last.toFloat()
+        bitrateSlider.stepSize = codecBitrateStepKbps(codec).toFloat()
+        bitrateSlider.value = resolvedBitrateKbps.toFloat()
+        updateBitrateValueLabel(resolvedBitrateKbps)
         bindingUi = previousBindingUi
+        refreshRetentionFields(preserveActiveInputs = true)
     }
 
     private fun activateRetentionMode(mode: RetentionMode) {
@@ -697,7 +703,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val codec = currentCodec()
         val channelMode = currentChannelMode()
-        val bitrateKbps = if (codec == ExportCodec.AAC) effectiveAacBitrateKbps() else null
+        val bitrateKbps = effectiveCodecBitrateKbps()
         val estimatePrefix = if (codec == ExportCodec.WAV) "=" else "~"
         val estimatedSizeMb = bytesToMegabytes(
             estimateExportSizeBytes(codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps),
@@ -737,7 +743,7 @@ class SettingsActivity : AppCompatActivity() {
         val route = currentRouteMode()
         val source = currentSourceMode()
         val sampleRate = currentSampleRate()
-        val bitrateKbps = if (codec == ExportCodec.AAC) currentBitrateKbpsOrNull() else null
+        val bitrateKbps = currentBitrateKbpsOrNull()
         val persistentBufferEnabled = persistentBufferSwitch.isChecked
         val aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
         val wakeLockEnabled = wakeLockSwitch.isChecked
@@ -770,12 +776,9 @@ class SettingsActivity : AppCompatActivity() {
             return false
         }
 
-        if (codec == ExportCodec.AAC && (bitrateKbps == null || bitrateKbps !in aacBitrateRangeKbps())) {
-            bitrateLayout.error = getString(
-                R.string.codec_bitrate_invalid,
-                aacBitrateRangeKbps().first,
-                aacBitrateRangeKbps().last,
-            )
+        val bitrateRange = codecBitrateRangeKbps(codec)
+        if (bitrateRange != null && (bitrateKbps == null || bitrateKbps !in bitrateRange)) {
+            Toast.makeText(this, getString(R.string.codec_bitrate_invalid, bitrateRange.first, bitrateRange.last), Toast.LENGTH_SHORT).show()
             return false
         }
 
@@ -789,7 +792,7 @@ class SettingsActivity : AppCompatActivity() {
             .putLong(TimeTravelConfig.RETENTION_SECONDS_KEY, retentionTime.toLong())
             .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, sizeBytes)
             .putString(TimeTravelConfig.OUTPUT_CODEC_KEY, codec.prefValue)
-            .putInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, bitrateKbps ?: effectiveAacBitrateKbps())
+            .putInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, bitrateKbps ?: (effectiveCodecBitrateKbps() ?: 0))
             .putInt(TimeTravelConfig.AUDIO_SOURCE_KEY, source.sourceValue)
             .putString(TimeTravelConfig.CHANNEL_MODE_KEY, channelMode.prefValue)
             .putString(TimeTravelConfig.INPUT_ROUTE_KEY, route.prefValue)
@@ -837,7 +840,6 @@ class SettingsActivity : AppCompatActivity() {
         themeLayout.error = null
         sampleRateLayout.error = null
         codecLayout.error = null
-        bitrateLayout.error = null
         audioSourceLayout.error = null
         channelModeLayout.error = null
         inputRouteLayout.error = null
@@ -872,14 +874,25 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun currentBitrateKbpsOrNull(): Int? {
-        return bitrateInput.text?.toString()?.trim()?.toIntOrNull()
+        val range = codecBitrateRangeKbps(currentCodec()) ?: return null
+        return bitrateSlider.value.toInt().coerceIn(range)
     }
 
-    private fun effectiveAacBitrateKbps(): Int {
+    private fun updateBitrateValueLabel(valueKbps: Int) {
+        bitrateValue.text = getString(R.string.codec_bitrate_value, valueKbps)
+    }
+
+    private fun effectiveCodecBitrateKbps(): Int? {
+        val codec = currentCodec()
+        val range = codecBitrateRangeKbps(codec) ?: return defaultCodecBitrateKbps(
+            codec,
+            currentSampleRate() ?: availableSampleRates.firstOrNull() ?: 48_000,
+            currentChannelMode().channelCount,
+        )
         val sampleRate = currentSampleRate() ?: availableSampleRates.firstOrNull() ?: 48_000
         return currentBitrateKbpsOrNull()
-            ?.coerceIn(aacBitrateRangeKbps())
-            ?: getConfiguredAacBitrateKbps(this, sampleRate, currentChannelMode().channelCount)
+            ?.coerceIn(range)
+            ?: getConfiguredCodecBitrateKbps(this, codec, sampleRate, currentChannelMode().channelCount)
     }
 
     private fun currentRouteMode(): InputRouteMode {
@@ -904,8 +917,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun refreshExportDirectoryUi() {
         bindingUi = true
-        exportPathInput.setText(describeOutputDirectory(this, selectedExportTreeUri))
-        exportPathLayout.error = null
+        exportPathValue.text = describeOutputDirectory(this, selectedExportTreeUri)
         defaultFolderButton.isEnabled = selectedExportTreeUri != null
         bindingUi = false
     }
@@ -915,6 +927,7 @@ class SettingsActivity : AppCompatActivity() {
         batteryOptimizationStatus.text = getString(
             if (unrestricted) R.string.battery_optimization_status_ok else R.string.battery_optimization_status_limited,
         )
+        batteryOptimizationButton.isVisible = !unrestricted
     }
 
     private fun openBatteryOptimizationSettings() {
@@ -1031,6 +1044,7 @@ private class DropdownHighlightAdapter(
     selectedValue: String,
 ) : ArrayAdapter<String>(context, R.layout.item_dropdown_option, items.toMutableList()) {
     private var selectedValue = selectedValue
+    private val edgePaddingPx = (context.resources.displayMetrics.density * 16f).toInt()
 
     fun replaceItems(
         items: List<String>,
@@ -1071,9 +1085,16 @@ private class DropdownHighlightAdapter(
         view: View,
         value: String,
     ) {
+        val label = view as TextView
         val active = value == selectedValue
-        view.isActivated = active
-        view.isSelected = active
-        (view as? TextView)?.isSelected = active
+        val topPadding = if (positionOf(value) == 0) edgePaddingPx else 0
+        val bottomPadding = if (positionOf(value) == count - 1) edgePaddingPx else 0
+        val baseVerticalPadding = (context.resources.displayMetrics.density * 14f).toInt()
+        val horizontalPadding = (context.resources.displayMetrics.density * 16f).toInt()
+        label.setPadding(horizontalPadding, baseVerticalPadding + topPadding, horizontalPadding, baseVerticalPadding + bottomPadding)
+        label.isActivated = active
+        label.isSelected = active
     }
+
+    private fun positionOf(value: String): Int = (0 until count).firstOrNull { getItem(it) == value } ?: -1
 }

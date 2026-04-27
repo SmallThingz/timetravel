@@ -24,6 +24,12 @@ object TimeTravelConfig {
 
     const val OUTPUT_CODEC_WAV = "wav"
     const val OUTPUT_CODEC_AAC = "aac"
+    const val OUTPUT_CODEC_AAC_LC = "aac_lc"
+    const val OUTPUT_CODEC_HE_AAC = "he_aac"
+    const val OUTPUT_CODEC_HE_AAC_V2 = "he_aac_v2"
+    const val OUTPUT_CODEC_XHE_AAC = "xhe_aac"
+    const val OUTPUT_CODEC_AMR_WB = "amr_wb"
+    const val OUTPUT_CODEC_AMR_NB = "amr_nb"
 
     const val CHANNEL_MODE_MONO = "mono"
     const val CHANNEL_MODE_STEREO = "stereo"

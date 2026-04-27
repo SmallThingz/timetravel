@@ -230,7 +230,7 @@ internal class PersistentAudioRingStore(
         dataChannel = null
         dataAccess = null
 
-        dataAccess = RandomAccessFile(dataFile, "rw").also { it.setLength(capacityBytes.toLong()) }
+        dataAccess = RandomAccessFile(dataFile, "rwd").also { it.setLength(capacityBytes.toLong()) }
         dataChannel = requireNotNull(dataAccess).channel
         dataMap = requireNotNull(dataChannel).map(FileChannel.MapMode.READ_WRITE, 0, capacityBytes.toLong())
 
@@ -254,7 +254,7 @@ internal class PersistentAudioRingStore(
 
     private fun ensureMetaMapped() {
         if (metaMap != null) return
-        metaAccess = RandomAccessFile(metaFile, "rw").also { it.setLength(META_FILE_BYTES.toLong()) }
+        metaAccess = RandomAccessFile(metaFile, "rwd").also { it.setLength(META_FILE_BYTES.toLong()) }
         metaChannel = requireNotNull(metaAccess).channel
         metaMap = requireNotNull(metaChannel).map(FileChannel.MapMode.READ_WRITE, 0, META_FILE_BYTES.toLong())
         if (metaMap?.readMagic() != MAGIC || metaMap?.readVersion() != VERSION) {
@@ -326,7 +326,7 @@ internal class PersistentAudioRingStore(
     private companion object {
         const val META_FILE_BYTES = 512
         const val IO_CHUNK_SIZE = 64 * 1024
-        const val FORCE_INTERVAL_MS = 1_000L
+        const val FORCE_INTERVAL_MS = 250L
 
         const val MAGIC = 0x54544246
         const val VERSION = 1

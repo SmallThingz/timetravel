@@ -55,11 +55,16 @@
     <string name="storage_settings_title">Storage</string>
     <string name="background_persistence_title">Background</string>
     <string name="codec_label">Codec</string>
-    <string name="codec_aac">AAC / M4A</string>
+    <string name="codec_aac_lc">AAC-LC / M4A</string>
+    <string name="codec_he_aac">HE-AAC / M4A</string>
+    <string name="codec_he_aac_v2">HE-AAC v2 / M4A</string>
+    <string name="codec_xhe_aac">xHE-AAC / M4A</string>
+    <string name="codec_amr_wb">AMR-WB / 3GP</string>
+    <string name="codec_amr_nb">AMR-NB / 3GP</string>
     <string name="codec_wav">WAV / PCM</string>
     <string name="codec_bitrate_label">Bitrate</string>
-    <string name="codec_bitrate_suffix">kbps</string>
     <string name="codec_bitrate_invalid">Use %1$d-%2$d kbps.</string>
+    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">Rate</string>
     <string name="audio_source_label">Source</string>
     <string name="channel_mode_label">Channels</string>
@@ -74,7 +79,6 @@
     <string name="input_route_label">Route</string>
     <string name="input_route_auto">System chosen input</string>
     <string name="input_route_builtin_mic">Prefer phone mic</string>
-    <string name="export_folder_label">Folder</string>
     <string name="choose_folder">Choose</string>
     <string name="default_folder">Default</string>
     <string name="move_recordings">Move existing</string>

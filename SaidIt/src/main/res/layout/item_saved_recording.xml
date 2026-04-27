@@ -5,13 +5,14 @@
     android:id="@+id/recording_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="18dp"
+    android:layout_marginBottom="10dp"
     android:background="@drawable/recording_item_background"
     android:baselineAligned="false"
     android:gravity="center_vertical"
-    android:minHeight="72dp"
+    android:minHeight="68dp"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="12dp">
 
     <FrameLayout
         android:layout_width="44dp"
@@ -40,7 +41,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
             android:textColor="?attr/colorOnSurface"
             tools:text="1777307351127.m4a" />
 
@@ -49,7 +50,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant"
             tools:text="24 s" />
     </LinearLayout>
@@ -66,7 +67,7 @@
             android:id="@+id/recording_timestamp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceTitleSmall"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
             android:textColor="?attr/colorOnSurface"
             tools:text="2:29 AM" />
 

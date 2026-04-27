@@ -142,9 +142,9 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:overScrollMode="never"
-            android:paddingStart="24dp"
+            android:paddingStart="16dp"
             android:paddingTop="4dp"
-            android:paddingEnd="24dp"
+            android:paddingEnd="16dp"
             android:paddingBottom="24dp"
             tools:listitem="@layout/item_saved_recording" />
 
