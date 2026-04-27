@@ -2,36 +2,28 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center"
     android:orientation="vertical"
     android:paddingTop="8dp">
 
     <TextView
-        style="@style/SectionTitleSmall"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="@string/save_recording" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginTop="12dp"
-        android:background="@color/gray_d" />
-
-    <TextView
         style="@style/LabelText"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
         android:text="@string/recording_name" />
 
-    <EditText
-        android:id="@+id/recording_name"
-        style="@style/InputField"
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/TimeTravel.TextInputLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="12dp"
-        android:inputType="text"
-        android:textAppearance="?android:textAppearance" />
+        android:layout_marginTop="14dp"
+        android:hint="@string/save_recording">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/recording_name"
+            style="@style/TimeTravel.TextInputEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
 </LinearLayout>

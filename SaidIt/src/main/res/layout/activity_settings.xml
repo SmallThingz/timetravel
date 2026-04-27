@@ -1,216 +1,260 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    tools:ignore="Instantiatable">
 
     <LinearLayout
         android:id="@+id/settings_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="24dp">
 
         <LinearLayout
-            style="@style/HeroCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/section_gap"
             android:orientation="vertical">
 
-            <TextView
-                style="@style/HeroEyebrow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/settings_title" />
-
-            <TextView
-                style="@style/SectionTitle"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/audio_memory_holds" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/HeadlineText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_title" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/settings_return"
+                    style="@style/TimeTravel.MaterialButton.Secondary.Small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_return" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/LabelText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/retention_summary_title" />
 
             <TextView
                 android:id="@+id/history_limit"
                 style="@style/MetricText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="4dp"
                 android:text="@string/sample_time" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/settings_subtitle" />
         </LinearLayout>
 
-        <LinearLayout
-            style="@style/SectionCard"
+        <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/section_gap"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            app:dividerColor="?attr/colorOutlineVariant" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical">
 
             <TextView
-                style="@style/SectionTitleSmall"
+                style="@style/SectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/memory_settings_title" />
+                android:text="@string/retention_mode_title" />
 
             <TextView
                 style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/audio_memory_change" />
+                android:text="@string/retention_mode_description" />
 
-            <TextView
-                style="@style/LabelText"
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/retention_mode_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="@string/option_a_used_ram" />
+                android:layout_marginTop="16dp"
+                app:selectionRequired="true"
+                app:singleSelection="true">
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:gravity="center"
-                android:measureWithLargestChild="true"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/memory_low"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="23sp" />
-
-                <Button
-                    android:id="@+id/memory_medium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:layout_marginRight="8dp"
-                    android:textSize="23sp" />
-
-                <Button
-                    android:id="@+id/memory_high"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/green_button"
-                    android:textSize="23sp" />
-            </LinearLayout>
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/custom_memory_size_label" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <EditText
-                    android:id="@+id/memory_custom_size_mb"
-                    style="@style/InputField"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/retention_mode_time_button"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:gravity="center"
-                    android:hint="@string/custom_memory_size_hint"
-                    android:inputType="number"
-                    android:maxLines="1"
-                    android:textAppearance="?android:textAppearance" />
+                    android:textAllCaps="false"
+                    android:text="@string/retention_mode_time" />
 
-                <Button
-                    android:id="@+id/memory_custom_apply"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/retention_mode_size_button"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:text="@string/custom_memory_size_apply" />
-            </LinearLayout>
+                    android:layout_weight="1"
+                    android:textAllCaps="false"
+                    android:text="@string/retention_mode_size" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
 
-            <TextView
-                style="@style/BodyText"
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/TimeTravel.TextInputLayout"
+                android:id="@+id/retention_time_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/used_ram_description" />
+                android:layout_marginTop="16dp"
+                android:hint="@string/retention_time_label">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/retention_time_input"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/TimeTravel.TextInputLayout"
+                android:id="@+id/retention_size_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="@string/retention_size_label">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/retention_size_input"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <LinearLayout
-            style="@style/SectionCard"
+        <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/section_gap"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            app:dividerColor="?attr/colorOutlineVariant" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical">
 
             <TextView
-                style="@style/SectionTitleSmall"
+                style="@style/SectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/quality_settings_title" />
+                android:text="@string/recording_settings_title" />
 
-            <TextView
-                style="@style/BodyText"
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/TimeTravel.TextInputLayout"
+                android:id="@+id/codec_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/option_b_audio_quality" />
+                android:layout_marginTop="16dp"
+                android:hint="@string/codec_label"
+                app:endIconMode="dropdown_menu">
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:gravity="center"
-                android:measureWithLargestChild="true"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/quality_8kHz"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/codec_dropdown"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="23sp" />
+                    android:focusable="false"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-                <Button
-                    android:id="@+id/quality_16kHz"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:layout_marginRight="8dp"
-                    android:textSize="23sp" />
-
-                <Button
-                    android:id="@+id/quality_48kHz"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/green_button"
-                    android:textSize="23sp" />
-            </LinearLayout>
-
-            <TextView
-                style="@style/BodyText"
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/TimeTravel.TextInputLayout"
+                android:id="@+id/sample_rate_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/audio_quality_description" />
+                android:layout_marginTop="12dp"
+                android:hint="@string/sample_rate_label"
+                app:endIconMode="dropdown_menu">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/sample_rate_dropdown"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/TimeTravel.TextInputLayout"
+                android:id="@+id/audio_source_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="@string/audio_source_label"
+                app:endIconMode="dropdown_menu">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/audio_source_dropdown"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/TimeTravel.TextInputLayout"
+                android:id="@+id/input_route_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="@string/input_route_label"
+                app:endIconMode="dropdown_menu">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/input_route_dropdown"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <Button
-            android:id="@+id/settings_return"
-            style="@style/Button"
-            android:layout_width="wrap_content"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/edit_presets_button"
+            style="@style/TimeTravel.MaterialButton.Secondary"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginBottom="20dp"
-            android:text="@string/settings_return" />
+            android:layout_marginTop="20dp"
+            android:text="@string/edit_presets" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/apply_settings_button"
+            style="@style/TimeTravel.MaterialButton.Primary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/apply_settings" />
     </LinearLayout>
 </ScrollView>

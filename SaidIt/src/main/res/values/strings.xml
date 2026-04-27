@@ -1,38 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <string name="app_name" translatable="false">Echo</string>
-
-    <!-- Notifications -->
+    <string name="app_name" translatable="false">TimeTravel</string>
 
     <string name="recording">Recording…</string>
-    <string name="recording_saved">Recording saved</string>
-    <string name="cant_create_file">Couldn\'t create output file: </string>
-    <string name="error_during_writing_history_into">Error during writing audio history into: </string>
-    <string name="error_during_recording_into">Error during recording into: </string>
+    <string name="recording_saved">Clip saved</string>
+    <string name="notification_channel_name">TimeTravel recorder</string>
+    <string name="notification_running">Capturing audio in the background.</string>
+    <string name="error_during_writing_history_into">Error while writing audio history into: </string>
+    <string name="error_during_recording_into">Error while recording into: </string>
+    <string name="cant_create_file_generic">Couldn\'t create the output file.</string>
 
-    <!-- Main screen -->
-
-    <string name="listening_enabled_disable">Echo enabled</string>
-    <string name="listening_disabled_enable">Echo disabled</string>
-
-    <string name="listening_description">Echo keeps a rolling buffer of recent audio so you can save what just happened.</string>
-    <string name="main_panel_eyebrow">ALWAYS-ON MEMORY</string>
-    <string name="ready_section_title">Quick export</string>
+    <string name="listening_enabled_disable">Buffering on</string>
+    <string name="listening_disabled_enable">Buffering off</string>
+    <string name="listening_description">TimeTravel keeps a rolling buffer of recent audio so you can pull a clip from the past on demand.</string>
+    <string name="buffer_active_summary">The rolling buffer is live and ready to export.</string>
+    <string name="buffer_inactive_summary">The rolling buffer is paused. Turn buffering on to start capturing again.</string>
+    <string name="main_panel_eyebrow">AUDIO TIME MACHINE</string>
+    <string name="ready_section_title">Jump back</string>
     <string name="memory_panel_title">Retention window</string>
-    <string name="recording_panel_title">Capture in progress</string>
-    <string name="support_panel_title">Project links</string>
-    <string name="settings_title">SETTINGS</string>
-    <string name="settings_subtitle">Balance retention time, RAM use, and sampling quality for your device.</string>
-    <string name="memory_settings_title">Memory usage</string>
-    <string name="quality_settings_title">Audio quality</string>
-
+    <string name="recording_panel_title">Live capture</string>
+    <string name="settings_title">Recorder settings</string>
+    <string name="settings_subtitle">Tune how far back TimeTravel listens, which input it prefers, and how clips are exported.</string>
     <string name="recorded_static">Recording is in progress. Already saved the most recent</string>
     <plurals name="recorded">
         <item quantity="other">Recording is in progress. Already saved the most recent</item>
     </plurals>
-    <string name="recording_stop_description">Tap the button below to stop and save the current take.</string>
-
+    <string name="recording_stop_description">Stop the live take and save everything captured so far.</string>
     <string name="history_size_title_static">Buffered right now</string>
     <plurals name="history_size_title">
         <item quantity="other">Memory holds the most recent</item>
@@ -42,112 +35,87 @@
         <item quantity="one">%d minute</item>
         <item quantity="other">%d minutes</item>
     </plurals>
-
-    <string name="minute_second_join">" and "</string>
-
+    <string name="minute_second_join"> and </string>
     <plurals name="second">
         <item quantity="one">%d second</item>
         <item quantity="other">%d seconds</item>
     </plurals>
 
-    <string name="save_description">Choose how far back you want to export from the rolling buffer.</string>
-
-    <string name="record_one_minute">1:00</string>
-    <string name="record_five_minutes">5:00</string>
-    <string name="record_30_minutes">30:00</string>
-    <string name="record_2_hrs">2 Hrs</string>
-    <string name="record_6_hrs">6 Hrs</string>
-    <string name="record_all_memory">0:00</string>
+    <string name="record_all_memory">Full buffer</string>
     <string name="custom_export_duration_label">Custom time back (MM:SS or HH:MM:SS)</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="record_custom_duration">Export</string>
+    <string name="record_custom_duration">Use</string>
     <string name="custom_export_duration_invalid">Enter time like 12:30 or 1:12:30.</string>
-    <string name="default_price">$ 3.90</string>
-
-    <string name="record_description">Long-press any preset if you want Echo to keep recording after the export begins.</string>
-
-    <string name="upper_memory_limit_start">Current retention limit</string>
-    <string name="upper_memory_limit_settings_start">Need more or less history?</string>
-    <string name="upper_memory_limit_settings_end">Open settings</string>
-
-    <string name="read_more_at">Source code, issues, and release history live on GitHub.</string>
-    <string name="rate_invite">Echo is open source. Sponsorship helps keep it maintained.</string>
-    <string name="open_project">Open project</string>
-    <string name="support_project">Support project</string>
-
-    <!-- Dialogs -->
+    <string name="preset_invalid">Enter a valid duration for every preset.</string>
+    <string name="record_description">Tap to export only. Long-press any export button if you want TimeTravel to keep recording after the clip starts.</string>
+    <string name="upper_memory_limit_settings_start">Estimated with the current rate and the selected retention mode.</string>
+    <string name="settings_open">Tune</string>
+    <string name="edit_presets">Edit presets</string>
+    <string name="export_presets_title">Preset windows</string>
+    <string name="preset_editor_title">Edit export presets</string>
+    <string name="preset_editor_message">Use MM, MM:SS, or HH:MM:SS for each preset.</string>
+    <string name="preset_one_label">Preset 1</string>
+    <string name="preset_two_label">Preset 2</string>
+    <string name="preset_three_label">Preset 3</string>
+    <string name="preset_four_label">Preset 4</string>
+    <string name="format_summary">%1$s • %2$s</string>
+    <string name="source_summary">Source: %1$s • Route: %2$s</string>
+    <string name="stop_and_save">Stop and save</string>
 
     <string name="work_default">Working</string>
-    <string name="work_verifying_purchase">Verifying purchase</string>
-    <string name="work_preparing_memory">Preparing memory</string>
-    <string name="work_contacting_server">Contacting server</string>
-    <string name="work_claiming_coupon">Claiming coupon</string>
+    <string name="work_preparing_memory">Preparing the rolling buffer</string>
 
-    <string name="install_qr_dialog_title">Install QR reader</string>
+    <string name="recording_done_title">Clip ready</string>
+    <string name="recording_done_filename">File name</string>
+    <string name="recording_done_directory">Saved to</string>
+    <string name="recording_done_runtime">Length</string>
+    <string name="recording_done_size">Size</string>
 
-    <string name="payment_method_dialog_title">How can you pay?</string>
-
-    <string name="payment_failed_dialog_title">Payment Not Confirmed</string>
-    <string name="payment_failed_description">You have purchased Echo but I can\'t verify payment online. How should I proceed?</string>
-    <string name="payment_failed_description2">To give up payment verification, open Settings > Applications > Echo and clear its data.</string>
-    <string name="payment_failed_dialog_confirm_manually">Confirm by email</string>
-
-    <string name="payment_verification_failed_email_sent_title">Issue report sent</string>
-    <string name="payment_verification_failed_email_sent_description">Email with your error was sent to the developer. Soon you should receive an answer with a QR-coded license.</string>
-
-    <string name="invalid_license_title">Invalid License</string>
-    <string name="invalid_license_description">Scanned license doesn\'t match to your device.</string>
-
-    <string name="invalid_qr_code_title">Invalid QR code</string>
-    <string name="invalid_qr_code_description">This QR code wasn\'t made for Echo.</string>
-
-    <string name="cant_connect_title">Couldn\'t Contact Server</string>
-    <string name="cant_connect_description">There was an error while contacting application\'s server. Ensure that internet connection is working and try again. If it still doesn\'t work, try different payment method.</string>
-
-    <string name="coupon_claimed">Coupon Already Claimed</string>
-    <string name="try_another_qr_code">Try another</string>
-
-    <string name="recording_done_title">Recording ready</string>
-    <string name="recording_done_filename">File name:</string>
-    <string name="recording_done_directory">Directory:</string>
-    <string name="recording_done_runtime">Length:</string>
-    <string name="recording_done_size">Size:</string>
-
-    <string name="press_back_to_cancel">Press "back" to cancel</string>
-    <string name="send">Send</string>
+    <string name="send">Share</string>
     <string name="open">Open</string>
+    <string name="close">Close</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
-    <string name="retry">Retry</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
+    <string name="no_app_available">No compatible app is available for that action.</string>
 
-    <!-- Settings  -->
-
-    <string name="audio_memory_holds">Audio memory is limited at</string>
-    <string name="audio_memory_change">You can change it by tweaking:</string>
-    <string name="option_a_used_ram">A) System memory in use</string>
-    <string name="option_b_audio_quality">B) Sound quality</string>
-    <string name="custom_memory_size_label">Custom max size (MB)</string>
-    <string name="custom_memory_size_hint">256</string>
-    <string name="custom_memory_size_apply">Apply</string>
+    <string name="settings_return">Back</string>
+    <string name="retention_mode_title">Retention mode</string>
+    <string name="retention_mode_size">Size limit</string>
+    <string name="retention_mode_time">Time limit</string>
+    <string name="retention_time_label">Keep audio for</string>
+    <string name="retention_time_invalid">Enter time like 30:00 or 2:00:00.</string>
+    <string name="retention_size_label">Use up to (MB)</string>
+    <string name="retention_summary_title">Estimated retained audio</string>
+    <string name="recording_settings_title">Recording format</string>
+    <string name="codec_label">Codec</string>
+    <string name="codec_aac">AAC / M4A</string>
+    <string name="codec_wav">WAV / PCM</string>
+    <string name="sample_rate_label">Sample rate</string>
+    <string name="audio_source_label">Audio source</string>
+    <string name="audio_source_default">System default</string>
+    <string name="audio_source_mic">Microphone</string>
+    <string name="audio_source_voice_recognition">Voice recognition</string>
+    <string name="audio_source_camcorder">Camcorder</string>
+    <string name="audio_source_unprocessed">Unprocessed</string>
+    <string name="audio_source_voice_performance">Voice performance</string>
+    <string name="input_route_label">Input route</string>
+    <string name="input_route_auto">Automatic</string>
+    <string name="input_route_builtin_mic">Built-in microphone</string>
+    <string name="apply_settings">Apply settings</string>
+    <string name="settings_saved">Settings applied.</string>
+    <string name="settings_saved_next_start">Settings saved. They will apply the next time buffering starts.</string>
+    <string name="settings_apply_blocked_recording">Stop the current recording before changing these settings.</string>
+    <string name="unsupported_config_message">This source, route, and codec combination has no supported sample rates on this device.</string>
+    <string name="audio_input_init_failed">TimeTravel couldn\'t start the microphone with the selected configuration.</string>
+    <string name="retention_mode_description">Both limits stay editable. TimeTravel uses whichever mode is selected.</string>
     <string name="custom_memory_size_invalid">Enter a whole number greater than 0.</string>
-    <string name="used_ram_description">Echo and other apps use system memory to keep their data. Large system memory consumption may slow other apps.</string>
-    <string name="audio_quality_description">Quality of 8kHz is enough to recognize human speech. Higher options offer different tradeoffs between quality and memory consumption.</string>
-    <string name="settings_return">Return</string>
-
-    <!-- Others -->
 
     <string name="sample_time">22 minutes and 30 seconds.</string>
-    <string name="recording_name">Enter the name of the recording</string> <!-- must end sentence -->
+    <string name="recording_name">Name this clip</string>
     <string name="recording_name_required">Enter a file name.</string>
-    <string name="save_recording">Save Recording</string> <!-- must end sentence -->
+    <string name="save_recording">Save clip</string>
     <string name="permission_required">Permission required</string>
-    <string name="permission_required_message">Echo app requires permission to record and save audio. Please enable it in the settings.</string>
-    <!--
-    <string name="compress_help"><b>WAV</b> - oznacza brak jakiejkolwiek kompresji - jest to format najlepiej oszczędzający baterię i cechujący się najlepszą jakością. Jego wadą jest duże zużycie pamięci.\n
-<b>3GP</b> - oferuje najmocniejszą kompresję ale jest bardzo energożerny i może usunąć z nagrania drobne detale\n
-<b>MP4</b> - oferuje wysoką jakość i dobrą kompresję ale podobnie jak 3GP, szybko zużywa energię.</string>
-    -->
-
+    <string name="permission_required_message">TimeTravel needs microphone access, and on Android 13+ notification access, to buffer and export audio clips.</string>
 </resources>

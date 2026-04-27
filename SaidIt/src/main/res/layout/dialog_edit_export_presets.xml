@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="8dp">
+
+    <TextView
+        style="@style/LabelText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/preset_editor_message" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/TimeTravel.TextInputLayout"
+        android:id="@+id/preset_1_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="@string/preset_one_label">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/preset_1_value"
+            style="@style/TimeTravel.TextInputEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/TimeTravel.TextInputLayout"
+        android:id="@+id/preset_2_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/preset_two_label">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/preset_2_value"
+            style="@style/TimeTravel.TextInputEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/TimeTravel.TextInputLayout"
+        android:id="@+id/preset_3_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/preset_three_label">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/preset_3_value"
+            style="@style/TimeTravel.TextInputEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/TimeTravel.TextInputLayout"
+        android:id="@+id/preset_4_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/preset_four_label">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/preset_4_value"
+            style="@style/TimeTravel.TextInputEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

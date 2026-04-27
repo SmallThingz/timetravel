@@ -1,77 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main_fragment"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clipToPadding="false"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    tools:context="app.timetravel.TimeTravelFragment">
 
     <LinearLayout
+        android:id="@+id/main_content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:animateLayoutChanges="true"
         android:orientation="vertical"
-        android:padding="20dp"
-        tools:context="eu.mrogalski.saidit.SaidItFragment">
+        android:padding="24dp">
 
         <LinearLayout
-            style="@style/HeroCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/section_gap"
             android:orientation="vertical">
 
-            <TextView
-                style="@style/HeroEyebrow"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/main_panel_eyebrow" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/HeadlineText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/app_name" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/settings_button"
+                    style="@style/TimeTravel.MaterialButton.Secondary.Small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_open" />
+            </LinearLayout>
 
             <TextView
-                style="@style/HeadlineText"
+                android:id="@+id/status_summary"
+                style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/app_name" />
+                tools:text="Ready" />
 
             <TextView
+                android:id="@+id/format_summary"
                 style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/listening_description" />
+                android:layout_marginTop="6dp"
+                tools:text="AAC / M4A • 48 kHz • Microphone" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/listen_button"
-                style="@style/HeroButton"
+                style="@style/TimeTravel.MaterialButton.Primary"
                 android:layout_width="match_parent"
-                android:layout_height="68dp"
-                android:layout_marginTop="20dp"
-                android:gravity="center"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
                 android:text="@string/listening_enabled_disable" />
         </LinearLayout>
 
+        <com.google.android.material.divider.MaterialDivider
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            app:dividerColor="?attr/colorOutlineVariant" />
+
         <LinearLayout
             android:id="@+id/ready_section"
-            style="@style/SectionCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:animateLayoutChanges="true"
-            android:clipChildren="false"
             android:orientation="vertical">
-
-            <TextView
-                style="@style/SectionTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/ready_section_title" />
 
             <TextView
                 android:id="@+id/history_size_title"
                 style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:text="@string/history_size_title_static" />
 
             <TextView
@@ -79,195 +99,140 @@
                 style="@style/MetricText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/save_description" />
+                android:layout_marginTop="4dp"
+                android:text="@string/sample_time" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:clipChildren="false"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
+                android:layout_marginTop="18dp"
                 android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/record_last_minute"
-                    style="@style/Button"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_1"
+                    style="@style/TimeTravel.MaterialButton.Secondary"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/record_one_minute" />
+                    tools:text="1:00" />
 
-                <Button
-                    android:id="@+id/record_last_5_minutes"
-                    style="@style/Button"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_2"
+                    style="@style/TimeTravel.MaterialButton.Secondary"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:layout_marginRight="8dp"
+                    android:layout_marginStart="10dp"
                     android:layout_weight="1"
-                    android:text="@string/record_five_minutes" />
+                    tools:text="5:00" />
+            </LinearLayout>
 
-                <Button
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_3"
+                    style="@style/TimeTravel.MaterialButton.Secondary"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    tools:text="30:00" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_preset_4"
+                    style="@style/TimeTravel.MaterialButton.Secondary"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    tools:text="2:00:00" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/record_last_max"
-                    style="@style/Button"
+                    style="@style/TimeTravel.MaterialButton.Secondary.Small"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/record_all_memory" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/record_last_custom"
+                    style="@style/TimeTravel.MaterialButton.Secondary.Small"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:text="@string/custom_time" />
             </LinearLayout>
 
-            <LinearLayout
+            <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:clipChildren="false"
-                android:layout_marginBottom="10dp"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/record_last_30_minutes"
-                    style="@style/Button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/record_30_minutes" />
-
-                <Button
-                    android:id="@+id/record_last_2_hrs"
-                    style="@style/Button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:layout_marginRight="8dp"
-                    android:layout_weight="1"
-                    android:text="@string/record_2_hrs" />
-
-                <Button
-                    android:id="@+id/record_last_6_hrs"
-                    style="@style/Button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/record_6_hrs" />
-            </LinearLayout>
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="16dp"
+                app:dividerColor="?attr/colorOutlineVariant" />
 
             <TextView
                 style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/custom_export_duration_label" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clipChildren="false"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <EditText
-                    android:id="@+id/custom_export_duration"
-                    style="@style/InputField"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:hint="@string/custom_export_duration_hint"
-                    android:inputType="text"
-                    android:maxLines="1"
-                    android:textAppearance="?android:textAppearance" />
-
-                <Button
-                    android:id="@+id/record_last_custom"
-                    style="@style/Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:text="@string/record_custom_duration" />
-            </LinearLayout>
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/record_description" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="7dp"
-                android:layout_marginTop="20dp"
-                android:layout_marginBottom="20dp"
-                android:background="@drawable/dashed_line"
-                android:layerType="software" />
-
-            <TextView
-                style="@style/SectionTitleSmall"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/memory_panel_title" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/upper_memory_limit_start" />
+                android:text="@string/retention_label" />
 
             <TextView
                 android:id="@+id/history_limit"
                 style="@style/MetricText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
                 android:text="@string/sample_time" />
 
             <TextView
                 style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
                 android:text="@string/upper_memory_limit_settings_start" />
-
-            <Button
-                android:id="@+id/settings_button"
-                style="@style/Button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:text="@string/upper_memory_limit_settings_end" />
         </LinearLayout>
+
+        <com.google.android.material.divider.MaterialDivider
+            android:id="@+id/recording_divider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            android:visibility="gone"
+            app:dividerColor="?attr/colorOutlineVariant"
+            tools:visibility="visible" />
 
         <LinearLayout
             android:id="@+id/rec_section"
-            style="@style/SectionCardRecording"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_gap"
             android:orientation="vertical"
             android:visibility="gone"
             tools:visibility="visible">
 
             <TextView
-                style="@style/SectionTitle"
+                style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/recording_panel_title" />
 
             <TextView
                 android:id="@+id/rec_indicator"
-                style="@style/BodyText"
+                style="@style/LabelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="16dp"
                 android:text="@string/recorded_static" />
 
             <TextView
@@ -281,68 +246,16 @@
                 style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="4dp"
                 android:text="@string/recording_stop_description" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/rec_stop_button"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:layout_gravity="center"
-                android:layout_marginTop="20dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/red_circle_button" />
-        </LinearLayout>
-
-        <LinearLayout
-            style="@style/SectionCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_gap"
-            android:orientation="vertical">
-
-            <TextView
-                style="@style/SectionTitleSmall"
+                style="@style/TimeTravel.MaterialButton.Danger"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/support_panel_title" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/read_more_at" />
-
-            <ImageButton
-                android:id="@+id/rate_on_google_play"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
                 android:layout_marginTop="16dp"
-                android:layout_marginBottom="12dp"
-                android:background="@drawable/white_button"
-                android:contentDescription="@string/open_project"
-                android:paddingLeft="18dp"
-                android:paddingTop="12dp"
-                android:paddingRight="18dp"
-                android:paddingBottom="12dp"
-                android:src="@drawable/github_logo" />
-
-            <TextView
-                style="@style/BodyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/rate_invite" />
-
-            <ImageView
-                android:id="@+id/heart"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="20dp"
-                android:contentDescription="@string/support_project"
-                android:src="@drawable/ic_love" />
+                android:text="@string/stop_and_save" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

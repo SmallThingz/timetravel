@@ -1,50 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="background_canvas">#0c1218</color>
-    <color name="background_panel">#121a23</color>
-    <color name="background_panel_alt">#17212b</color>
+    <color name="background_canvas">#0d131a</color>
+    <color name="background_panel">#131b24</color>
+    <color name="background_panel_alt">#17212c</color>
     <color name="background_input">#0f1822</color>
-    <color name="border_subtle">#223343</color>
-    <color name="border_strong">#395168</color>
-    <color name="text_primary">#e3edf4</color>
-    <color name="text_secondary">#b5c6d6</color>
-    <color name="text_tertiary">#7f94a8</color>
+    <color name="border_subtle">#2a3744</color>
+    <color name="border_strong">#51657a</color>
+    <color name="text_primary">#e5edf5</color>
+    <color name="text_secondary">#b5c4d2</color>
+    <color name="text_tertiary">#9baab8</color>
     <color name="text_inverse">#f8fbfd</color>
-    <color name="accent">#59e38a</color>
-    <color name="accent_pressed">#79eea4</color>
-    <color name="accent_deep">#1da955</color>
-    <color name="accent_soft">#123326</color>
-    <color name="danger">#ff6e6e</color>
-    <color name="danger_pressed">#ff8e8e</color>
-    <color name="danger_deep">#d64545</color>
-    <color name="divider">#253646</color>
-    <color name="shadow_base">#50000000</color>
-    <color name="button_dark">#243547</color>
-    <color name="button_dark_pressed">#30475f</color>
-    <color name="transparent">#00000000</color>
-
-    <color name="gray_0">#e3edf4</color>
-    <color name="gray_6">#395168</color>
-    <color name="gray_8">#b5c6d6</color>
-    <color name="gray_a">#395168</color>
-    <color name="gray_c">#223343</color>
-    <color name="gray_d">#0f1822</color>
-    <color name="gray_e">#0c1218</color>
-    <color name="gray_f">#f8fbfd</color>
-
-    <color name="red">#ff6e6e</color>
-    <color name="light_red">#ff8e8e</color>
-    <color name="dark_red">#d64545</color>
-
-    <color name="dark_gold">#8c6a13</color>
-    <color name="gold">#c7961f</color>
-    <color name="light_gold">#f8d56a</color>
-
-    <color name="dark_green">#1da955</color>
-    <color name="green">#59e38a</color>
-    <color name="slight_green">#79eea4</color>
-    <color name="light_green">#123326</color>
-
-    <color name="half_green">#8059e38a</color>
-    <color name="quarter_green">#4059e38a</color>
+    <color name="accent">#ffb36a</color>
+    <color name="accent_deep">#d88738</color>
+    <color name="accent_soft">#392619</color>
+    <color name="danger">#ff7b7b</color>
+    <color name="divider">#243240</color>
+    <color name="button_dark">#26384b</color>
+    <color name="light_red">#ff9797</color>
+    <color name="quarter_green">#40ffb36a</color>
 </resources>

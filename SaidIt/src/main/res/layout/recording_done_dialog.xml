@@ -1,143 +1,103 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/DialogPanel"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
     <TextView
-        android:id="@+id/payment_method_dialog_title"
+        style="@style/SectionTitleSmall"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:background="@drawable/dialog_title"
-        android:gravity="center"
-        android:padding="18dp"
         android:tag="titleBar"
-        android:text="@string/recording_done_title"
-        android:textColor="@color/gray_f"
-        android:textSize="25sp" />
+        android:text="@string/recording_done_title" />
 
-    <ScrollView
+    <TextView
+        style="@style/LabelText"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:tag="bold"
+        android:text="@string/recording_done_filename" />
 
-        <LinearLayout
-            android:id="@+id/payment_method_dialog_content"
-            android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/recording_done_filename"
+        style="@style/BodyText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        style="@style/LabelText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:tag="bold"
+        android:text="@string/recording_done_directory" />
+
+    <TextView
+        android:id="@+id/recording_done_dirname"
+        style="@style/BodyText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        style="@style/LabelText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:tag="bold"
+        android:text="@string/recording_done_runtime" />
+
+    <TextView
+        android:id="@+id/recording_done_runtime"
+        style="@style/BodyText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        style="@style/LabelText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:tag="bold"
+        android:text="@string/recording_done_size" />
+
+    <TextView
+        android:id="@+id/recording_done_size"
+        style="@style/BodyText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/recording_done_open"
+            style="@style/TimeTravel.MaterialButton.Secondary.Small"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:background="@drawable/dialog_content"
-            android:orientation="vertical"
-            android:padding="20dp">
+            android:layout_weight="1"
+            android:text="@string/open" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/small_round"
-                android:tag="bold"
-                android:text="@string/recording_done_filename" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/recording_done_send"
+            style="@style/TimeTravel.MaterialButton.Secondary.Small"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="@string/send" />
 
-            <TextView
-                android:id="@+id/recording_done_filename"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/small_round"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:tag="bold"
-                        android:text="@string/recording_done_directory" />
-
-                    <TextView
-                        android:id="@+id/recording_done_dirname"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/recording_done_open_dir"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_weight="0"
-                    android:background="@drawable/white_button"
-                    android:contentDescription="@string/open"
-                    android:shadowColor="@color/transparent"
-                    android:src="@drawable/ic_action_collection"
-                    android:textSize="@dimen/info_text_size" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/small_round"
-                android:tag="bold"
-                android:text="@string/recording_done_runtime" />
-
-            <TextView
-                android:id="@+id/recording_done_runtime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/small_round"
-                android:tag="bold"
-                android:text="@string/recording_done_size" />
-
-            <TextView
-                android:id="@+id/recording_done_size"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/small_round"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/recording_done_send"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginRight="@dimen/small_round"
-                    android:layout_weight="1"
-                    android:background="@drawable/white_button"
-                    android:drawableStart="@drawable/ic_action_send_now"
-                    android:shadowColor="@color/transparent"
-                    android:text="@string/send"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/info_text_size" />
-
-                <Button
-                    android:id="@+id/recording_done_play"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="@drawable/white_button"
-                    android:drawableStart="@drawable/ic_action_play"
-                    android:shadowColor="@color/transparent"
-                    android:text="@string/open"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/info_text_size" />
-            </LinearLayout>
-        </LinearLayout>
-    </ScrollView>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/recording_done_close"
+            style="@style/TimeTravel.MaterialButton.Primary"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="@string/close" />
+    </LinearLayout>
 </LinearLayout>

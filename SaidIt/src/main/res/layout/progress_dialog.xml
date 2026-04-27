@@ -1,33 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/DialogPanel"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
     android:orientation="vertical">
 
     <TextView
         android:id="@+id/progress_description"
+        style="@style/SectionTitleSmall"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:background="@drawable/dialog_title"
         android:gravity="center"
-        android:padding="18dp"
-        android:text="@string/work_default"
-        android:textColor="@color/gray_f"
-        android:textSize="25sp" />
+        android:tag="titleBar"
+        android:text="@string/work_default" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:background="@drawable/dialog_content"
-        android:orientation="vertical"
-        android:padding="20dp">
-
-        <ProgressBar
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="center_horizontal"
-            android:indeterminate="true" />
-    </LinearLayout>
+    <ProgressBar
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginTop="18dp"
+        android:indeterminate="true" />
 </LinearLayout>
