@@ -459,12 +459,8 @@ class TimeTravelService : Service() {
     }
 
     private fun getOutputDirectory(): File {
-        val externalFilesDir = getExternalFilesDir(Environment.DIRECTORY_MUSIC)
-        return if (externalFilesDir != null) {
-            File(externalFilesDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
-        } else {
-            File(filesDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
-        }
+        val recordingsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC + "/Recordings")
+        return File(recordingsDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
     }
 
     private val effectiveOutputCodec: ExportCodec

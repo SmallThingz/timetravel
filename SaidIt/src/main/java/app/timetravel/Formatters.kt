@@ -17,23 +17,21 @@ fun formatNaturalLanguage(
     secondsFloat: Float,
     outResult: NaturalLanguageResult,
 ) {
-    var seconds = floor(secondsFloat).toInt().coerceAtLeast(0)
-    val minutes = seconds / 60
-    seconds %= 60
+    val totalSeconds = floor(secondsFloat).toInt().coerceAtLeast(0)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+
+    outResult.count = if (hours > 0) hours else if (minutes > 0) minutes else seconds
 
     val text = buildString {
-        if (minutes != 0) {
-            outResult.count = minutes
-            append(resources.getQuantityString(R.plurals.minute, minutes, minutes))
-            if (seconds != 0) {
-                append(resources.getString(R.string.minute_second_join))
-                append(resources.getQuantityString(R.plurals.second, seconds, seconds))
-            }
+        if (hours > 0) {
+            append(String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds))
+        } else if (minutes > 0) {
+            append(String.format(Locale.US, "%d:%02d", minutes, seconds))
         } else {
-            outResult.count = seconds
-            append(resources.getQuantityString(R.plurals.second, seconds, seconds))
+            append(String.format(Locale.US, "0:%02d", seconds))
         }
-        append('.')
     }
 
     outResult.text = text
@@ -41,7 +39,15 @@ fun formatNaturalLanguage(
 
 fun formatShortTimer(seconds: Float): String {
     val totalSeconds = floor(seconds).toInt().coerceAtLeast(0)
-    return String.format(Locale.US, "%d:%02d", totalSeconds / 60, totalSeconds % 60)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val secs = totalSeconds % 60
+    
+    return if (hours > 0) {
+        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, secs)
+    } else {
+        String.format(Locale.US, "%d:%02d", minutes, secs)
+    }
 }
 
 fun formatShortFileSize(size: Long): String {

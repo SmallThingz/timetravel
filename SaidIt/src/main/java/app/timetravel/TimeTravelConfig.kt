@@ -22,5 +22,5 @@ object TimeTravelConfig {
     const val INPUT_ROUTE_AUTO = "auto"
     const val INPUT_ROUTE_BUILTIN_MIC = "builtin_mic"
 
-    const val APP_STORAGE_FOLDER_NAME = "TimeTravel"
+    const val APP_STORAGE_FOLDER_NAME = "Timetravel"
 }

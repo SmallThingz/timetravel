@@ -1,7 +1,7 @@
 package app.timetravel
 
-import android.annotation.SuppressLint
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.ComponentName
@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.graphics.Typeface
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
@@ -36,29 +35,23 @@ import java.io.File
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
     private lateinit var listenButton: MaterialButton
-    private lateinit var stopRecordingButton: MaterialButton
     private lateinit var presetButtons: List<MaterialButton>
     private lateinit var recordMaxButton: MaterialButton
     private lateinit var recordCustomButton: MaterialButton
-    private lateinit var settingsButton: MaterialButton
-    private lateinit var historyLimit: TextView
     private lateinit var historySize: TextView
-    private lateinit var historySizeTitle: TextView
-    private lateinit var readySection: View
-    private lateinit var recSection: View
-    private lateinit var recordingDivider: View
-    private lateinit var recIndicator: TextView
     private lateinit var recTime: TextView
-    private lateinit var statusSummary: TextView
+    private lateinit var statusText: TextView
     private lateinit var formatSummary: TextView
+    private lateinit var mainContent: View
+    private lateinit var presetGrid: View
+    private lateinit var recTouchArea: View
+    private lateinit var recordingDivider: View
 
     private var isListening = true
     private var isRecording = false
     private var recorder: TimeTravelService? = null
     private var serviceBound = false
     private var exportPresets = IntArray(4)
-
-    private val timeFormatResult = NaturalLanguageResult()
 
     private val updater: Runnable = object : Runnable {
         override fun run() {
@@ -101,30 +94,25 @@ class TimeTravelFragment : Fragment() {
 
             if (recording != isRecording) {
                 isRecording = recording
-                recSection.visibility = if (recording) View.VISIBLE else View.GONE
-                recordingDivider.visibility = if (recording) View.VISIBLE else View.GONE
+                updateRecordingState(recording)
             }
 
             if (listeningEnabled != isListening) {
                 isListening = listeningEnabled
-                readySection.visibility = if (listeningEnabled && !recording) View.VISIBLE else View.GONE
                 updateListenButtonAppearance(listeningEnabled)
-            } else {
-                readySection.visibility = if (listeningEnabled && !recording) View.VISIBLE else View.GONE
             }
 
-            statusSummary.setText(if (listeningEnabled) R.string.buffer_active_summary else R.string.buffer_inactive_summary)
+            statusText.text = if (listeningEnabled) {
+                resources.getString(R.string.buffer_active_summary)
+            } else {
+                resources.getString(R.string.buffer_inactive_summary)
+            }
 
-            formatNaturalLanguage(resources, totalMemory, timeFormatResult)
-            historyLimit.text = timeFormatResult.text
+            historySize.text = formatShortTimer(memorized)
 
-            formatNaturalLanguage(resources, memorized, timeFormatResult)
-            historySizeTitle.text = resources.getQuantityText(R.plurals.history_size_title, timeFormatResult.count)
-            historySize.text = timeFormatResult.text
-
-            formatNaturalLanguage(resources, recorded, timeFormatResult)
-            recIndicator.text = resources.getQuantityText(R.plurals.recorded, timeFormatResult.count)
-            recTime.text = timeFormatResult.text
+            if (recording) {
+                recTime.text = formatShortTimer(recorded)
+            }
 
             historySize.removeCallbacks(updater)
             historySize.postOnAnimationDelayed(updater, 300)
@@ -182,25 +170,20 @@ class TimeTravelFragment : Fragment() {
     ) {
         super.onViewCreated(view, savedInstanceState)
         val activity = requireActivity()
-        UiFonts.styleMainScreen(view, activity)
 
         applyWindowInsets(view)
 
-        historyLimit = view.findViewById(R.id.history_limit)
+        mainContent = view.findViewById(R.id.main_content)
+        presetGrid = view.findViewById(R.id.preset_grid)
         historySize = view.findViewById(R.id.history_size)
-        historySizeTitle = view.findViewById(R.id.history_size_title)
+        formatSummary = view.findViewById(R.id.format_summary)
         listenButton = view.findViewById(R.id.listen_button)
-        stopRecordingButton = view.findViewById(R.id.rec_stop_button)
         recordMaxButton = view.findViewById(R.id.record_last_max)
         recordCustomButton = view.findViewById(R.id.record_last_custom)
-        settingsButton = view.findViewById(R.id.settings_button)
-        readySection = view.findViewById(R.id.ready_section)
-        recSection = view.findViewById(R.id.rec_section)
-        recordingDivider = view.findViewById(R.id.recording_divider)
-        recIndicator = view.findViewById(R.id.rec_indicator)
+        statusText = view.findViewById(R.id.status_text)
         recTime = view.findViewById(R.id.rec_time)
-        statusSummary = view.findViewById(R.id.status_summary)
-        formatSummary = view.findViewById(R.id.format_summary)
+        recTouchArea = view.findViewById(R.id.rec_touch_area)
+        recordingDivider = view.findViewById(R.id.recording_divider)
 
         presetButtons = listOf(
             view.findViewById(R.id.record_preset_1),
@@ -209,15 +192,15 @@ class TimeTravelFragment : Fragment() {
             view.findViewById(R.id.record_preset_4),
         )
 
-        historyLimit.typeface = Typeface.MONOSPACE
-        historySize.typeface = Typeface.MONOSPACE
-        recTime.typeface = Typeface.MONOSPACE
+        historySize.typeface = android.graphics.Typeface.MONOSPACE
+        recTime.typeface = android.graphics.Typeface.MONOSPACE
 
-        listenButton.setOnClickListener(ListenButtonClickListener())
-        settingsButton.setOnClickListener {
+        view.findViewById<View>(R.id.settings_button).setOnClickListener {
             startActivity(Intent(activity, SettingsActivity::class.java))
         }
-        stopRecordingButton.setOnClickListener {
+        listenButton.setOnClickListener(ListenButtonClickListener())
+        
+        recTouchArea.setOnClickListener {
             recorder?.stopRecording(PromptFileReceiver(requireActivity()))
         }
 
@@ -253,6 +236,22 @@ class TimeTravelFragment : Fragment() {
         }
     }
 
+    private fun updateRecordingState(recording: Boolean) {
+        val view = view ?: return
+
+        if (recording) {
+            mainContent.visibility = View.GONE
+            presetGrid.visibility = View.GONE
+            recordingDivider.visibility = View.VISIBLE
+            recTouchArea.visibility = View.VISIBLE
+        } else {
+            recordingDivider.visibility = View.GONE
+            recTouchArea.visibility = View.GONE
+            mainContent.visibility = View.VISIBLE
+            presetGrid.visibility = View.VISIBLE
+        }
+    }
+
     private fun refreshConfiguredUi() {
         val context = context ?: return
         exportPresets = getConfiguredExportPresets(context)
@@ -271,26 +270,12 @@ class TimeTravelFragment : Fragment() {
             R.string.live_summary,
             getString(codec.labelRes),
             sampleRateLabel(sampleRate),
-            getString(sourceMode.labelRes),
         )
     }
 
     private fun updateListenButtonAppearance(enabled: Boolean) {
         listenButton.setText(if (enabled) R.string.listening_enabled_disable else R.string.listening_disabled_enable)
-        val backgroundAttr = if (enabled) {
-            R.attr.colorPrimary
-        } else {
-            R.attr.colorSurfaceContainerHighest
-        }
-        val textAttr = if (enabled) {
-            R.attr.colorOnPrimary
-        } else {
-            R.attr.colorOnSurface
-        }
-        listenButton.backgroundTintList = android.content.res.ColorStateList.valueOf(
-            MaterialColors.getColor(listenButton, backgroundAttr),
-        )
-        listenButton.setTextColor(MaterialColors.getColor(listenButton, textAttr))
+        listenButton.setIconResource(if (enabled) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     private inner class ListenButtonClickListener : View.OnClickListener {
