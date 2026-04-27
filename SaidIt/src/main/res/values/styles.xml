@@ -41,10 +41,11 @@
 
     <style name="TextAppearance.TimeTravel.BrandBase" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">-0.03</item>
+        <item name="android:letterSpacing">-0.045</item>
         <item name="android:fontFamily">sans-serif-black</item>
-        <item name="android:textSize">28sp</item>
-        <item name="android:lineHeight">28sp</item>
+        <item name="android:textSize">33sp</item>
+        <item name="android:lineHeight">33sp</item>
+        <item name="android:includeFontPadding">false</item>
     </style>
 
     <style name="TextAppearance.TimeTravel.BrandAccent" parent="TextAppearance.TimeTravel.BrandBase">

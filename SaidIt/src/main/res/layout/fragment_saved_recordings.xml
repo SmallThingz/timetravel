@@ -14,7 +14,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp">
+        android:paddingVertical="4dp">
 
         <LinearLayout
             android:id="@+id/brand_lockup"
@@ -24,15 +24,15 @@
             android:orientation="horizontal">
 
             <FrameLayout
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:background="@drawable/brand_mark_background">
 
                 <ImageView
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
                     android:layout_gravity="center"
-                    android:src="@drawable/ic_launcher_monochrome"
+                    android:src="@drawable/ic_brand_mark"
                     app:tint="?attr/colorOnPrimaryContainer"
                     tools:ignore="ContentDescription" />
             </FrameLayout>
@@ -40,7 +40,7 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="6dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -49,13 +49,15 @@
                     android:layout_height="wrap_content"
                     android:text="@string/brand_time"
                     android:textAppearance="@style/TextAppearance.TimeTravel.BrandBase"
-                    android:textColor="?attr/colorOnSurface" />
+                    android:textSize="25sp"
+                    android:textColor="?attr/colorTertiary" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/brand_travel"
                     android:textAppearance="@style/TextAppearance.TimeTravel.BrandAccent"
+                    android:textSize="25sp"
                     android:textColor="?attr/colorPrimary" />
             </LinearLayout>
         </LinearLayout>

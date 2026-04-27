@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.os.ParcelFileDescriptor
 import java.io.File
@@ -35,12 +36,16 @@ internal class LiveExportHistory(
         retentionBytes: Long,
     ) {
         val updatedConfig = Config(codec, sampleRate, channelCount, bitrateKbps)
-        val configChanged = config != updatedConfig
+        val previousConfig = config
+        val configChanged = previousConfig != updatedConfig
         val retentionChanged = this.retentionBytes != retentionBytes
         config = updatedConfig
         this.retentionBytes = retentionBytes
         segmentDurationMillis = updatedConfig.suggestedSegmentDurationMillis(retentionBytes)
-        if (configChanged) {
+        if (previousConfig == null) {
+            restorePersistedSegmentsLocked(updatedConfig)
+            pruneLocked()
+        } else if (configChanged) {
             resetLocked()
         } else if (retentionChanged) {
             pruneLocked()
@@ -352,6 +357,7 @@ internal class LiveExportHistory(
             return
         }
         segment.sampleBytes = writer.totalSampleBytesWritten.toLong()
+        finalizeSegmentFileLocked(segment)
         if (segment.sampleBytes > 0L && segment.file.isFile && segment.file.length() > 0L) {
             segments.addLast(segment)
         } else {
@@ -402,6 +408,139 @@ internal class LiveExportHistory(
         }
     }
 
+    private fun restorePersistedSegmentsLocked(currentConfig: Config) {
+        if (!cacheRoot.exists()) {
+            return
+        }
+        val restoredSegments = cacheRoot.listFiles()
+            ?.asSequence()
+            ?.filter { it.isFile }
+            ?.mapNotNull { file -> inspectPersistedSegment(file, currentConfig) }
+            ?.sortedBy { it.startedAtMillis }
+            ?.toList()
+            .orEmpty()
+
+        segments.clear()
+        segments.addAll(restoredSegments)
+        nextSegmentStartMillis = restoredSegments.lastOrNull()?.let { segment ->
+            segment.startedAtMillis + currentConfig.bytesToDurationMillis(segment.sampleBytes)
+        }
+
+        val keep = restoredSegments.mapTo(HashSet()) { it.file.absolutePath }
+        cacheRoot.listFiles()?.forEach { file ->
+            if (file.isFile && file.absolutePath !in keep) {
+                file.delete()
+            }
+        }
+    }
+
+    private fun inspectPersistedSegment(
+        file: File,
+        currentConfig: Config,
+    ): Segment? {
+        val extension = file.extension.lowercase()
+        if (extension != currentConfig.codec.extension.lowercase()) {
+            return null
+        }
+
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(file.absolutePath)
+            val trackIndex = findAudioTrack(extractor)
+            if (trackIndex < 0) {
+                return null
+            }
+            val format = extractor.getTrackFormat(trackIndex)
+            if (!matchesConfig(format, currentConfig)) {
+                return null
+            }
+
+            val startedAtMillis = parseStartedAtMillis(file) ?: file.lastModified()
+            val sampleBytes =
+                parseSampleBytes(file)
+                    ?: if (currentConfig.codec == ExportCodec.WAV) {
+                        (file.length() - WAV_HEADER_BYTES).coerceAtLeast(0L)
+                    } else {
+                        durationUsFor(file, format)?.let { currentConfig.durationUsToSampleBytes(it) }
+                    }
+                    ?: return null
+            if (sampleBytes <= 0L) {
+                return null
+            }
+            return Segment(file = file, startedAtMillis = startedAtMillis, sampleBytes = sampleBytes)
+        } catch (_: Exception) {
+            return null
+        } finally {
+            runCatching { extractor.release() }
+        }
+    }
+
+    private fun matchesConfig(
+        format: MediaFormat,
+        currentConfig: Config,
+    ): Boolean {
+        val sampleRate = format.getIntegerOrNull(MediaFormat.KEY_SAMPLE_RATE)
+        val channelCount = format.getIntegerOrNull(MediaFormat.KEY_CHANNEL_COUNT)
+        val mime = format.getString(MediaFormat.KEY_MIME)
+        if (sampleRate != null && sampleRate != currentConfig.sampleRate) {
+            return false
+        }
+        if (channelCount != null && channelCount != currentConfig.channelCount) {
+            return false
+        }
+        val expectedMime = currentConfig.codec.encoderMimeType
+        return expectedMime == null || mime == null || mime == expectedMime
+    }
+
+    private fun durationUsFor(
+        file: File,
+        format: MediaFormat,
+    ): Long? {
+        format.getLongOrNull(MediaFormat.KEY_DURATION)?.let { return it }
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.times(1000L)
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun finalizeSegmentFileLocked(segment: Segment) {
+        if (segment.sampleBytes <= 0L || !segment.file.isFile) {
+            return
+        }
+        val currentConfig = config ?: return
+        val targetName = buildSegmentFileName(segment.startedAtMillis, segment.sampleBytes, currentConfig.codec.extension)
+        if (segment.file.name == targetName) {
+            return
+        }
+        val renamed = File(cacheRoot, targetName)
+        if (renamed.exists()) {
+            renamed.delete()
+        }
+        if (segment.file.renameTo(renamed)) {
+            segment.file = renamed
+        }
+    }
+
+    private fun buildSegmentFileName(
+        startedAtMillis: Long,
+        sampleBytes: Long,
+        extension: String,
+    ): String {
+        return "history-$startedAtMillis-pcm-$sampleBytes.$extension"
+    }
+
+    private fun parseStartedAtMillis(file: File): Long? {
+        return METADATA_NAME_REGEX.matchEntire(file.name)?.groupValues?.getOrNull(1)?.toLongOrNull()
+            ?: LEGACY_NAME_REGEX.matchEntire(file.name)?.groupValues?.getOrNull(1)?.toLongOrNull()
+    }
+
+    private fun parseSampleBytes(file: File): Long? {
+        return METADATA_NAME_REGEX.matchEntire(file.name)?.groupValues?.getOrNull(2)?.toLongOrNull()
+    }
+
     internal data class Config(
         val codec: ExportCodec,
         val sampleRate: Int,
@@ -418,6 +557,10 @@ internal class LiveExportHistory(
             return sampleBytes * 1000L / bytesPerSecond
         }
 
+        fun durationUsToSampleBytes(durationUs: Long): Long {
+            return durationUs * bytesPerSecond / 1_000_000L
+        }
+
         fun suggestedSegmentDurationMillis(retentionBytes: Long): Long {
             val retentionMillis = bytesToDurationMillis(retentionBytes)
             val quarterWindow = retentionMillis / 4L
@@ -426,7 +569,7 @@ internal class LiveExportHistory(
     }
 
     internal data class Segment(
-        val file: File,
+        var file: File,
         val startedAtMillis: Long,
         var sampleBytes: Long = 0L,
     )
@@ -449,6 +592,8 @@ internal class LiveExportHistory(
         const val DEFAULT_SEGMENT_DURATION_MS = 30_000L
         const val MIN_SEGMENT_DURATION_MS = 10_000L
         const val MAX_SEGMENT_DURATION_MS = 120_000L
+        val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
+        val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")
 
         fun findAudioTrack(extractor: MediaExtractor): Int {
             for (index in 0 until extractor.trackCount) {
@@ -460,4 +605,12 @@ internal class LiveExportHistory(
             return -1
         }
     }
+}
+
+private fun MediaFormat.getIntegerOrNull(key: String): Int? {
+    return if (containsKey(key)) getInteger(key) else null
+}
+
+private fun MediaFormat.getLongOrNull(key: String): Long? {
+    return if (containsKey(key)) getLong(key) else null
 }

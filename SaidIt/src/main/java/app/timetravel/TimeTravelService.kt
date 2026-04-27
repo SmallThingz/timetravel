@@ -78,6 +78,7 @@ class TimeTravelService : Service() {
         persistentAudioRingStore = PersistentAudioRingStore(this)
         liveExportHistory = LiveExportHistory(this)
         adoptPersistedBufferConfigurationIfNeeded()
+        updateLiveExportHistoryConfiguration(restoredOrConfiguredMemorySize())
         audioThread = HandlerThread("timeTravelAudioThread", Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
@@ -220,7 +221,6 @@ class TimeTravelService : Service() {
             releaseAudioRecord()
             audioMemory.allocate(memorySize)
             restorePersistedBufferIfNeeded(memorySize)
-            updateLiveExportHistoryConfiguration(memorySize)
 
             audioRecord = createAudioRecord()
             val record = audioRecord
@@ -789,6 +789,12 @@ class TimeTravelService : Service() {
         )
     }
 
+    private fun restoredOrConfiguredMemorySize(): Long {
+        val configured = getConfiguredMemorySizeBytes(this, sampleRate, channelMode)
+        val restored = persistentAudioRingStore.peekSnapshot()?.capacityBytes?.toLong() ?: 0L
+        return maxOf(configured, restored)
+    }
+
     inner class BackgroundRecorderBinder : Binder() {
         val service: TimeTravelService
             get() = this@TimeTravelService
@@ -864,6 +870,7 @@ class TimeTravelService : Service() {
                 fillRate = sampleRate * channelMode.channelCount * 2
             }
         }
+        updateLiveExportHistoryConfiguration(targetMemorySize)
         if (audioMemory.allocatedMemorySize != targetMemorySize) {
             audioMemory.allocate(targetMemorySize)
         }
@@ -878,7 +885,6 @@ class TimeTravelService : Service() {
             channelCount = channelMode.channelCount,
         )
         if (restored.restoredBytes > 0) {
-
             if (!isListeningEnabled() && state == STATE_READY) {
                 state = STATE_PAUSED
             }
