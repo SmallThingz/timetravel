@@ -69,12 +69,14 @@ class TimeTravelService : Service() {
     private lateinit var exportThread: HandlerThread
     private lateinit var exportHandler: Handler
     private lateinit var persistentAudioRingStore: PersistentAudioRingStore
+    private lateinit var liveExportHistory: LiveExportHistory
 
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         loadConfiguration()
         persistentAudioRingStore = PersistentAudioRingStore(this)
+        liveExportHistory = LiveExportHistory(this)
         adoptPersistedBufferConfigurationIfNeeded()
         audioThread = HandlerThread("timeTravelAudioThread", Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
@@ -98,6 +100,7 @@ class TimeTravelService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
 
         persistentAudioRingStore.close()
+        liveExportHistory.clear()
         audioThread.quitSafely()
         exportThread.quitSafely()
         scheduleRestartIfNeeded()
@@ -198,7 +201,7 @@ class TimeTravelService : Service() {
             ?: supportedCodecs().firstOrNull { isCodecSupported(it, sampleRate, selectedChannelMode) }
             ?: ExportCodec.WAV
         inputRouteMode = selectedRouteMode
-
+        updateLiveExportHistoryConfiguration()
     }
 
     private fun innerStartListening() {
@@ -217,6 +220,7 @@ class TimeTravelService : Service() {
             releaseAudioRecord()
             audioMemory.allocate(memorySize)
             restorePersistedBufferIfNeeded(memorySize)
+            updateLiveExportHistoryConfiguration(memorySize)
 
             audioRecord = createAudioRecord()
             val record = audioRecord
@@ -257,6 +261,7 @@ class TimeTravelService : Service() {
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
             syncPersistentBufferFromMemory()
+            liveExportHistory.pause()
             releaseAudioRecord()
         }
     }
@@ -276,6 +281,7 @@ class TimeTravelService : Service() {
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
             syncPersistentBufferFromMemory()
+            liveExportHistory.pause()
             releaseAudioRecord()
         }
     }
@@ -347,18 +353,24 @@ class TimeTravelService : Service() {
                 notifyReceiverFailure(receiver, message)
                 return@post
             }
-
-
-
+            val historySnapshot = liveExportHistory.snapshotForExport(
+                requestedSampleBytes = useBytes.toLong(),
+                reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
+            )
             exportHandler.post {
                 try {
                     var durationMillis = 0L
-                    createAudioFileWriter(outTarget).use { writer ->
-                        audioMemory.read(skipBytes) { array, offset, count ->
-                            writer.write(array, offset, count)
-                            0
+                    if (historySnapshot != null) {
+                        liveExportHistory.exportSnapshot(historySnapshot, outTarget)
+                        durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
+                    } else {
+                        createAudioFileWriter(outTarget).use { writer ->
+                            audioMemory.read(skipBytes) { array, offset, count ->
+                                writer.write(array, offset, count)
+                                0
+                            }
+                            durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
                         }
-                        durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
                     }
                     notifyReceiver(
                         receiver,
@@ -370,11 +382,35 @@ class TimeTravelService : Service() {
                         ),
                     )
                 } catch (e: IOException) {
-                    Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", e)
-                    val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
-                    showToast(message)
-                    notifyReceiverFailure(receiver, message)
+                    Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
                     deleteIfEmpty(outTarget)
+                    try {
+                        var durationMillis = 0L
+                        createAudioFileWriter(outTarget).use { writer ->
+                            audioMemory.read(skipBytes) { array, offset, count ->
+                                writer.write(array, offset, count)
+                                0
+                            }
+                            durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                        }
+                        notifyReceiver(
+                            receiver,
+                            buildRecordingEntity(
+                                this@TimeTravelService,
+                                outTarget,
+                                durationMillis,
+                                currentCodecSummary(),
+                            ),
+                        )
+                    } catch (fallbackError: IOException) {
+                        Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
+                        val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
+                        showToast(message)
+                        notifyReceiverFailure(receiver, message)
+                        deleteIfEmpty(outTarget)
+                    }
+                } finally {
+                    historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
                 }
             }
         }
@@ -492,6 +528,7 @@ class TimeTravelService : Service() {
         audioHandler.post {
             audioMemory.allocate(getConfiguredMemorySizeBytes(this, sampleRate, channelMode))
             syncPersistentBufferFromMemory()
+            updateLiveExportHistoryConfiguration()
         }
 
         return if (captureConfigChanged) {
@@ -652,7 +689,7 @@ class TimeTravelService : Service() {
             writer.write(array, offset, read)
         }
         if (read > 0) {
-
+            liveExportHistory.append(array, offset, read, System.currentTimeMillis())
             if (isDiskBufferCacheEnabled(this@TimeTravelService)) {
                 persistentAudioRingStore.append(
                     array = array,
@@ -730,13 +767,27 @@ class TimeTravelService : Service() {
         }
         audioHandler.post {
             audioMemory.clear()
-
+            liveExportHistory.clear()
             persistentAudioRingStore.clear()
         }
     }
 
     private val bytesToSeconds: Float
         get() = if (fillRate > 0) 1f / fillRate else 0f
+
+    private fun updateLiveExportHistoryConfiguration(memorySizeOverride: Long? = null) {
+        if (!::liveExportHistory.isInitialized) {
+            return
+        }
+        val codec = effectiveOutputCodec
+        liveExportHistory.updateConfiguration(
+            codec = codec,
+            sampleRate = sampleRate,
+            channelCount = channelMode.channelCount,
+            bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount),
+            retentionBytes = memorySizeOverride ?: getConfiguredMemorySizeBytes(this, sampleRate, channelMode),
+        )
+    }
 
     inner class BackgroundRecorderBinder : Binder() {
         val service: TimeTravelService
