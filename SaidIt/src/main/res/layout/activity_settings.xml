@@ -63,29 +63,6 @@
                 android:paddingHorizontal="16dp"
                 android:paddingVertical="24dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/history_limit"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceDisplaySmall"
-                        android:textColor="?attr/colorOnSurface"
-                        android:typeface="monospace"
-                        tools:text="22:30" />
-                </LinearLayout>
-
-                <com.google.android.material.divider.MaterialDivider
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:layout_marginBottom="24dp"
-                    app:dividerColor="?attr/colorOutlineVariant" />
-
                 <TextView
                     style="?attr/textAppearanceLabelLarge"
                     android:layout_width="wrap_content"
@@ -136,6 +113,15 @@
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <TextView
+                    android:id="@+id/retention_time_estimate"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="Save size at current format: 28.9 MB" />
+
                 <com.google.android.material.textfield.TextInputLayout
                     style="@style/TimeTravel.TextInputLayout"
                     android:id="@+id/retention_size_layout"
@@ -152,6 +138,15 @@
                         android:inputType="number"
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <TextView
+                    android:id="@+id/retention_size_estimate"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="Save time at current format: 2:13:20" />
 
                 <com.google.android.material.divider.MaterialDivider
                     android:layout_width="match_parent"

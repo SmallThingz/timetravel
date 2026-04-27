@@ -54,19 +54,50 @@ internal class AudioMemory {
         skipBytes: Int,
         reader: Consumer,
     ) {
+        val chunks = mutableListOf<ByteArray>()
         synchronized(this) {
             var remainingSkipBytes = skipBytes
             val currentBuffer = current
             if (!filling && currentBuffer != null && currentWasFilled) {
-                remainingSkipBytes -= skipAndFeed(remainingSkipBytes, currentBuffer, offset, currentBuffer.size - offset, reader)
+                val length = currentBuffer.size - offset
+                if (remainingSkipBytes < length) {
+                    val take = length - remainingSkipBytes
+                    val copy = ByteArray(take)
+                    System.arraycopy(currentBuffer, offset + remainingSkipBytes, copy, 0, take)
+                    chunks.add(copy)
+                    remainingSkipBytes = 0
+                } else {
+                    remainingSkipBytes -= length
+                }
             }
             filled.forEach { array ->
-                remainingSkipBytes -= skipAndFeed(remainingSkipBytes, array, 0, array.size, reader)
+                val length = array.size
+                if (remainingSkipBytes < length) {
+                    val take = length - remainingSkipBytes
+                    val copy = ByteArray(take)
+                    System.arraycopy(array, remainingSkipBytes, copy, 0, take)
+                    chunks.add(copy)
+                    remainingSkipBytes = 0
+                } else {
+                    remainingSkipBytes -= length
+                }
             }
             val activeBuffer = current
             if (activeBuffer != null && offset > 0) {
-                skipAndFeed(remainingSkipBytes, activeBuffer, 0, offset, reader)
+                val length = offset
+                if (remainingSkipBytes < length) {
+                    val take = length - remainingSkipBytes
+                    val copy = ByteArray(take)
+                    System.arraycopy(activeBuffer, 0, copy, 0, take)
+                    chunks.add(copy)
+                    remainingSkipBytes = 0
+                } else {
+                    remainingSkipBytes -= length
+                }
             }
+        }
+        for (chunk in chunks) {
+            reader.consume(chunk, 0, chunk.size)
         }
     }
 

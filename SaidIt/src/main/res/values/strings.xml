@@ -10,27 +10,15 @@
     <string name="error_during_recording_into">Error recording: </string>
     <string name="cant_create_file_generic">Couldn\'t create file.</string>
 
-    <string name="listening_enabled_disable">Pause</string>
-    <string name="listening_disabled_enable">Start</string>
-    <string name="buffer_active_summary">Active</string>
-    <string name="buffer_inactive_summary">Paused</string>
-    <string name="recording_panel_title">Recording</string>
-    <string name="settings_title">Settings</string>
-    <string name="recorded_static">Saved</string>
-    <plurals name="recorded">
-        <item quantity="one">Saved</item>
-        <item quantity="other">Saved</item>
-    </plurals>
-
-    <plurals name="minute">
-        <item quantity="one">%d min</item>
-        <item quantity="other">%d mins</item>
-    </plurals>
-    <string name="minute_second_join"> and </string>
-    <plurals name="second">
-        <item quantity="one">%d sec</item>
-        <item quantity="other">%d secs</item>
-    </plurals>
+    <string name="buffer_active_summary">ON</string>
+    <string name="buffer_inactive_summary">OFF</string>
+    <string name="current_time_buffer">CURRENT TIME BUFFER</string>
+    <string name="buffer_active_hint">Tap to pause</string>
+    <string name="buffer_inactive_hint">Tap to start</string>
+    <string name="buffer_recording_hint">Recording</string>
+    <string name="buffer_status_time">Recording the past %1$s</string>
+    <string name="buffer_status_size">Keeping %1$s of audio ready</string>
+    <string name="buffer_status_paused">Buffer paused</string>
 
     <string name="record_all_memory">Full</string>
     <string name="custom_time">Custom</string>
@@ -38,7 +26,12 @@
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="preset_invalid">Invalid time format.</string>
+    <string name="saving">Saving…</string>
+    <string name="saved_snackbar">Saved</string>
+    <string name="save_failed">Couldn\'t save recording.</string>
     <string name="settings_open">Settings</string>
+    <string name="tab_capture">Capture</string>
+    <string name="tab_files">Files</string>
     <string name="edit_presets">Presets</string>
     <string name="preset_editor_title">Edit presets</string>
     <string name="preset_editor_message">MM:SS or HH:MM:SS</string>
@@ -46,21 +39,8 @@
     <string name="preset_two_label">2</string>
     <string name="preset_three_label">3</string>
     <string name="preset_four_label">4</string>
-    <string name="live_summary">%1$s • %2$s</string>
-    <string name="stop_and_save">Stop</string>
-
-    <string name="work_default">Working</string>
-    <string name="work_preparing_memory">Starting</string>
-
-    <string name="recording_done_title">Ready</string>
-    <string name="recording_done_filename">Name</string>
-    <string name="recording_done_directory">Folder</string>
-    <string name="recording_done_runtime">Length</string>
-    <string name="recording_done_size">Size</string>
-
     <string name="send">Share</string>
     <string name="open">Open</string>
-    <string name="close">Close</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
     <string name="save">Save</string>
@@ -73,10 +53,10 @@
     <string name="retention_mode_size">Size</string>
     <string name="retention_mode_time">Time</string>
     <string name="retention_time_label">Time</string>
+    <string name="retention_time_estimate">Save size at current format: %1$s</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="retention_size_label">Size (MB)</string>
-    <string name="retention_summary_title">Current limit</string>
-    <string name="retention_label">Limit</string>
+    <string name="retention_size_estimate">Save time at current format: %1$s</string>
     <string name="recording_settings_title">Audio</string>
     <string name="codec_label">Codec</string>
     <string name="codec_aac">AAC / M4A</string>
@@ -100,10 +80,12 @@
     <string name="audio_input_init_failed">Couldn\'t start microphone.</string>
     <string name="custom_memory_size_invalid">Enter a valid number.</string>
 
-    <string name="sample_time">22:30</string>
-    <string name="recording_name">File name</string>
-    <string name="recording_name_required">Enter a file name.</string>
-    <string name="save_recording">Save clip</string>
     <string name="permission_required">Permission required</string>
     <string name="permission_required_message">Microphone access required.</string>
+    <string name="recordings_title">Recordings</string>
+    <string name="recordings_empty_title">No saved clips</string>
+    <string name="recordings_empty_body">Exports and live saves show up here.</string>
+    <string name="delete_recording">Delete</string>
+    <string name="recording_deleted">Recording deleted.</string>
+    <string name="recording_delete_failed">Couldn\'t delete recording.</string>
 </resources>

@@ -9,11 +9,19 @@ import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
+import androidx.fragment.app.commit
+import androidx.fragment.app.commitNow
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class TimeTravelActivity : AppCompatActivity() {
     private var permissionDeniedDialog: AlertDialog? = null
+    private lateinit var container: android.view.View
+    private lateinit var bottomNavigation: BottomNavigationView
+    private lateinit var bottomDivider: android.view.View
+    private var selectedTabId = R.id.navigation_capture
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -29,6 +37,14 @@ class TimeTravelActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_background_recorder)
         applyTimeTravelSystemBars()
+        selectedTabId = savedInstanceState?.getInt(KEY_SELECTED_TAB, R.id.navigation_capture) ?: R.id.navigation_capture
+        container = findViewById(R.id.container)
+        bottomDivider = findViewById(R.id.bottom_navigation_divider)
+        bottomNavigation = findViewById(R.id.bottom_navigation)
+        bottomNavigation.setOnItemSelectedListener { item ->
+            selectTab(item.itemId)
+            true
+        }
     }
 
     override fun onStart() {
@@ -41,6 +57,11 @@ class TimeTravelActivity : AppCompatActivity() {
         super.onRestart()
         dismissDialogs()
         requestPermissions()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_SELECTED_TAB, selectedTabId)
     }
 
     private fun requestPermissions() {
@@ -63,13 +84,61 @@ class TimeTravelActivity : AppCompatActivity() {
     }
 
     private fun showFragment() {
-        if (supportFragmentManager.findFragmentByTag(MAIN_FRAGMENT_TAG) != null) {
+        ensureTabsCreated()
+        container.isVisible = true
+        bottomDivider.isVisible = true
+        bottomNavigation.isVisible = true
+        if (bottomNavigation.selectedItemId != selectedTabId) {
+            bottomNavigation.selectedItemId = selectedTabId
+        } else {
+            selectTab(selectedTabId)
+        }
+    }
+
+    private fun ensureTabsCreated() {
+        val existingCapture = supportFragmentManager.findFragmentByTag(CAPTURE_FRAGMENT_TAG)
+        val existingFiles = supportFragmentManager.findFragmentByTag(FILES_FRAGMENT_TAG)
+        if (existingCapture != null && existingFiles != null) {
             return
         }
 
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.container, TimeTravelFragment(), MAIN_FRAGMENT_TAG)
-            .commit()
+        val captureFragment = existingCapture ?: TimeTravelFragment()
+        val filesFragment = existingFiles ?: SavedRecordingsFragment()
+        supportFragmentManager.commitNow {
+            setReorderingAllowed(true)
+            if (!captureFragment.isAdded) {
+                add(R.id.container, captureFragment, CAPTURE_FRAGMENT_TAG)
+            }
+            if (!filesFragment.isAdded) {
+                add(R.id.container, filesFragment, FILES_FRAGMENT_TAG)
+            }
+            if (selectedTabId == R.id.navigation_capture) {
+                hide(filesFragment)
+            } else {
+                hide(captureFragment)
+            }
+        }
+    }
+
+    private fun selectTab(itemId: Int) {
+        selectedTabId = itemId
+        val captureFragment = supportFragmentManager.findFragmentByTag(CAPTURE_FRAGMENT_TAG) ?: return
+        val filesFragment = supportFragmentManager.findFragmentByTag(FILES_FRAGMENT_TAG) ?: return
+
+        supportFragmentManager.commit {
+            setReorderingAllowed(true)
+            if (itemId == R.id.navigation_capture) {
+                show(captureFragment)
+                hide(filesFragment)
+            } else {
+                show(filesFragment)
+                hide(captureFragment)
+            }
+        }
+
+        if (itemId == R.id.navigation_files) {
+            (filesFragment as? SavedRecordingsFragment)?.refreshRecordings()
+        }
     }
 
     private fun showPermissionDeniedDialog() {
@@ -96,6 +165,8 @@ class TimeTravelActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val MAIN_FRAGMENT_TAG = "main-fragment"
+        const val KEY_SELECTED_TAB = "selected_tab"
+        const val CAPTURE_FRAGMENT_TAG = "capture-fragment"
+        const val FILES_FRAGMENT_TAG = "files-fragment"
     }
 }

@@ -25,12 +25,13 @@ import com.google.android.material.textfield.TextInputLayout
 import java.util.Stack
 
 class SettingsActivity : AppCompatActivity() {
-    private lateinit var historyLimit: TextView
     private lateinit var retentionModeGroup: MaterialButtonToggleGroup
     private lateinit var retentionTimeLayout: TextInputLayout
     private lateinit var retentionSizeLayout: TextInputLayout
     private lateinit var retentionTimeInput: EditText
     private lateinit var retentionSizeInput: EditText
+    private lateinit var retentionTimeEstimate: TextView
+    private lateinit var retentionSizeEstimate: TextView
     private lateinit var codecLayout: TextInputLayout
     private lateinit var sampleRateLayout: TextInputLayout
     private lateinit var audioSourceLayout: TextInputLayout
@@ -42,7 +43,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var editPresetsButton: MaterialButton
     private lateinit var undoButton: MaterialButton
 
-    private val timeFormatResult = NaturalLanguageResult()
     private var service: TimeTravelService? = null
     private var serviceBound = false
     private var bindingUi = false
@@ -101,12 +101,13 @@ class SettingsActivity : AppCompatActivity() {
         val root = findViewById<View>(R.id.settings_layout)
         applyWindowInsets(root)
 
-        historyLimit = findViewById(R.id.history_limit)
         retentionModeGroup = findViewById(R.id.retention_mode_group)
         retentionTimeLayout = findViewById(R.id.retention_time_layout)
         retentionSizeLayout = findViewById(R.id.retention_size_layout)
         retentionTimeInput = findViewById(R.id.retention_time_input)
         retentionSizeInput = findViewById(R.id.retention_size_input)
+        retentionTimeEstimate = findViewById(R.id.retention_time_estimate)
+        retentionSizeEstimate = findViewById(R.id.retention_size_estimate)
         codecLayout = findViewById(R.id.codec_layout)
         sampleRateLayout = findViewById(R.id.sample_rate_layout)
         audioSourceLayout = findViewById(R.id.audio_source_layout)
@@ -117,8 +118,6 @@ class SettingsActivity : AppCompatActivity() {
         inputRouteDropdown = findViewById(R.id.input_route_dropdown)
         editPresetsButton = findViewById(R.id.edit_presets_button)
         undoButton = findViewById(R.id.undo_button)
-
-        historyLimit.typeface = android.graphics.Typeface.MONOSPACE
 
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -170,7 +169,7 @@ class SettingsActivity : AppCompatActivity() {
         retentionModeGroup.addOnButtonCheckedListener { _, _, isChecked ->
             if (!isChecked || bindingUi) return@addOnButtonCheckedListener
             updateRetentionModeUi()
-            refreshRetentionSummary()
+            refreshRetentionEstimates()
             saveCurrentToSnapshot(currentSettings)
             pushUndoState()
         }
@@ -180,7 +179,7 @@ class SettingsActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) {
                 if (!bindingUi) {
-                    refreshRetentionSummary()
+                    refreshRetentionEstimates()
                     saveCurrentToSnapshot(currentSettings)
                     pushUndoState()
                 }
@@ -212,7 +211,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         sampleRateDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
-                refreshRetentionSummary()
+                refreshRetentionEstimates()
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
@@ -272,7 +271,7 @@ class SettingsActivity : AppCompatActivity() {
 
         bindingUi = false
         updateRetentionModeUi()
-        refreshRetentionSummary()
+        refreshRetentionEstimates()
     }
 
     private fun saveCurrentToSnapshot(snapshot: SettingsSnapshot) {
@@ -320,7 +319,7 @@ class SettingsActivity : AppCompatActivity() {
         
         bindingUi = false
         updateRetentionModeUi()
-        refreshRetentionSummary()
+        refreshRetentionEstimates()
         
         currentSettings.copyFrom(previous)
         hasUnsavedChanges = originalSettings.peek() != currentSettings
@@ -364,7 +363,7 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
 
-        refreshRetentionSummary()
+        refreshRetentionEstimates()
     }
 
     private fun updateRetentionModeUi() {
@@ -383,34 +382,40 @@ class SettingsActivity : AppCompatActivity() {
         layout.alpha = if (enabled) 1f else 0.68f
     }
 
-    private fun refreshRetentionSummary() {
+    private fun refreshRetentionEstimates() {
         val sampleRate = currentSampleRate()
         if (sampleRate == null || sampleRate <= 0) {
-            historyLimit.text = getString(R.string.unsupported_config_message)
+            val unsupported = getString(R.string.unsupported_config_message)
+            retentionTimeEstimate.text = unsupported
+            retentionSizeEstimate.text = unsupported
             return
         }
 
+        val codec = currentCodec()
         val fallbackTime = getConfiguredRetentionSeconds(this).toInt()
-        val fallbackSizeBytes = getRecorderPreferences(this).getLong(
-            TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY,
-            Runtime.getRuntime().maxMemory() / 4,
-        ).coerceAtMost(getRetentionMemoryCapBytes())
+        val fallbackSizeMb = bytesToMegabytes(
+            getRecorderPreferences(this).getLong(
+                TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY,
+                Runtime.getRuntime().maxMemory() / 4,
+            ).coerceAtMost(getRetentionMemoryCapBytes()),
+        )
 
-        val seconds = if (currentRetentionMode() == RetentionMode.TIME) {
-            val requested = parseDurationInput(retentionTimeInput.text?.toString().orEmpty()) ?: fallbackTime
-            retentionSecondsForBytes(bytesForRetentionSeconds(requested.toLong(), sampleRate), sampleRate)
-        } else {
-            val requestedBytes = megabytesToBytes(
-                retentionSizeInput.text?.toString()?.trim()?.toLongOrNull() ?: bytesToMegabytes(fallbackSizeBytes),
-            )
-            retentionSecondsForBytes(requestedBytes, sampleRate)
-        }
+        val requestedTimeSeconds = parseDurationInput(retentionTimeInput.text?.toString().orEmpty()) ?: fallbackTime
+        val requestedSizeBytes = megabytesToBytes(
+            retentionSizeInput.text?.toString()?.trim()?.toLongOrNull() ?: fallbackSizeMb,
+        )
 
-        formatNaturalLanguage(resources, seconds.toFloat(), timeFormatResult)
-        historyLimit.text = timeFormatResult.text
+        retentionTimeEstimate.text = getString(
+            R.string.retention_time_estimate,
+            formatShortFileSize(estimateExportSizeBytes(codec, sampleRate, requestedTimeSeconds.toLong())),
+        )
+        retentionSizeEstimate.text = getString(
+            R.string.retention_size_estimate,
+            formatDurationInput(estimateExportDurationSeconds(codec, sampleRate, requestedSizeBytes).toInt()),
+        )
     }
 
-    private fun applySettings() {
+    private fun persistSettings(showFeedback: Boolean): Boolean {
         clearErrors()
 
         val codec = currentCodec()
@@ -420,20 +425,22 @@ class SettingsActivity : AppCompatActivity() {
 
         if (sampleRate == null) {
             sampleRateLayout.error = getString(R.string.unsupported_config_message)
-            Toast.makeText(this, R.string.unsupported_config_message, Toast.LENGTH_SHORT).show()
-            return
+            if (showFeedback) {
+                Toast.makeText(this, R.string.unsupported_config_message, Toast.LENGTH_SHORT).show()
+            }
+            return false
         }
 
         val retentionTime = parseDurationInput(retentionTimeInput.text?.toString().orEmpty())
         if (retentionTime == null || retentionTime <= 0) {
             retentionTimeLayout.error = getString(R.string.retention_time_invalid)
-            return
+            return false
         }
 
         val sizeMb = retentionSizeInput.text?.toString()?.trim()?.toLongOrNull()
         if (sizeMb == null || sizeMb <= 0) {
             retentionSizeLayout.error = getString(R.string.custom_memory_size_invalid)
-            return
+            return false
         }
 
         val sizeBytes = megabytesToBytes(sizeMb)
@@ -452,21 +459,30 @@ class SettingsActivity : AppCompatActivity() {
 
         val currentService = service
         if (currentService == null) {
-            Toast.makeText(this, R.string.settings_saved_next_start, Toast.LENGTH_SHORT).show()
-            return
+            if (showFeedback) {
+                Toast.makeText(this, R.string.settings_saved_next_start, Toast.LENGTH_SHORT).show()
+            }
+            return true
         }
 
         when (currentService.applyUpdatedPreferences()) {
             TimeTravelService.ApplySettingsResult.BLOCKED_RECORDING -> {
-                Toast.makeText(this, R.string.settings_apply_blocked_recording, Toast.LENGTH_SHORT).show()
+                if (showFeedback) {
+                    Toast.makeText(this, R.string.settings_apply_blocked_recording, Toast.LENGTH_SHORT).show()
+                }
             }
             TimeTravelService.ApplySettingsResult.APPLIED_NOW -> {
-                Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show()
+                if (showFeedback) {
+                    Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show()
+                }
             }
             TimeTravelService.ApplySettingsResult.DEFERRED_UNTIL_RESTART -> {
-                Toast.makeText(this, R.string.settings_saved_deferred_input, Toast.LENGTH_SHORT).show()
+                if (showFeedback) {
+                    Toast.makeText(this, R.string.settings_saved_deferred_input, Toast.LENGTH_SHORT).show()
+                }
             }
         }
+        return true
     }
 
     private fun showEditPresetsDialog() {
@@ -533,21 +549,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveSettingsSilently() {
-        val codec = currentCodec()
-        val route = currentRouteMode()
-        val source = currentSourceMode()
-        val sampleRate = currentSampleRate() ?: return
-        val retentionTime = parseDurationInput(retentionTimeInput.text?.toString().orEmpty()) ?: return
-        val sizeBytes = megabytesToBytes(retentionSizeInput.text?.toString()?.trim()?.toLongOrNull() ?: return)
-
-        getRecorderPreferences(this).edit()
-            .putString(TimeTravelConfig.RETENTION_MODE_KEY, currentRetentionMode().prefValue)
-            .putLong(TimeTravelConfig.RETENTION_SECONDS_KEY, retentionTime.toLong())
-            .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, sizeBytes)
-            .putString(TimeTravelConfig.OUTPUT_CODEC_KEY, codec.prefValue)
-            .putInt(TimeTravelConfig.AUDIO_SOURCE_KEY, source.sourceValue)
-            .putString(TimeTravelConfig.INPUT_ROUTE_KEY, route.prefValue)
-            .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
-            .apply()
+        persistSettings(showFeedback = false)
     }
 }

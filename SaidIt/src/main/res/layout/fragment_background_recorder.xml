@@ -17,6 +17,18 @@
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp">
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textAppearance="?attr/textAppearanceHeadlineSmall"
+            android:textColor="?attr/colorOnSurface" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
         <ImageButton
             android:id="@+id/settings_button"
             android:layout_width="48dp"
@@ -25,32 +37,15 @@
             android:contentDescription="@string/settings_open"
             android:src="@drawable/ic_settings"
             app:tint="?attr/colorOnSurfaceVariant" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <TextView
-            android:id="@+id/status_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            tools:text="Ready" />
     </LinearLayout>
-
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:dividerColor="?attr/colorOutlineVariant" />
 
     <ScrollView
         android:id="@+id/content_scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:overScrollMode="never">
 
         <LinearLayout
             android:id="@+id/main_content"
@@ -58,13 +53,25 @@
             android:layout_height="wrap_content"
             android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:paddingStart="24dp"
+            android:paddingTop="20dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.08"
+                android:text="@string/current_time_buffer"
+                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
             <TextView
                 android:id="@+id/history_size"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceDisplayMedium"
+                android:layout_marginTop="16dp"
+                android:textAppearance="?attr/textAppearanceDisplayLarge"
                 android:textColor="?attr/colorOnSurface"
                 android:typeface="monospace"
                 tools:text="22:30" />
@@ -73,22 +80,81 @@
                 android:id="@+id/format_summary"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="AAC • 48 kHz" />
+                tools:text="Recording the past 30:00" />
 
-            <com.google.android.material.divider.MaterialDivider
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="24dp"
-                app:dividerColor="?attr/colorOutlineVariant" />
+                android:layout_marginTop="32dp"
+                android:clipChildren="false"
+                android:clipToPadding="false">
+
+                <View
+                    android:id="@+id/listen_ring"
+                    android:layout_width="304dp"
+                    android:layout_height="304dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/listen_surface_outer_ring" />
+
+                <View
+                    android:id="@+id/listen_glow_primary"
+                    android:layout_width="288dp"
+                    android:layout_height="288dp"
+                    android:layout_gravity="center"
+                    android:alpha="0.16"
+                    android:background="@drawable/listen_glow_primary" />
+
+                <View
+                    android:id="@+id/listen_glow_secondary"
+                    android:layout_width="232dp"
+                    android:layout_height="232dp"
+                    android:layout_gravity="center"
+                    android:alpha="0.1"
+                    android:background="@drawable/listen_glow_secondary" />
+
+                <FrameLayout
+                    android:id="@+id/bottom_bar"
+                    android:layout_width="248dp"
+                    android:layout_height="248dp"
+                    android:layout_gravity="center"
+                    android:clickable="true"
+                    android:clipChildren="false"
+                    android:clipToOutline="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:id="@+id/listen_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:drawablePadding="16dp"
+                        android:gravity="center"
+                        android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                        android:textColor="?attr/colorOnSurface"
+                        app:drawableTint="?attr/colorOnSurface"
+                        app:drawableTopCompat="@drawable/ic_capture_wave"
+                        tools:text="OFF" />
+                </FrameLayout>
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/listen_caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="Tap to start" />
 
             <LinearLayout
                 android:id="@+id/preset_grid"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
                 android:orientation="vertical">
 
                 <LinearLayout
@@ -159,72 +225,39 @@
         </LinearLayout>
     </ScrollView>
 
-    <com.google.android.material.divider.MaterialDivider
-        android:id="@+id/recording_divider"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:dividerColor="?attr/colorOutlineVariant"
-        tools:visibility="visible" />
-
     <FrameLayout
         android:id="@+id/rec_touch_area"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:visibility="gone"
-        tools:visibility="visible">
+        tools:visibility="visible"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
-        <View
-            android:id="@+id/rec_gradient"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/recording_gradient" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <FrameLayout
+            android:id="@+id/rec_button_circle"
+            android:layout_width="248dp"
+            android:layout_height="248dp"
             android:layout_gravity="center"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:src="@drawable/ic_recording"
-                app:tint="?attr/colorOnPrimary"
-                tools:ignore="ContentDescription" />
+            android:clickable="true"
+            android:focusable="true"
+            android:clipToOutline="true"
+            android:background="?attr/colorPrimaryContainer">
 
             <TextView
                 android:id="@+id/rec_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_gravity="center"
+                android:drawablePadding="12dp"
+                android:gravity="center"
                 android:textAppearance="?attr/textAppearanceDisplayMedium"
-                android:textColor="?attr/colorOnPrimary"
+                android:textColor="?attr/colorOnPrimaryContainer"
                 android:typeface="monospace"
+                app:drawableTint="?attr/colorOnPrimaryContainer"
+                app:drawableTopCompat="@drawable/ic_recording"
                 tools:text="05:32" />
-        </LinearLayout>
+        </FrameLayout>
     </FrameLayout>
-
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:dividerColor="?attr/colorOutlineVariant" />
-
-    <LinearLayout
-        android:id="@+id/bottom_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:padding="16dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/listen_button"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minHeight="56dp"
-            android:text="@string/listening_enabled_disable" />
-    </LinearLayout>
 </LinearLayout>

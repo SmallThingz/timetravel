@@ -17,6 +17,11 @@ import java.util.Locale
 import kotlin.math.max
 
 private const val BYTES_PER_PCM_SAMPLE = 2L
+private const val PCM_CHANNEL_COUNT = 1L
+private const val WAV_HEADER_BYTES = 44L
+private const val MP4_CONTAINER_BASE_OVERHEAD_BYTES = 1536L
+private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
+private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
 private val DEFAULT_EXPORT_PRESETS = intArrayOf(60, 5 * 60, 30 * 60, 60 * 60)
 private val SAMPLE_RATE_CANDIDATES = intArrayOf(48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 11_025, 8_000)
 
@@ -182,7 +187,7 @@ fun bytesForRetentionSeconds(
     sampleRate: Int,
 ): Long {
     if (sampleRate <= 0) return 0
-    return (seconds * sampleRate * BYTES_PER_PCM_SAMPLE).coerceAtMost(getRetentionMemoryCapBytes())
+    return (seconds * sampleRate * PCM_CHANNEL_COUNT * BYTES_PER_PCM_SAMPLE).coerceAtMost(getRetentionMemoryCapBytes())
 }
 
 fun retentionSecondsForBytes(
@@ -190,7 +195,7 @@ fun retentionSecondsForBytes(
     sampleRate: Int,
 ): Long {
     if (sampleRate <= 0) return 0
-    return bytes / (sampleRate * BYTES_PER_PCM_SAMPLE)
+    return bytes / (sampleRate * PCM_CHANNEL_COUNT * BYTES_PER_PCM_SAMPLE)
 }
 
 fun parseDurationInput(value: String): Int? {
@@ -235,6 +240,65 @@ fun supportedCodecs(): List<ExportCodec> {
 
 fun getPreferredOutputCodec(): ExportCodec {
     return if (supportedCodecs().contains(ExportCodec.AAC)) ExportCodec.AAC else ExportCodec.WAV
+}
+
+fun aacBitrateForSampleRate(sampleRate: Int): Int {
+    return when {
+        sampleRate >= 48_000 -> 128_000
+        sampleRate >= 24_000 -> 96_000
+        else -> 64_000
+    }
+}
+
+fun estimateExportSizeBytes(
+    codec: ExportCodec,
+    sampleRate: Int,
+    durationSeconds: Long,
+): Long {
+    if (sampleRate <= 0 || durationSeconds <= 0L) {
+        return 0L
+    }
+
+    return when (codec) {
+        ExportCodec.WAV -> {
+            WAV_HEADER_BYTES + durationSeconds * sampleRate.toLong() * PCM_CHANNEL_COUNT * BYTES_PER_PCM_SAMPLE
+        }
+
+        ExportCodec.AAC -> {
+            val audioBytes = durationSeconds * aacBitrateForSampleRate(sampleRate).toLong() / 8L
+            val accessUnits = ((durationSeconds * sampleRate.toLong()) + AAC_SAMPLES_PER_ACCESS_UNIT - 1L) / AAC_SAMPLES_PER_ACCESS_UNIT
+            audioBytes + MP4_CONTAINER_BASE_OVERHEAD_BYTES + accessUnits * MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT
+        }
+    }
+}
+
+fun estimateExportDurationSeconds(
+    codec: ExportCodec,
+    sampleRate: Int,
+    sizeBytes: Long,
+): Long {
+    if (sampleRate <= 0 || sizeBytes <= 0L) {
+        return 0L
+    }
+
+    return when (codec) {
+        ExportCodec.WAV -> {
+            ((sizeBytes - WAV_HEADER_BYTES).coerceAtLeast(0L)) /
+                (sampleRate.toLong() * PCM_CHANNEL_COUNT * BYTES_PER_PCM_SAMPLE)
+        }
+
+        ExportCodec.AAC -> {
+            val bitrateBytesPerSecond = aacBitrateForSampleRate(sampleRate).toLong() / 8L
+            if (bitrateBytesPerSecond <= 0L) {
+                0L
+            } else {
+                // MediaMuxer adds MP4 container bytes; the packet-count term is a close heuristic for AAC-LC.
+                val estimatedContainerlessBytes = (sizeBytes - MP4_CONTAINER_BASE_OVERHEAD_BYTES).coerceAtLeast(0L)
+                val denominator = bitrateBytesPerSecond + sampleRate.toLong() * MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT / AAC_SAMPLES_PER_ACCESS_UNIT
+                if (denominator <= 0L) 0L else estimatedContainerlessBytes / denominator
+            }
+        }
+    }
 }
 
 fun supportedSampleRates(

@@ -1,6 +1,5 @@
 package app.timetravel
 
-import android.content.res.Resources
 import java.text.DecimalFormat
 import java.util.Locale
 import kotlin.math.floor
@@ -13,7 +12,6 @@ data class NaturalLanguageResult(
 )
 
 fun formatNaturalLanguage(
-    resources: Resources,
     secondsFloat: Float,
     outResult: NaturalLanguageResult,
 ) {

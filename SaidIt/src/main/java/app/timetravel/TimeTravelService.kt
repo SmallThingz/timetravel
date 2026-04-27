@@ -13,14 +13,12 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.os.Binder
 import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
-import android.text.format.DateUtils
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -65,11 +63,17 @@ class TimeTravelService : Service() {
 
     private lateinit var audioThread: HandlerThread
     private lateinit var audioHandler: Handler
+    private lateinit var exportThread: HandlerThread
+    private lateinit var exportHandler: Handler
+    private var liveAacExportHistory: LiveAacExportHistory? = null
 
     override fun onCreate() {
         loadConfiguration()
         audioThread = HandlerThread("timeTravelAudioThread", Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
+        exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
+        exportHandler = Handler(exportThread.looper)
+        configureLiveExportHistory()
         if (isListeningEnabled()) {
             innerStartListening()
         }
@@ -79,7 +83,10 @@ class TimeTravelService : Service() {
         stopRecording(null)
         innerStopListening()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        liveAacExportHistory?.close()
+        liveAacExportHistory = null
         audioThread.quitSafely()
+        exportThread.quitSafely()
         super.onDestroy()
     }
 
@@ -138,6 +145,9 @@ class TimeTravelService : Service() {
         audioSource = selectedSourceMode.sourceValue
         outputCodec = if (isCodecSupported(selectedCodec, sampleRate)) selectedCodec else ExportCodec.WAV
         inputRouteMode = selectedRouteMode
+        if (this::audioHandler.isInitialized) {
+            configureLiveExportHistory()
+        }
     }
 
     private fun innerStartListening() {
@@ -260,22 +270,47 @@ class TimeTravelService : Service() {
                 buildOutputFile(newFileName, startedAtMillis)
             } catch (e: IOException) {
                 Log.e(TAG, "Unable to prepare export file", e)
-                showToast(getString(R.string.cant_create_file_generic))
+                val message = getString(R.string.cant_create_file_generic)
+                showToast(message)
+                notifyReceiverFailure(receiver, message)
                 return@post
             }
 
-            try {
-                createAudioFileWriter(outFile).use { writer ->
-                    audioMemory.read(skipBytes) { array, offset, count ->
-                        writer.write(array, offset, count)
-                        0
+            if (effectiveOutputCodec == ExportCodec.AAC) {
+                val snapshot = liveAacExportHistory?.snapshotLastDuration((useBytes * 1_000_000L) / maxOf(fillRate, 1))
+                if (snapshot != null && snapshot.frames.isNotEmpty()) {
+                    exportHandler.post {
+                        try {
+                            AacSnapshotExporter.export(snapshot, outFile)
+                            notifyReceiver(receiver, outFile, snapshot.durationUs / 1_000_000f)
+                        } catch (e: IOException) {
+                            Log.e(TAG, "Error while writing cached AAC export into ${outFile.absolutePath}", e)
+                            val message = getString(R.string.error_during_writing_history_into) + outFile.absolutePath
+                            showToast(message)
+                            notifyReceiverFailure(receiver, message)
+                            deleteIfEmpty(outFile)
+                        }
                     }
-                    notifyReceiver(receiver, outFile, writer.totalSampleBytesWritten * bytesToSeconds)
+                    return@post
                 }
-            } catch (e: IOException) {
-                Log.e(TAG, "Error while exporting history into ${outFile.absolutePath}", e)
-                showToast(getString(R.string.error_during_writing_history_into) + outFile.absolutePath)
-                deleteIfEmpty(outFile)
+            }
+
+            exportHandler.post {
+                try {
+                    createAudioFileWriter(outFile).use { writer ->
+                        audioMemory.read(skipBytes) { array, offset, count ->
+                            writer.write(array, offset, count)
+                            0
+                        }
+                        notifyReceiver(receiver, outFile, writer.totalSampleBytesWritten * bytesToSeconds)
+                    }
+                } catch (e: IOException) {
+                    Log.e(TAG, "Error while exporting history into ${outFile.absolutePath}", e)
+                    val message = getString(R.string.error_during_writing_history_into) + outFile.absolutePath
+                    showToast(message)
+                    notifyReceiverFailure(receiver, message)
+                    deleteIfEmpty(outFile)
+                }
             }
         }
     }
@@ -315,15 +350,17 @@ class TimeTravelService : Service() {
                 return@post
             }
 
-            try {
-                val writer = audioFileWriter
-                audioMemory.read(skipBytes) { array, offset, count ->
-                    writer?.write(array, offset, count)
-                    0
+            exportHandler.post {
+                try {
+                    val writer = audioFileWriter
+                    audioMemory.read(skipBytes) { array, offset, count ->
+                        writer?.write(array, offset, count)
+                        0
+                    }
+                } catch (e: IOException) {
+                    Log.e(TAG, "Error while priming recording into ${recordingFile?.absolutePath}", e)
+                    stopRecording(TimeTravelFragment.NotifyFileReceiver(this@TimeTravelService))
                 }
-            } catch (e: IOException) {
-                Log.e(TAG, "Error while priming recording into ${recordingFile?.absolutePath}", e)
-                stopRecording(TimeTravelFragment.NotifyFileReceiver(this))
             }
         }
     }
@@ -434,6 +471,14 @@ class TimeTravelService : Service() {
         mainHandler.post { receiver.fileReady(file, runtime) }
     }
 
+    private fun notifyReceiverFailure(
+        receiver: AudioFileReceiver?,
+        message: String,
+    ) {
+        receiver ?: return
+        mainHandler.post { receiver.fileFailed(message) }
+    }
+
     @Throws(IOException::class)
     private fun buildOutputFile(
         requestedName: String?,
@@ -459,8 +504,7 @@ class TimeTravelService : Service() {
     }
 
     private fun getOutputDirectory(): File {
-        val recordingsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC + "/Recordings")
-        return File(recordingsDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
+        return getSavedRecordingsDirectory()
     }
 
     private val effectiveOutputCodec: ExportCodec
@@ -475,13 +519,12 @@ class TimeTravelService : Service() {
     }
 
     private fun buildSuggestedBaseName(startedAtMillis: Long): String {
-        val flags = DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_SHOW_DATE
-        return "TimeTravel - ${DateUtils.formatDateTime(this, startedAtMillis, flags)}"
+        return buildRecordingBaseName(startedAtMillis)
     }
 
     private fun sanitizeBaseName(name: String): String {
         val sanitized = name
-            .replace(Regex("[\\\\/:*?\"<>|]"), " ")
+            .replace(Regex("[\\\\/*?\"<>|]"), " ")
             .trim()
             .replace(Regex("\\s+"), " ")
         return sanitized.ifEmpty { "TimeTravel" }
@@ -523,6 +566,9 @@ class TimeTravelService : Service() {
         val writer = audioFileWriter
         if (writer != null && read > 0) {
             writer.write(array, offset, read)
+        }
+        if (read > 0) {
+            liveAacExportHistory?.appendPcm(array, offset, read)
         }
 
         if (read == count) {
@@ -665,6 +711,8 @@ class TimeTravelService : Service() {
             file: File,
             runtime: Float,
         )
+
+        fun fileFailed(message: String) = Unit
     }
 
     interface StateCallback {
@@ -699,5 +747,27 @@ class TimeTravelService : Service() {
         const val STATE_READY = 0
         const val STATE_LISTENING = 1
         const val STATE_RECORDING = 2
+    }
+
+    private fun configureLiveExportHistory() {
+        val retentionDurationUs = getConfiguredMemorySizeBytes(this, sampleRate) * 1_000_000L / maxOf(fillRate, 1)
+        audioHandler.post {
+            val shouldUseAacHistory = effectiveOutputCodec == ExportCodec.AAC
+            if (!shouldUseAacHistory) {
+                liveAacExportHistory?.close()
+                liveAacExportHistory = null
+                return@post
+            }
+
+            val current = liveAacExportHistory
+            if (current == null || current.sampleRate != sampleRate) {
+                current?.close()
+                liveAacExportHistory = LiveAacExportHistory(sampleRate).also {
+                    it.setMaxDurationUs(retentionDurationUs)
+                }
+            } else {
+                current.setMaxDurationUs(retentionDurationUs)
+            }
+        }
     }
 }
