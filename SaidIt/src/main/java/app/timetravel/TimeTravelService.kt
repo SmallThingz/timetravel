@@ -72,6 +72,9 @@ class TimeTravelService : Service() {
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
         exportHandler = Handler(exportThread.looper)
+        audioHandler.post {
+            warmRecorderCapabilityCache(applicationContext)
+        }
         configureLiveExportHistory()
         if (isListeningEnabled()) {
             innerStartListening()
@@ -672,7 +675,8 @@ class TimeTravelService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (!isListeningEnabled()) {
+        val shouldKeepBuffer = state == STATE_PAUSED || state == STATE_LISTENING || state == STATE_RECORDING || audioMemory.countFilled() > 0
+        if (!shouldKeepBuffer && !isListeningEnabled()) {
             return
         }
 

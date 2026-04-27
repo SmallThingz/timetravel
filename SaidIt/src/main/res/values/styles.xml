@@ -1,6 +1,7 @@
 <resources>
     <style name="Theme.TimeTravel" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
         <item name="android:textViewStyle">@style/TextView</item>
         <item name="alertDialogTheme">@style/ThemeOverlay.TimeTravel.AlertDialog</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.TimeTravel.AlertDialog</item>
@@ -63,5 +64,11 @@
     <style name="TimeTravel.TextInputEditText" parent="Widget.Material3.TextInputEditText.OutlinedBox">
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <style name="TimeTravel.DropdownMenu" parent="Widget.Material3.TextInputEditText.OutlinedBox">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:popupBackground">@drawable/dropdown_menu_popup_background</item>
+        <item name="simpleItemSelectedColor">@android:color/transparent</item>
     </style>
 </resources>

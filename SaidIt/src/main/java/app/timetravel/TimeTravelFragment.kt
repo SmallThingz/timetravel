@@ -239,7 +239,10 @@ class TimeTravelFragment : Fragment() {
         installPressAnimation(recordCustomButton, 0.98f)
 
         settingsButton.setOnClickListener {
-            startActivity(Intent(activity, SettingsActivity::class.java))
+            startActivity(
+                Intent(activity, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+            )
+            activity.overridePendingTransition(0, 0)
         }
         clearBufferButton.setOnClickListener {
             if (!isSaving && !isRecording) {
@@ -369,6 +372,7 @@ class TimeTravelFragment : Fragment() {
         }
         listenRingDrawable = MaterialShapeDrawable(circleShape).apply {
             strokeWidth = resources.displayMetrics.density * 0.85f
+            fillColor = ColorStateList.valueOf(Color.TRANSPARENT)
             strokeColor = ColorStateList.valueOf(
                 MaterialColors.getColor(
                     listenSurface,
@@ -396,6 +400,16 @@ class TimeTravelFragment : Fragment() {
                 recButtonCircle,
                 com.google.android.material.R.attr.colorPrimaryContainer,
             ))
+            strokeWidth = resources.displayMetrics.density
+            strokeColor = ColorStateList.valueOf(
+                ColorUtils.setAlphaComponent(
+                    MaterialColors.getColor(
+                        recButtonCircle,
+                        com.google.android.material.R.attr.colorOutlineVariant,
+                    ),
+                    54,
+                ),
+            )
             initializeElevationOverlay(context)
         }
         recButtonCircle.foreground = RippleDrawable(
@@ -462,17 +476,17 @@ class TimeTravelFragment : Fragment() {
 
         val fillColor = MaterialColors.getColor(
             listenSurface,
-            if (active) com.google.android.material.R.attr.colorPrimaryContainer
+            if (active) androidx.appcompat.R.attr.colorPrimary
             else com.google.android.material.R.attr.colorSurfaceContainerHigh,
         )
         val contentColor = MaterialColors.getColor(
             listenSurface,
-            if (active) com.google.android.material.R.attr.colorOnPrimaryContainer
+            if (active) com.google.android.material.R.attr.colorOnPrimary
             else com.google.android.material.R.attr.colorOnSurface,
         )
         val borderBaseColor = MaterialColors.getColor(
             listenSurface,
-            if (active) androidx.appcompat.R.attr.colorPrimary
+            if (active) com.google.android.material.R.attr.colorPrimaryContainer
             else com.google.android.material.R.attr.colorOutlineVariant,
         )
         val ringBaseColor = MaterialColors.getColor(
@@ -480,14 +494,16 @@ class TimeTravelFragment : Fragment() {
             if (active) androidx.appcompat.R.attr.colorPrimary
             else com.google.android.material.R.attr.colorOutlineVariant,
         )
-        val strokeColor = ColorUtils.setAlphaComponent(borderBaseColor, if (active) 52 else 34)
-        val ringStrokeColor = ColorUtils.setAlphaComponent(ringBaseColor, if (active) 30 else 16)
+        val ringFillColor = if (active) ColorUtils.setAlphaComponent(ringBaseColor, if (isRecording) 56 else 40) else Color.TRANSPARENT
+        val strokeColor = ColorUtils.setAlphaComponent(borderBaseColor, if (active) 110 else 56)
+        val ringStrokeColor = ColorUtils.setAlphaComponent(ringBaseColor, if (active) 160 else 44)
         listenSurfaceDrawable.fillColor = ColorStateList.valueOf(fillColor)
         listenSurfaceDrawable.strokeColor = ColorStateList.valueOf(strokeColor)
+        listenRingDrawable.fillColor = ColorStateList.valueOf(ringFillColor)
         listenRingDrawable.strokeColor = ColorStateList.valueOf(ringStrokeColor)
         listenTitle.setTextColor(contentColor)
         TextViewCompat.setCompoundDrawableTintList(listenTitle, ColorStateList.valueOf(contentColor))
-        listenRing.alpha = if (active) 1f else 0.8f
+        listenRing.alpha = if (active) 1f else 0.7f
         listenRing.scaleX = 1f
         listenRing.scaleY = 1f
 

@@ -10,11 +10,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import androidx.fragment.app.commit
 import androidx.fragment.app.commitNow
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class TimeTravelActivity : AppCompatActivity() {
     private var permissionDeniedDialog: AlertDialog? = null
@@ -33,6 +36,7 @@ class TimeTravelActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        applyConfiguredThemeMode(this)
         DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_background_recorder)
@@ -44,6 +48,9 @@ class TimeTravelActivity : AppCompatActivity() {
         bottomNavigation.setOnItemSelectedListener { item ->
             selectTab(item.itemId)
             true
+        }
+        lifecycleScope.launch(Dispatchers.Default) {
+            warmRecorderCapabilityCache(applicationContext)
         }
     }
 

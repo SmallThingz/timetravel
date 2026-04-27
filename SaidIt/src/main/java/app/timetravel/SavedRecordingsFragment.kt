@@ -35,7 +35,6 @@ class SavedRecordingsFragment : Fragment() {
     private var latestRecordingsById: Map<String, RecordingEntity> = emptyMap()
     private val adapter = SavedRecordingAdapter(
         onOpen = ::handleRecordingTap,
-        onDelete = ::deleteSingleRecording,
         onToggleSelection = ::toggleSelection,
     )
 
@@ -62,7 +61,10 @@ class SavedRecordingsFragment : Fragment() {
         selectionDeleteButton = view.findViewById(R.id.selection_delete_button)
 
         settingsButton.setOnClickListener {
-            startActivity(Intent(requireContext(), SettingsActivity::class.java))
+            startActivity(
+                Intent(requireContext(), SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+            )
+            activity?.overridePendingTransition(0, 0)
         }
         selectionClearButton.setOnClickListener { clearSelection() }
         selectionDeleteButton.setOnClickListener { deleteSelectedRecordings() }
@@ -177,25 +179,11 @@ class SavedRecordingsFragment : Fragment() {
                     timestampLabel = formatRecordingStartTimestamp(requireContext(), recording.startedAtMillis),
                     fileName = recording.displayName,
                     durationLabel = formatSavedRecordingDuration(recording.durationMillis),
-                    codecLabel = recording.codecSummary,
                     sizeLabel = formatShortFileSize(recording.sizeBytes),
                 ),
             )
         }
         return items
-    }
-
-    private fun deleteSingleRecording(recording: RecordingEntity) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val deleted = RecordingRepository.delete(requireContext(), recording)
-            if (!deleted) {
-                Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-            selectedRecordingIds.remove(recording.id)
-            refreshRecordings()
-            Snackbar.make(requireView(), R.string.recording_deleted, Snackbar.LENGTH_LONG).show()
-        }
     }
 
     private fun deleteSelectedRecordings() {
@@ -280,14 +268,12 @@ private sealed class SavedRecordingListItem {
         val timestampLabel: String,
         val fileName: String,
         val durationLabel: String,
-        val codecLabel: String,
         val sizeLabel: String,
     ) : SavedRecordingListItem()
 }
 
 private class SavedRecordingAdapter(
     private val onOpen: (RecordingEntity) -> Unit,
-    private val onDelete: (RecordingEntity) -> Unit,
     private val onToggleSelection: (RecordingEntity) -> Unit,
 ) : ListAdapter<SavedRecordingListItem, RecyclerView.ViewHolder>(SavedRecordingDiffCallback()) {
     private var selectedIds: Set<String> = emptySet()
@@ -312,7 +298,7 @@ private class SavedRecordingAdapter(
         return if (viewType == 0) {
             HeaderViewHolder(inflater.inflate(R.layout.item_recording_header, parent, false))
         } else {
-            SavedRecordingViewHolder(inflater.inflate(R.layout.item_saved_recording, parent, false), onOpen, onDelete, onToggleSelection)
+            SavedRecordingViewHolder(inflater.inflate(R.layout.item_saved_recording, parent, false), onOpen, onToggleSelection)
         }
     }
 
@@ -345,16 +331,13 @@ private class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemVie
 private class SavedRecordingViewHolder(
     itemView: View,
     private val onOpen: (RecordingEntity) -> Unit,
-    private val onDelete: (RecordingEntity) -> Unit,
     private val onToggleSelection: (RecordingEntity) -> Unit,
 ) : RecyclerView.ViewHolder(itemView) {
     private val row: View = itemView.findViewById(R.id.recording_row)
     private val timestamp: TextView = itemView.findViewById(R.id.recording_timestamp)
     private val name: TextView = itemView.findViewById(R.id.recording_name)
     private val duration: TextView = itemView.findViewById(R.id.recording_duration)
-    private val codec: TextView = itemView.findViewById(R.id.recording_codec_info)
     private val size: TextView = itemView.findViewById(R.id.recording_size)
-    private val delete: View = itemView.findViewById(R.id.recording_delete)
 
     fun bind(
         item: SavedRecordingListItem.Recording,
@@ -364,10 +347,8 @@ private class SavedRecordingViewHolder(
         timestamp.text = item.timestampLabel
         name.text = item.fileName
         duration.text = item.durationLabel
-        codec.text = item.codecLabel
         size.text = item.sizeLabel
         row.isActivated = selected
-        delete.isVisible = !selectionActive
 
         itemView.setOnClickListener {
             if (selectionActive) {
@@ -380,7 +361,6 @@ private class SavedRecordingViewHolder(
             onToggleSelection(item.recording)
             true
         }
-        delete.setOnClickListener { onDelete(item.recording) }
     }
 }
 

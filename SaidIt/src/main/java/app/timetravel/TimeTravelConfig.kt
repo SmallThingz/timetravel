@@ -13,6 +13,7 @@ object TimeTravelConfig {
     const val AUDIO_SOURCE_KEY = "audio_source"
     const val INPUT_ROUTE_KEY = "input_route"
     const val SAMPLE_RATE_KEY = "sample_rate"
+    const val THEME_MODE_KEY = "theme_mode"
 
     const val RETENTION_MODE_SIZE = "size"
     const val RETENTION_MODE_TIME = "time"
@@ -22,6 +23,9 @@ object TimeTravelConfig {
 
     const val INPUT_ROUTE_AUTO = "auto"
     const val INPUT_ROUTE_BUILTIN_MIC = "builtin_mic"
+    const val THEME_MODE_SYSTEM = "system"
+    const val THEME_MODE_LIGHT = "light"
+    const val THEME_MODE_DARK = "dark"
 
     const val APP_STORAGE_FOLDER_NAME = "Timetravel"
 }

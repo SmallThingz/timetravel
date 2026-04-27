@@ -8,10 +8,12 @@ import android.os.Bundle
 import android.os.IBinder
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.EditText
-import android.widget.TextView
+import android.widget.ScrollView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -27,25 +29,21 @@ import kotlinx.coroutines.launch
 import java.util.Stack
 
 class SettingsActivity : AppCompatActivity() {
-    private lateinit var retentionTimeGroup: View
-    private lateinit var retentionTimePrefix: TextView
-    private lateinit var retentionHoursLayout: TextInputLayout
-    private lateinit var retentionMinutesLayout: TextInputLayout
-    private lateinit var retentionSecondsLayout: TextInputLayout
+    private lateinit var themeLayout: TextInputLayout
+    private lateinit var retentionTimeLayout: TextInputLayout
     private lateinit var retentionSizeLayout: TextInputLayout
-    private lateinit var retentionHoursInput: EditText
-    private lateinit var retentionMinutesInput: EditText
-    private lateinit var retentionSecondsInput: EditText
-    private lateinit var retentionSizeInput: EditText
     private lateinit var codecLayout: TextInputLayout
     private lateinit var sampleRateLayout: TextInputLayout
     private lateinit var audioSourceLayout: TextInputLayout
     private lateinit var inputRouteLayout: TextInputLayout
+    private lateinit var exportPathLayout: TextInputLayout
+    private lateinit var themeDropdown: MaterialAutoCompleteTextView
     private lateinit var codecDropdown: MaterialAutoCompleteTextView
     private lateinit var sampleRateDropdown: MaterialAutoCompleteTextView
     private lateinit var audioSourceDropdown: MaterialAutoCompleteTextView
     private lateinit var inputRouteDropdown: MaterialAutoCompleteTextView
-    private lateinit var exportPathLayout: TextInputLayout
+    private lateinit var retentionTimeInput: EditText
+    private lateinit var retentionSizeInput: EditText
     private lateinit var exportPathInput: EditText
     private lateinit var editPresetsButton: MaterialButton
     private lateinit var chooseFolderButton: MaterialButton
@@ -56,12 +54,14 @@ class SettingsActivity : AppCompatActivity() {
     private var service: TimeTravelService? = null
     private var serviceBound = false
     private var bindingUi = false
+    private var formattingTimeInput = false
     private var hasUnsavedChanges = false
     private var moveAvailabilityGeneration = 0
 
     private val originalSettings = Stack<SettingsSnapshot>()
     private val currentSettings = SettingsSnapshot()
 
+    private var availableThemes: List<AppThemeMode> = emptyList()
     private var availableCodecs: List<ExportCodec> = emptyList()
     private var availableSourceModes: List<AudioSourceMode> = emptyList()
     private var availableRouteModes: List<InputRouteMode> = emptyList()
@@ -72,6 +72,7 @@ class SettingsActivity : AppCompatActivity() {
     private var selectedExportTreeUri: Uri? = null
 
     data class SettingsSnapshot(
+        var themeMode: AppThemeMode = AppThemeMode.SYSTEM,
         var retentionMode: RetentionMode = RetentionMode.TIME,
         var retentionTime: Int = 0,
         var retentionSizeMb: Long = 0,
@@ -82,6 +83,7 @@ class SettingsActivity : AppCompatActivity() {
         var exportDirectoryUri: String? = null,
     ) {
         fun copyFrom(other: SettingsSnapshot) {
+            themeMode = other.themeMode
             retentionMode = other.retentionMode
             retentionTime = other.retentionTime
             retentionSizeMb = other.retentionSizeMb
@@ -124,34 +126,35 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        applyConfiguredThemeMode(this)
         DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
+        window.setWindowAnimations(0)
         applyTimeTravelSystemBars()
         setContentView(R.layout.activity_settings)
 
         val root = findViewById<View>(R.id.settings_layout)
         applyWindowInsets(root)
+        installFocusClear(root)
+        installFocusClear(findViewById(R.id.settings_scroll))
+        installFocusClear(findViewById(R.id.settings_content))
 
-        retentionTimeGroup = findViewById(R.id.retention_time_group)
-        retentionTimePrefix = findViewById(R.id.retention_time_prefix)
-        retentionHoursLayout = findViewById(R.id.retention_hours_layout)
-        retentionMinutesLayout = findViewById(R.id.retention_minutes_layout)
-        retentionSecondsLayout = findViewById(R.id.retention_seconds_layout)
+        themeLayout = findViewById(R.id.theme_layout)
+        retentionTimeLayout = findViewById(R.id.retention_time_layout)
         retentionSizeLayout = findViewById(R.id.retention_size_layout)
-        retentionHoursInput = findViewById(R.id.retention_hours_input)
-        retentionMinutesInput = findViewById(R.id.retention_minutes_input)
-        retentionSecondsInput = findViewById(R.id.retention_seconds_input)
-        retentionSizeInput = findViewById(R.id.retention_size_input)
         codecLayout = findViewById(R.id.codec_layout)
         sampleRateLayout = findViewById(R.id.sample_rate_layout)
         audioSourceLayout = findViewById(R.id.audio_source_layout)
         inputRouteLayout = findViewById(R.id.input_route_layout)
         exportPathLayout = findViewById(R.id.export_path_layout)
-        exportPathInput = findViewById(R.id.export_path_input)
+        themeDropdown = findViewById(R.id.theme_dropdown)
         codecDropdown = findViewById(R.id.codec_dropdown)
         sampleRateDropdown = findViewById(R.id.sample_rate_dropdown)
         audioSourceDropdown = findViewById(R.id.audio_source_dropdown)
         inputRouteDropdown = findViewById(R.id.input_route_dropdown)
+        retentionTimeInput = findViewById(R.id.retention_time_input)
+        retentionSizeInput = findViewById(R.id.retention_size_input)
+        exportPathInput = findViewById(R.id.export_path_input)
         editPresetsButton = findViewById(R.id.edit_presets_button)
         chooseFolderButton = findViewById(R.id.choose_folder_button)
         defaultFolderButton = findViewById(R.id.default_folder_button)
@@ -164,6 +167,7 @@ class SettingsActivity : AppCompatActivity() {
                     saveSettingsSilently()
                 }
                 finish()
+                overridePendingTransition(0, 0)
             }
         })
 
@@ -213,17 +217,57 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupListeners() {
-        val timeInputs = listOf(retentionHoursInput, retentionMinutesInput, retentionSecondsInput)
-        retentionTimeGroup.setOnClickListener { activateRetentionMode(RetentionMode.TIME) }
-        timeInputs.forEach { input ->
-            input.setOnClickListener { activateRetentionMode(RetentionMode.TIME) }
-            input.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) activateRetentionMode(RetentionMode.TIME) }
+    private fun installFocusClear(target: View) {
+        target.isFocusable = true
+        target.isFocusableInTouchMode = true
+        target.isClickable = true
+        target.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                clearCurrentInputFocus(target)
+            }
+            false
         }
+        target.setOnClickListener {
+            clearCurrentInputFocus(target)
+        }
+    }
+
+    private fun clearCurrentInputFocus(target: View) {
+        currentFocus?.let { focused ->
+            focused.clearFocus()
+            (getSystemService(InputMethodManager::class.java))?.hideSoftInputFromWindow(focused.windowToken, 0)
+        }
+        target.requestFocus()
+    }
+
+    private fun setupListeners() {
+        retentionTimeInput.setOnClickListener { activateRetentionMode(RetentionMode.TIME) }
         retentionSizeInput.setOnClickListener { activateRetentionMode(RetentionMode.SIZE) }
+        retentionTimeInput.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) activateRetentionMode(RetentionMode.TIME) }
         retentionSizeInput.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) activateRetentionMode(RetentionMode.SIZE) }
 
-        val summaryWatcher = object : TextWatcher {
+        retentionTimeInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+
+            override fun afterTextChanged(s: Editable?) {
+                if (bindingUi || formattingTimeInput) return
+                val formatted = formatRetentionTimeInput(s?.toString().orEmpty())
+                if (formatted != s?.toString().orEmpty()) {
+                    formattingTimeInput = true
+                    retentionTimeInput.setText(formatted)
+                    retentionTimeInput.setSelection(formatted.length)
+                    formattingTimeInput = false
+                    return
+                }
+                updateRetentionValuesFromActiveInput()
+                refreshRetentionFields(preserveActiveInputs = true)
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        })
+
+        retentionSizeInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
 
@@ -234,10 +278,14 @@ class SettingsActivity : AppCompatActivity() {
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
-        }
-        timeInputs.forEach { it.addTextChangedListener(summaryWatcher) }
-        retentionSizeInput.addTextChangedListener(summaryWatcher)
+        })
 
+        themeDropdown.setOnItemClickListener { _, _, _, _ ->
+            if (!bindingUi) {
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
         codecDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 refreshSourceModes(preferredSource = currentSourceMode())
@@ -272,6 +320,7 @@ class SettingsActivity : AppCompatActivity() {
         bindingUi = true
 
         val prefs = getRecorderPreferences(this)
+        val configuredThemeMode = getConfiguredThemeMode(this)
         val configuredMode = getConfiguredRetentionMode(this)
         val configuredTime = getConfiguredRetentionSeconds(this).toInt()
         val storedSizeBytes = prefs.getLong(
@@ -289,6 +338,7 @@ class SettingsActivity : AppCompatActivity() {
             retentionTimeSecondsValue = configuredTime
             retentionSizeMbValue = bytesToMegabytes(storedSizeBytes)
             selectedExportTreeUri = configuredExportTreeUri
+            currentSettings.themeMode = configuredThemeMode
             currentSettings.retentionMode = configuredMode
             currentSettings.retentionTime = retentionTimeSecondsValue
             currentSettings.retentionSizeMb = retentionSizeMbValue
@@ -305,6 +355,13 @@ class SettingsActivity : AppCompatActivity() {
             retentionSizeMbValue = bytesToMegabytes(storedSizeBytes)
             selectedExportTreeUri = configuredExportTreeUri
         }
+
+        availableThemes = AppThemeMode.entries
+        setDropdownItems(
+            themeDropdown,
+            availableThemes.map { getString(it.labelRes) },
+            getString(configuredThemeMode.labelRes),
+        )
 
         availableCodecs = supportedCodecs()
         val selectedCodec = availableCodecs.firstOrNull { it == configuredCodec } ?: availableCodecs.first()
@@ -331,6 +388,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveCurrentToSnapshot(snapshot: SettingsSnapshot) {
+        snapshot.themeMode = currentThemeMode()
         snapshot.retentionMode = activeRetentionMode
         snapshot.retentionTime = retentionTimeSecondsValue
         snapshot.retentionSizeMb = retentionSizeMbValue
@@ -358,6 +416,11 @@ class SettingsActivity : AppCompatActivity() {
         retentionSizeMbValue = previous.retentionSizeMb
         selectedExportTreeUri = previous.exportDirectoryUri?.let(Uri::parse)
 
+        setDropdownItems(
+            themeDropdown,
+            availableThemes.map { getString(it.labelRes) },
+            getString(previous.themeMode.labelRes),
+        )
         setDropdownItems(
             codecDropdown,
             availableCodecs.map { getString(it.labelRes) },
@@ -433,7 +496,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun updateRetentionValuesFromActiveInput() {
         when (activeRetentionMode) {
             RetentionMode.TIME -> {
-                parseTimeFields()?.let { retentionTimeSecondsValue = it }
+                parseDurationInput(retentionTimeInput.text?.toString().orEmpty())?.let { retentionTimeSecondsValue = it }
             }
 
             RetentionMode.SIZE -> {
@@ -449,10 +512,10 @@ class SettingsActivity : AppCompatActivity() {
         if (sampleRate == null || sampleRate <= 0) {
             bindingUi = true
             if (!preserveActiveInputs) {
-                setTimeFields(0)
+                retentionTimeInput.setText(formatRetentionTimeInput(""))
                 retentionSizeInput.setText("")
             }
-            retentionTimePrefix.visibility = View.GONE
+            retentionTimeLayout.prefixText = null
             retentionSizeLayout.prefixText = null
             bindingUi = false
             return
@@ -463,30 +526,27 @@ class SettingsActivity : AppCompatActivity() {
         val estimatedSizeMb = bytesToMegabytes(
             estimateExportSizeBytes(codec, sampleRate, retentionTimeSecondsValue.toLong()),
         ).toString()
-        val estimatedDurationSeconds = estimateExportDurationSeconds(
-            codec,
-            sampleRate,
-            megabytesToBytes(retentionSizeMbValue),
-        ).toInt()
+        val estimatedDuration = formatDurationInput(
+            estimateExportDurationSeconds(codec, sampleRate, megabytesToBytes(retentionSizeMbValue)).toInt(),
+        )
 
         bindingUi = true
         if (activeRetentionMode == RetentionMode.TIME) {
-            retentionTimePrefix.visibility = View.GONE
+            retentionTimeLayout.prefixText = null
             retentionSizeLayout.prefixText = estimatePrefix
             if (!preserveActiveInputs) {
-                setTimeFields(retentionTimeSecondsValue)
+                retentionTimeInput.setText(formatRetentionTimeInput(formatDurationInput(retentionTimeSecondsValue)))
             }
             retentionSizeInput.setText(estimatedSizeMb)
         } else {
-            retentionTimePrefix.text = estimatePrefix
-            retentionTimePrefix.visibility = View.VISIBLE
+            retentionTimeLayout.prefixText = estimatePrefix
             retentionSizeLayout.prefixText = null
-            setTimeFields(estimatedDurationSeconds)
+            retentionTimeInput.setText(formatRetentionTimeInput(estimatedDuration))
             if (!preserveActiveInputs) {
                 retentionSizeInput.setText(retentionSizeMbValue.toString())
             }
         }
-        retentionTimeGroup.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
+        retentionTimeLayout.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
         retentionSizeLayout.alpha = if (activeRetentionMode == RetentionMode.SIZE) 1f else 0.82f
         bindingUi = false
     }
@@ -494,6 +554,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun persistSettings(showFeedback: Boolean): Boolean {
         clearErrors()
 
+        val themeMode = currentThemeMode()
         val codec = currentCodec()
         val route = currentRouteMode()
         val source = currentSourceMode()
@@ -508,12 +569,12 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val retentionTime = if (activeRetentionMode == RetentionMode.TIME) {
-            parseTimeFieldsForSave()
+            parseDurationInput(retentionTimeInput.text?.toString().orEmpty())
         } else {
             retentionTimeSecondsValue
         }
         if (retentionTime == null || retentionTime <= 0) {
-            retentionHoursLayout.error = getString(R.string.retention_time_invalid)
+            retentionTimeLayout.error = getString(R.string.retention_time_invalid)
             return false
         }
 
@@ -531,6 +592,7 @@ class SettingsActivity : AppCompatActivity() {
         retentionSizeMbValue = sizeMb
         val sizeBytes = megabytesToBytes(sizeMb)
 
+        setConfiguredThemeMode(this, themeMode)
         getRecorderPreferences(this).edit()
             .putString(TimeTravelConfig.RETENTION_MODE_KEY, activeRetentionMode.prefValue)
             .putLong(TimeTravelConfig.RETENTION_SECONDS_KEY, retentionTime.toLong())
@@ -541,6 +603,7 @@ class SettingsActivity : AppCompatActivity() {
             .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
             .apply()
         setConfiguredExportTreeUri(this, selectedExportTreeUri)
+        applyConfiguredThemeMode(this)
 
         bindUiFromPreferences()
 
@@ -579,10 +642,9 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun clearErrors() {
-        retentionHoursLayout.error = null
-        retentionMinutesLayout.error = null
-        retentionSecondsLayout.error = null
+        retentionTimeLayout.error = null
         retentionSizeLayout.error = null
+        themeLayout.error = null
         sampleRateLayout.error = null
         codecLayout.error = null
         audioSourceLayout.error = null
@@ -596,6 +658,11 @@ class SettingsActivity : AppCompatActivity() {
     ) {
         view.setAdapter(ArrayAdapter(this, R.layout.item_dropdown_option, items))
         view.setText(selectedValue, false)
+    }
+
+    private fun currentThemeMode(): AppThemeMode {
+        val selected = themeDropdown.text?.toString().orEmpty()
+        return availableThemes.firstOrNull { getString(it.labelRes) == selected } ?: AppThemeMode.SYSTEM
     }
 
     private fun currentCodec(): ExportCodec {
@@ -660,71 +727,15 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun setTimeFields(totalSeconds: Int) {
-        val clamped = totalSeconds.coerceAtLeast(0)
-        val hours = clamped / 3600
-        val minutes = (clamped % 3600) / 60
-        val seconds = clamped % 60
-        retentionHoursInput.setText(hours.toString())
-        retentionMinutesInput.setText(minutes.toString())
-        retentionSecondsInput.setText(seconds.toString())
-    }
-
-    private fun parseTimeFields(): Int? {
-        val hours = retentionHoursInput.text?.toString()?.trim().orEmpty().toIntOrNull() ?: 0
-        val minutes = retentionMinutesInput.text?.toString()?.trim().orEmpty().toIntOrNull() ?: 0
-        val seconds = retentionSecondsInput.text?.toString()?.trim().orEmpty().toIntOrNull() ?: 0
-        val hasAnyValue =
-            retentionHoursInput.text?.isNotBlank() == true ||
-                retentionMinutesInput.text?.isNotBlank() == true ||
-                retentionSecondsInput.text?.isNotBlank() == true
-        if (!hasAnyValue) {
-            return null
+    private fun formatRetentionTimeInput(value: String): String {
+        val digits = value.filter(Char::isDigit).takeLast(6).padStart(6, '0')
+        return buildString(8) {
+            append(digits.substring(0, 2))
+            append(':')
+            append(digits.substring(2, 4))
+            append(':')
+            append(digits.substring(4, 6))
         }
-        if (minutes !in 0..59 || seconds !in 0..59) {
-            return null
-        }
-        val totalSeconds = hours * 3600 + minutes * 60 + seconds
-        return totalSeconds.takeIf { it > 0 }
-    }
-
-    private fun parseTimeFieldsForSave(): Int? {
-        val hoursText = retentionHoursInput.text?.toString()?.trim().orEmpty()
-        val minutesText = retentionMinutesInput.text?.toString()?.trim().orEmpty()
-        val secondsText = retentionSecondsInput.text?.toString()?.trim().orEmpty()
-
-        val hours = hoursText.toIntOrNull()
-        val minutes = minutesText.toIntOrNull()
-        val seconds = secondsText.toIntOrNull()
-
-        if (hoursText.isNotEmpty() && hours == null) {
-            retentionHoursLayout.error = getString(R.string.retention_time_invalid)
-            return null
-        }
-        if (minutesText.isNotEmpty() && minutes == null) {
-            retentionMinutesLayout.error = getString(R.string.retention_time_invalid)
-            return null
-        }
-        if (secondsText.isNotEmpty() && seconds == null) {
-            retentionSecondsLayout.error = getString(R.string.retention_time_invalid)
-            return null
-        }
-
-        if ((minutes ?: 0) !in 0..59) {
-            retentionMinutesLayout.error = getString(R.string.retention_time_invalid)
-            return null
-        }
-        if ((seconds ?: 0) !in 0..59) {
-            retentionSecondsLayout.error = getString(R.string.retention_time_invalid)
-            return null
-        }
-
-        val totalSeconds = (hours ?: 0) * 3600 + (minutes ?: 0) * 60 + (seconds ?: 0)
-        if (totalSeconds <= 0) {
-            retentionHoursLayout.error = getString(R.string.retention_time_invalid)
-            return null
-        }
-        return totalSeconds
     }
 
     private fun bytesToMegabytes(bytes: Long): Long {

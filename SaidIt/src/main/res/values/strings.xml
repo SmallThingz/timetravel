@@ -53,6 +53,10 @@
     <string name="settings_return">Back</string>
     <string name="settings_title">Settings</string>
     <string name="undo">Undo</string>
+    <string name="theme_title">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
     <string name="retention_mode_title">Retention</string>
     <string name="retention_mode_time">Time</string>
     <string name="retention_mode_size">Size</string>
