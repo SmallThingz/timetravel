@@ -103,6 +103,16 @@
                 app:tint="?attr/colorOnSurfaceVariant" />
 
             <ImageButton
+                android:id="@+id/selection_info_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/recording_info"
+                android:src="@drawable/ic_info"
+                android:visibility="gone"
+                app:tint="?attr/colorOnSurfaceVariant" />
+
+            <ImageButton
                 android:id="@+id/selection_delete_button"
                 android:layout_width="48dp"
                 android:layout_height="48dp"

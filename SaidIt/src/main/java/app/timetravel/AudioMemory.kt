@@ -127,6 +127,47 @@ internal class AudioMemory {
         filled.clear()
     }
 
+    @Synchronized
+    fun write(
+        array: ByteArray,
+        offset: Int,
+        count: Int,
+    ) {
+        if (count <= 0) return
+
+        var readOffset = offset
+        var remaining = count
+        while (remaining > 0) {
+            if (current == null) {
+                if (free.isEmpty()) {
+                    if (filled.isEmpty()) {
+                        return
+                    }
+                    currentWasFilled = true
+                    current = filled.removeFirst()
+                } else {
+                    currentWasFilled = false
+                    current = free.removeFirst()
+                }
+                this.offset = 0
+            }
+
+            val currentBuffer = requireNotNull(current)
+            val copyCount = minOf(remaining, currentBuffer.size - this.offset)
+            System.arraycopy(array, readOffset, currentBuffer, this.offset, copyCount)
+            readOffset += copyCount
+            remaining -= copyCount
+            this.offset += copyCount
+
+            if (this.offset >= currentBuffer.size) {
+                filled.addLast(currentBuffer)
+                current = null
+                this.offset = 0
+            }
+        }
+        filling = false
+    }
+
     @Throws(IOException::class)
     fun fill(filler: Consumer) {
         synchronized(this) {

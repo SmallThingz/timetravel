@@ -10,10 +10,11 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.EditText
-import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -35,12 +36,14 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var codecLayout: TextInputLayout
     private lateinit var sampleRateLayout: TextInputLayout
     private lateinit var audioSourceLayout: TextInputLayout
+    private lateinit var channelModeLayout: TextInputLayout
     private lateinit var inputRouteLayout: TextInputLayout
     private lateinit var exportPathLayout: TextInputLayout
     private lateinit var themeDropdown: MaterialAutoCompleteTextView
     private lateinit var codecDropdown: MaterialAutoCompleteTextView
     private lateinit var sampleRateDropdown: MaterialAutoCompleteTextView
     private lateinit var audioSourceDropdown: MaterialAutoCompleteTextView
+    private lateinit var channelModeDropdown: MaterialAutoCompleteTextView
     private lateinit var inputRouteDropdown: MaterialAutoCompleteTextView
     private lateinit var retentionTimeInput: EditText
     private lateinit var retentionSizeInput: EditText
@@ -49,7 +52,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var chooseFolderButton: MaterialButton
     private lateinit var defaultFolderButton: MaterialButton
     private lateinit var moveRecordingsButton: MaterialButton
-    private lateinit var undoButton: MaterialButton
+    private lateinit var undoButton: View
+    private lateinit var applyButton: View
 
     private var service: TimeTravelService? = null
     private var serviceBound = false
@@ -64,6 +68,7 @@ class SettingsActivity : AppCompatActivity() {
     private var availableThemes: List<AppThemeMode> = emptyList()
     private var availableCodecs: List<ExportCodec> = emptyList()
     private var availableSourceModes: List<AudioSourceMode> = emptyList()
+    private var availableChannelModes: List<ChannelMode> = emptyList()
     private var availableRouteModes: List<InputRouteMode> = emptyList()
     private var availableSampleRates: List<Int> = emptyList()
     private var activeRetentionMode = RetentionMode.TIME
@@ -78,6 +83,7 @@ class SettingsActivity : AppCompatActivity() {
         var retentionSizeMb: Long = 0,
         var codec: ExportCodec? = null,
         var source: AudioSourceMode? = null,
+        var channelMode: ChannelMode? = null,
         var route: InputRouteMode? = null,
         var sampleRate: Int = 0,
         var exportDirectoryUri: String? = null,
@@ -89,6 +95,7 @@ class SettingsActivity : AppCompatActivity() {
             retentionSizeMb = other.retentionSizeMb
             codec = other.codec
             source = other.source
+            channelMode = other.channelMode
             route = other.route
             sampleRate = other.sampleRate
             exportDirectoryUri = other.exportDirectoryUri
@@ -145,12 +152,14 @@ class SettingsActivity : AppCompatActivity() {
         codecLayout = findViewById(R.id.codec_layout)
         sampleRateLayout = findViewById(R.id.sample_rate_layout)
         audioSourceLayout = findViewById(R.id.audio_source_layout)
+        channelModeLayout = findViewById(R.id.channel_mode_layout)
         inputRouteLayout = findViewById(R.id.input_route_layout)
         exportPathLayout = findViewById(R.id.export_path_layout)
         themeDropdown = findViewById(R.id.theme_dropdown)
         codecDropdown = findViewById(R.id.codec_dropdown)
         sampleRateDropdown = findViewById(R.id.sample_rate_dropdown)
         audioSourceDropdown = findViewById(R.id.audio_source_dropdown)
+        channelModeDropdown = findViewById(R.id.channel_mode_dropdown)
         inputRouteDropdown = findViewById(R.id.input_route_dropdown)
         retentionTimeInput = findViewById(R.id.retention_time_input)
         retentionSizeInput = findViewById(R.id.retention_size_input)
@@ -159,7 +168,8 @@ class SettingsActivity : AppCompatActivity() {
         chooseFolderButton = findViewById(R.id.choose_folder_button)
         defaultFolderButton = findViewById(R.id.default_folder_button)
         moveRecordingsButton = findViewById(R.id.move_recordings_button)
-        undoButton = findViewById(R.id.undo_button)
+        undoButton = findViewById(R.id.settings_undo_button)
+        applyButton = findViewById(R.id.settings_apply_button)
 
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -171,7 +181,13 @@ class SettingsActivity : AppCompatActivity() {
             }
         })
 
-        findViewById<View>(R.id.settings_return).setOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        undoButton.setOnClickListener { restorePreviousSettings() }
+        applyButton.setOnClickListener {
+            if (persistSettings(showFeedback = false)) {
+                finish()
+                overridePendingTransition(0, 0)
+            }
+        }
         editPresetsButton.setOnClickListener { showEditPresetsDialog() }
         chooseFolderButton.setOnClickListener { exportDirectoryLauncher.launch(selectedExportTreeUri) }
         defaultFolderButton.setOnClickListener {
@@ -182,7 +198,6 @@ class SettingsActivity : AppCompatActivity() {
             pushUndoState()
         }
         moveRecordingsButton.setOnClickListener { moveExistingRecordings() }
-        undoButton.setOnClickListener { restorePreviousSettings() }
         setupListeners()
         bindUiFromPreferences(true)
     }
@@ -282,26 +297,49 @@ class SettingsActivity : AppCompatActivity() {
 
         themeDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
+                updateDropdownSelection(themeDropdown)
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
         }
         codecDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
-                refreshSourceModes(preferredSource = currentSourceMode())
+                updateDropdownSelection(codecDropdown)
+                refreshSourceModes(
+                    preferredSource = currentSourceMode(),
+                    preferredChannelMode = currentChannelMode(),
+                    preferredRate = currentSampleRate(),
+                )
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
         }
         inputRouteDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
-                refreshSourceModes(preferredSource = currentSourceMode())
+                updateDropdownSelection(inputRouteDropdown)
+                refreshSourceModes(
+                    preferredSource = currentSourceMode(),
+                    preferredChannelMode = currentChannelMode(),
+                    preferredRate = currentSampleRate(),
+                )
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
         }
         audioSourceDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
+                updateDropdownSelection(audioSourceDropdown)
+                refreshChannelModes(
+                    preferredChannelMode = currentChannelMode(),
+                    preferredRate = currentSampleRate(),
+                )
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
+        channelModeDropdown.setOnItemClickListener { _, _, _, _ ->
+            if (!bindingUi) {
+                updateDropdownSelection(channelModeDropdown)
                 refreshSampleRates(preferredRate = currentSampleRate())
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
@@ -309,6 +347,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         sampleRateDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
+                updateDropdownSelection(sampleRateDropdown)
                 refreshRetentionFields(preserveActiveInputs = true)
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
@@ -330,7 +369,8 @@ class SettingsActivity : AppCompatActivity() {
         val configuredCodec = getConfiguredOutputCodec(this)
         val configuredRoute = getConfiguredInputRouteMode(this)
         val configuredSource = getConfiguredAudioSourceMode(this)
-        val configuredRate = getConfiguredSampleRate(this, configuredSource, configuredRoute, configuredCodec)
+        val configuredChannelMode = getConfiguredChannelMode(this)
+        val configuredRate = getConfiguredSampleRate(this, configuredSource, configuredRoute, configuredCodec, configuredChannelMode)
         val configuredExportTreeUri = getConfiguredExportTreeUri(this)
 
         if (isInitial) {
@@ -344,6 +384,7 @@ class SettingsActivity : AppCompatActivity() {
             currentSettings.retentionSizeMb = retentionSizeMbValue
             currentSettings.codec = configuredCodec
             currentSettings.source = configuredSource
+            currentSettings.channelMode = configuredChannelMode
             currentSettings.route = configuredRoute
             currentSettings.sampleRate = configuredRate
             currentSettings.exportDirectoryUri = configuredExportTreeUri?.toString()
@@ -379,7 +420,7 @@ class SettingsActivity : AppCompatActivity() {
             getString(selectedRoute.labelRes),
         )
 
-        refreshSourceModes(configuredSource, configuredRate)
+        refreshSourceModes(configuredSource, configuredChannelMode, configuredRate)
 
         bindingUi = false
         refreshRetentionFields()
@@ -394,6 +435,7 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.retentionSizeMb = retentionSizeMbValue
         snapshot.codec = currentCodec()
         snapshot.source = currentSourceMode()
+        snapshot.channelMode = currentChannelMode()
         snapshot.route = currentRouteMode()
         snapshot.sampleRate = currentSampleRate() ?: 0
         snapshot.exportDirectoryUri = selectedExportTreeUri?.toString()
@@ -401,7 +443,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun pushUndoState() {
         hasUnsavedChanges = originalSettings.peek() != currentSettings
-        undoButton.visibility = if (hasUnsavedChanges) View.VISIBLE else View.GONE
+        undoButton.isEnabled = hasUnsavedChanges
+        undoButton.alpha = if (hasUnsavedChanges) 1f else 0.38f
     }
 
     private fun restorePreviousSettings() {
@@ -432,7 +475,7 @@ class SettingsActivity : AppCompatActivity() {
             getString(previous.route?.labelRes ?: availableRouteModes.first().labelRes),
         )
 
-        refreshSourceModes(previous.source, previous.sampleRate)
+        refreshSourceModes(previous.source, previous.channelMode, previous.sampleRate)
 
         bindingUi = false
         refreshRetentionFields()
@@ -441,11 +484,13 @@ class SettingsActivity : AppCompatActivity() {
 
         currentSettings.copyFrom(previous)
         hasUnsavedChanges = originalSettings.peek() != currentSettings
-        undoButton.visibility = if (hasUnsavedChanges) View.VISIBLE else View.GONE
+        undoButton.isEnabled = hasUnsavedChanges
+        undoButton.alpha = if (hasUnsavedChanges) 1f else 0.38f
     }
 
     private fun refreshSourceModes(
         preferredSource: AudioSourceMode? = null,
+        preferredChannelMode: ChannelMode? = null,
         preferredRate: Int? = null,
     ) {
         val codec = currentCodec()
@@ -457,6 +502,24 @@ class SettingsActivity : AppCompatActivity() {
             availableSourceModes.map { getString(it.labelRes) },
             getString(selectedSource.labelRes),
         )
+        refreshChannelModes(preferredChannelMode, preferredRate)
+    }
+
+    private fun refreshChannelModes(
+        preferredChannelMode: ChannelMode? = null,
+        preferredRate: Int? = null,
+    ) {
+        val codec = currentCodec()
+        val route = currentRouteMode()
+        val source = currentSourceMode()
+        availableChannelModes = supportedChannelModes(this, source, route, codec)
+        val selectedChannelMode =
+            preferredChannelMode?.takeIf { it in availableChannelModes } ?: availableChannelModes.first()
+        setDropdownItems(
+            channelModeDropdown,
+            availableChannelModes.map { getString(it.labelRes) },
+            getString(selectedChannelMode.labelRes),
+        )
         refreshSampleRates(preferredRate)
     }
 
@@ -464,7 +527,8 @@ class SettingsActivity : AppCompatActivity() {
         val codec = currentCodec()
         val route = currentRouteMode()
         val source = currentSourceMode()
-        availableSampleRates = supportedSampleRates(this, source, route, codec)
+        val channelMode = currentChannelMode()
+        availableSampleRates = supportedSampleRates(this, source, route, codec, channelMode)
 
         sampleRateLayout.error = if (availableSampleRates.isEmpty()) getString(R.string.unsupported_config_message) else null
 
@@ -522,12 +586,13 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val codec = currentCodec()
+        val channelMode = currentChannelMode()
         val estimatePrefix = if (codec == ExportCodec.WAV) "=" else "~"
         val estimatedSizeMb = bytesToMegabytes(
-            estimateExportSizeBytes(codec, sampleRate, retentionTimeSecondsValue.toLong()),
+            estimateExportSizeBytes(codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong()),
         ).toString()
         val estimatedDuration = formatDurationInput(
-            estimateExportDurationSeconds(codec, sampleRate, megabytesToBytes(retentionSizeMbValue)).toInt(),
+            estimateExportDurationSeconds(codec, sampleRate, channelMode.channelCount, megabytesToBytes(retentionSizeMbValue)).toInt(),
         )
 
         bindingUi = true
@@ -556,6 +621,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val themeMode = currentThemeMode()
         val codec = currentCodec()
+        val channelMode = currentChannelMode()
         val route = currentRouteMode()
         val source = currentSourceMode()
         val sampleRate = currentSampleRate()
@@ -599,6 +665,7 @@ class SettingsActivity : AppCompatActivity() {
             .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, sizeBytes)
             .putString(TimeTravelConfig.OUTPUT_CODEC_KEY, codec.prefValue)
             .putInt(TimeTravelConfig.AUDIO_SOURCE_KEY, source.sourceValue)
+            .putString(TimeTravelConfig.CHANNEL_MODE_KEY, channelMode.prefValue)
             .putString(TimeTravelConfig.INPUT_ROUTE_KEY, route.prefValue)
             .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
             .apply()
@@ -648,6 +715,7 @@ class SettingsActivity : AppCompatActivity() {
         sampleRateLayout.error = null
         codecLayout.error = null
         audioSourceLayout.error = null
+        channelModeLayout.error = null
         inputRouteLayout.error = null
     }
 
@@ -656,8 +724,17 @@ class SettingsActivity : AppCompatActivity() {
         items: List<String>,
         selectedValue: String,
     ) {
-        view.setAdapter(ArrayAdapter(this, R.layout.item_dropdown_option, items))
+        val adapter = view.adapter as? DropdownHighlightAdapter
+        if (adapter == null) {
+            view.setAdapter(DropdownHighlightAdapter(this, items, selectedValue))
+        } else {
+            adapter.replaceItems(items, selectedValue)
+        }
         view.setText(selectedValue, false)
+    }
+
+    private fun updateDropdownSelection(view: MaterialAutoCompleteTextView) {
+        (view.adapter as? DropdownHighlightAdapter)?.updateSelectedValue(view.text?.toString().orEmpty())
     }
 
     private fun currentThemeMode(): AppThemeMode {
@@ -673,6 +750,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun currentRouteMode(): InputRouteMode {
         val selected = inputRouteDropdown.text?.toString().orEmpty()
         return availableRouteModes.firstOrNull { getString(it.labelRes) == selected } ?: availableRouteModes.first()
+    }
+
+    private fun currentChannelMode(): ChannelMode {
+        val selected = channelModeDropdown.text?.toString().orEmpty()
+        return availableChannelModes.firstOrNull { getString(it.labelRes) == selected } ?: availableChannelModes.first()
     }
 
     private fun currentSourceMode(): AudioSourceMode {
@@ -698,7 +780,10 @@ class SettingsActivity : AppCompatActivity() {
         moveRecordingsButton.isEnabled = false
         moveRecordingsButton.alpha = 0.38f
         lifecycleScope.launch {
-            val canMove = RecordingRepository.hasMovableRecordings(this@SettingsActivity)
+            val canMove = RecordingRepository.hasMovableRecordings(
+                this@SettingsActivity,
+                getOutputDirectoryId(selectedExportTreeUri),
+            )
             if (generation != moveAvailabilityGeneration) {
                 return@launch
             }
@@ -755,5 +840,58 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun saveSettingsSilently() {
         persistSettings(showFeedback = false)
+    }
+}
+
+private class DropdownHighlightAdapter(
+    context: Context,
+    items: List<String>,
+    selectedValue: String,
+) : ArrayAdapter<String>(context, R.layout.item_dropdown_option, items.toMutableList()) {
+    private var selectedValue = selectedValue
+
+    fun replaceItems(
+        items: List<String>,
+        selectedValue: String,
+    ) {
+        clear()
+        addAll(items)
+        this.selectedValue = selectedValue
+        notifyDataSetChanged()
+    }
+
+    fun updateSelectedValue(value: String) {
+        selectedValue = value
+        notifyDataSetChanged()
+    }
+
+    override fun getView(
+        position: Int,
+        convertView: View?,
+        parent: ViewGroup,
+    ): View {
+        return super.getView(position, convertView, parent).also {
+            bindSelectionState(it, getItem(position).orEmpty())
+        }
+    }
+
+    override fun getDropDownView(
+        position: Int,
+        convertView: View?,
+        parent: ViewGroup,
+    ): View {
+        return super.getDropDownView(position, convertView, parent).also {
+            bindSelectionState(it, getItem(position).orEmpty())
+        }
+    }
+
+    private fun bindSelectionState(
+        view: View,
+        value: String,
+    ) {
+        val active = value == selectedValue
+        view.isActivated = active
+        view.isSelected = active
+        (view as? TextView)?.isSelected = active
     }
 }

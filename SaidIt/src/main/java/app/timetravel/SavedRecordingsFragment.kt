@@ -18,8 +18,13 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class SavedRecordingsFragment : Fragment() {
     private lateinit var brandLockup: View
@@ -28,15 +33,31 @@ class SavedRecordingsFragment : Fragment() {
     private lateinit var selectionActions: View
     private lateinit var selectionClearButton: View
     private lateinit var selectionRenameButton: View
+    private lateinit var selectionInfoButton: View
     private lateinit var selectionDeleteButton: View
     private lateinit var list: RecyclerView
     private lateinit var emptyState: View
     private val selectedRecordingIds = linkedSetOf<String>()
+    private val pendingDeletionIds = linkedSetOf<String>()
+    private val pendingDeletionsById = linkedMapOf<String, RecordingEntity>()
+    private var latestRecordings: List<RecordingEntity> = emptyList()
     private var latestRecordingsById: Map<String, RecordingEntity> = emptyMap()
+    private var pendingDeleteSnackbar: Snackbar? = null
     private val adapter = SavedRecordingAdapter(
         onOpen = ::handleRecordingTap,
         onToggleSelection = ::toggleSelection,
     )
+    private val pendingDeleteSnackbarCallback = object : Snackbar.Callback() {
+        override fun onDismissed(
+            transientBottomBar: Snackbar?,
+            event: Int,
+        ) {
+            if (pendingDeleteSnackbar !== transientBottomBar) return
+            pendingDeleteSnackbar = null
+            if (event == BaseTransientBottomBar.BaseCallback.DISMISS_EVENT_ACTION) return
+            finalizePendingDeletions()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -58,6 +79,7 @@ class SavedRecordingsFragment : Fragment() {
         selectionActions = view.findViewById(R.id.selection_actions)
         selectionClearButton = view.findViewById(R.id.selection_clear_button)
         selectionRenameButton = view.findViewById(R.id.selection_rename_button)
+        selectionInfoButton = view.findViewById(R.id.selection_info_button)
         selectionDeleteButton = view.findViewById(R.id.selection_delete_button)
 
         settingsButton.setOnClickListener {
@@ -69,6 +91,7 @@ class SavedRecordingsFragment : Fragment() {
         selectionClearButton.setOnClickListener { clearSelection() }
         selectionDeleteButton.setOnClickListener { deleteSelectedRecordings() }
         selectionRenameButton.setOnClickListener { renameSelectedRecording() }
+        selectionInfoButton.setOnClickListener { showSelectedRecordingInfo() }
 
         list = view.findViewById(R.id.recordings_list)
         emptyState = view.findViewById(R.id.recordings_empty)
@@ -85,20 +108,27 @@ class SavedRecordingsFragment : Fragment() {
         refreshRecordings()
     }
 
+    override fun onDestroyView() {
+        pendingDeleteSnackbar?.removeCallback(pendingDeleteSnackbarCallback)
+        pendingDeleteSnackbar?.dismiss()
+        pendingDeleteSnackbar = null
+        if (pendingDeletionsById.isNotEmpty()) {
+            finalizePendingDeletions()
+        }
+        super.onDestroyView()
+    }
+
     fun refreshRecordings() {
         context ?: return
         if (!this::list.isInitialized) return
 
         viewLifecycleOwner.lifecycleScope.launch {
             val storedRecordings = RecordingRepository.refresh(requireContext())
+            latestRecordings = storedRecordings
             latestRecordingsById = storedRecordings.associateBy { it.id }
-            selectedRecordingIds.retainAll(latestRecordingsById.keys)
-            val recordings = loadSavedRecordings(storedRecordings)
-            adapter.submitList(recordings)
-            adapter.updateSelection(selectedRecordingIds)
-            list.isVisible = recordings.isNotEmpty()
-            emptyState.isVisible = recordings.isEmpty()
-            updateSelectionChrome()
+            reconcilePendingDeletions()
+            selectedRecordingIds.retainAll(latestRecordingsById.keys - pendingDeletionIds)
+            renderRecordings()
         }
     }
 
@@ -160,6 +190,7 @@ class SavedRecordingsFragment : Fragment() {
         selectionActions.isVisible = selectionActive
         selectionTitle.text = resources.getQuantityString(R.plurals.recordings_selected, count, count)
         selectionRenameButton.isVisible = count == 1
+        selectionInfoButton.isVisible = count == 1
     }
 
     private fun loadSavedRecordings(recordings: List<RecordingEntity>): List<SavedRecordingListItem> {
@@ -192,21 +223,86 @@ class SavedRecordingsFragment : Fragment() {
             clearSelection()
             return
         }
-        viewLifecycleOwner.lifecycleScope.launch {
+        selected.forEach { recording ->
+            pendingDeletionIds += recording.id
+            pendingDeletionsById[recording.id] = recording
+        }
+        clearSelection()
+        renderRecordings()
+        showPendingDeletionSnackbar()
+    }
+
+    private fun reconcilePendingDeletions() {
+        val existingIds = latestRecordingsById.keys
+        pendingDeletionIds.retainAll(existingIds)
+        pendingDeletionsById.entries.removeAll { (id, _) -> id !in existingIds }
+    }
+
+    private fun renderRecordings() {
+        if (!this::list.isInitialized) return
+        val visibleRecordings = latestRecordings.filterNot { it.id in pendingDeletionIds }
+        val items = loadSavedRecordings(visibleRecordings)
+        adapter.submitList(items)
+        adapter.updateSelection(selectedRecordingIds)
+        list.isVisible = items.isNotEmpty()
+        emptyState.isVisible = items.isEmpty()
+        updateSelectionChrome()
+    }
+
+    private fun showPendingDeletionSnackbar() {
+        val root = view ?: return
+        val pendingCount = pendingDeletionsById.size
+        if (pendingCount == 0) return
+
+        pendingDeleteSnackbar?.removeCallback(pendingDeleteSnackbarCallback)
+        pendingDeleteSnackbar?.dismiss()
+
+        val message = if (pendingCount == 1) {
+            getString(R.string.recording_deleted)
+        } else {
+            resources.getQuantityString(R.plurals.recordings_deleted, pendingCount, pendingCount)
+        }
+        val anchor = activity?.findViewById<View>(R.id.bottom_navigation)
+        pendingDeleteSnackbar = Snackbar.make(root, message, Snackbar.LENGTH_LONG).apply {
+            anchor?.let { setAnchorView(it) }
+            setAction(R.string.undo) { undoPendingDeletions() }
+            addCallback(pendingDeleteSnackbarCallback)
+            show()
+        }
+    }
+
+    private fun undoPendingDeletions() {
+        if (pendingDeletionsById.isEmpty()) return
+        pendingDeletionIds.clear()
+        pendingDeletionsById.clear()
+        renderRecordings()
+    }
+
+    private fun finalizePendingDeletions() {
+        val pending = pendingDeletionsById.values.toList()
+        if (pending.isEmpty()) return
+
+        pendingDeletionIds.clear()
+        pendingDeletionsById.clear()
+
+        lifecycleScope.launch {
             var deletedCount = 0
-            selected.forEach { recording ->
+            pending.forEach { recording ->
                 if (RecordingRepository.delete(requireContext(), recording)) {
                     deletedCount++
                 }
             }
-            clearSelection()
-            refreshRecordings()
-            val message = if (deletedCount == 1) {
-                getString(R.string.recording_deleted)
-            } else {
-                resources.getQuantityString(R.plurals.recordings_deleted, deletedCount, deletedCount)
+
+            val storedRecordings = RecordingRepository.refresh(requireContext())
+            latestRecordings = storedRecordings
+            latestRecordingsById = storedRecordings.associateBy { it.id }
+            selectedRecordingIds.retainAll(latestRecordingsById.keys)
+            if (view != null && this@SavedRecordingsFragment::list.isInitialized) {
+                renderRecordings()
             }
-            Snackbar.make(requireView(), message, Snackbar.LENGTH_LONG).show()
+            if (deletedCount == 0 && isAdded) {
+                Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -244,6 +340,39 @@ class SavedRecordingsFragment : Fragment() {
             }
         }
         handle.dialog.show()
+    }
+
+    private fun showSelectedRecordingInfo() {
+        val recording = selectedRecordingIds.singleOrNull()?.let(latestRecordingsById::get) ?: return
+        val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_recording_details, null, false)
+        val details = content.findViewById<TextView>(R.id.recording_details_text)
+        details.text = buildRecordingDetailsText(recording)
+
+        val handle = ThemedDialog.create(
+            context = requireContext(),
+            title = getString(R.string.recording_info),
+            content = content,
+            positiveText = getString(R.string.close),
+            negativeText = "",
+        )
+        handle.negativeButton.visibility = View.GONE
+        handle.positiveButton.setOnClickListener { handle.dialog.dismiss() }
+        handle.dialog.show()
+    }
+
+    private fun buildRecordingDetailsText(recording: RecordingEntity): String {
+        val startedAt = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z", Locale.getDefault())
+            .format(Instant.ofEpochMilli(recording.startedAtMillis).atZone(ZoneId.systemDefault()))
+        return buildString {
+            appendLine("${getString(R.string.recording_details_name)} ${recording.displayName}")
+            appendLine("${getString(R.string.recording_details_started)} $startedAt")
+            appendLine("${getString(R.string.recording_details_duration)} ${formatSavedRecordingDuration(recording.durationMillis)}")
+            appendLine("${getString(R.string.recording_details_size)} ${formatShortFileSize(recording.sizeBytes)}")
+            appendLine("${getString(R.string.recording_details_codec)} ${recording.codecSummary}")
+            appendLine("${getString(R.string.recording_details_mime)} ${recording.mimeType}")
+            appendLine("${getString(R.string.recording_details_storage)} ${recording.storageType}")
+            append("${getString(R.string.recording_details_location)} ${describeRecordingLocation(recording)}")
+        }.trim()
     }
 
     private fun formatSavedRecordingDuration(durationMillis: Long): String {

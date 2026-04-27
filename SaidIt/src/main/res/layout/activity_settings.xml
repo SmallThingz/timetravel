@@ -23,12 +23,12 @@
             android:paddingVertical="12dp">
 
             <ImageButton
-                android:id="@+id/settings_return"
+                android:id="@+id/settings_undo_button"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/settings_return"
-                android:src="@drawable/ic_close"
+                android:contentDescription="@string/undo"
+                android:src="@drawable/ic_undo"
                 app:tint="?attr/colorOnSurfaceVariant" />
 
             <View
@@ -36,22 +36,14 @@
                 android:layout_height="0dp"
                 android:layout_weight="1" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/settings_title"
-                android:textAppearance="?attr/textAppearanceTitleLarge"
-                android:textColor="?attr/colorOnSurface" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/undo_button"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:text="@string/undo"
-                android:visibility="gone"
-                tools:visibility="visible" />
+            <ImageButton
+                android:id="@+id/settings_apply_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings_apply"
+                android:src="@drawable/ic_check"
+                app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
         <com.google.android.material.divider.MaterialDivider
@@ -242,17 +234,17 @@
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/input_route_layout"
+                        android:id="@+id/channel_mode_layout"
                         style="@style/TimeTravel.TextInputLayout"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
                         android:layout_weight="1"
-                        android:hint="@string/input_route_label"
+                        android:hint="@string/channel_mode_label"
                         app:endIconMode="dropdown_menu">
 
                         <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                            android:id="@+id/input_route_dropdown"
+                            android:id="@+id/channel_mode_dropdown"
                             style="@style/TimeTravel.DropdownMenu"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -260,6 +252,24 @@
                             android:inputType="none" />
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/input_route_layout"
+                    style="@style/TimeTravel.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:hint="@string/input_route_label"
+                    app:endIconMode="dropdown_menu">
+
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/input_route_dropdown"
+                        style="@style/TimeTravel.DropdownMenu"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="false"
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/edit_presets_button"

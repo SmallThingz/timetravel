@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
@@ -38,6 +39,9 @@ class TimeTravelService : Service() {
 
     @Volatile
     private var sourceMode = AudioSourceMode.MIC
+
+    @Volatile
+    private var channelMode = ChannelMode.MONO
 
     @Volatile
     private var outputCodec = ExportCodec.WAV
@@ -64,16 +68,20 @@ class TimeTravelService : Service() {
     private lateinit var audioHandler: Handler
     private lateinit var exportThread: HandlerThread
     private lateinit var exportHandler: Handler
+    private lateinit var persistentAudioRingStore: PersistentAudioRingStore
     private var liveAacExportHistory: LiveAacExportHistory? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         loadConfiguration()
+        persistentAudioRingStore = PersistentAudioRingStore(this)
         audioThread = HandlerThread("timeTravelAudioThread", Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
         exportHandler = Handler(exportThread.looper)
         audioHandler.post {
             warmRecorderCapabilityCache(applicationContext)
+            restorePersistedBufferIfNeeded()
         }
         configureLiveExportHistory()
         if (isListeningEnabled()) {
@@ -83,12 +91,16 @@ class TimeTravelService : Service() {
 
     override fun onDestroy() {
         stopRecording(null)
-        innerStopListening()
+        audioHandler.removeCallbacks(audioReader)
+        releaseAudioRecord()
+        releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
         liveAacExportHistory?.close()
         liveAacExportHistory = null
+        persistentAudioRingStore.close()
         audioThread.quitSafely()
         exportThread.quitSafely()
+        scheduleRestartIfNeeded()
         super.onDestroy()
     }
 
@@ -119,33 +131,55 @@ class TimeTravelService : Service() {
 
     private fun loadConfiguration() {
         var selectedSourceMode = getConfiguredAudioSourceMode(this)
+        var selectedChannelMode = getConfiguredChannelMode(this)
         var selectedRouteMode = getConfiguredInputRouteMode(this)
         var selectedCodec = getConfiguredOutputCodec(this)
 
-        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec).isEmpty()) {
+        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode).isEmpty()) {
             if (
+                selectedChannelMode != ChannelMode.MONO &&
+                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, ChannelMode.MONO).isNotEmpty()
+            ) {
+                selectedChannelMode = ChannelMode.MONO
+            } else if (
                 selectedCodec != ExportCodec.WAV &&
-                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, ExportCodec.WAV).isNotEmpty()
+                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, ExportCodec.WAV, selectedChannelMode).isNotEmpty()
             ) {
                 selectedCodec = ExportCodec.WAV
             } else {
                 selectedRouteMode = InputRouteMode.AUTO
                 selectedSourceMode = AudioSourceMode.MIC
+                selectedChannelMode = ChannelMode.MONO
                 selectedCodec = ExportCodec.WAV
             }
         }
 
-        val supportedRates = supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec)
-        var preferredRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedCodec)
+        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode).isEmpty()) {
+            if (
+                selectedCodec != ExportCodec.WAV &&
+                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, ExportCodec.WAV, selectedChannelMode).isNotEmpty()
+            ) {
+                selectedCodec = ExportCodec.WAV
+            } else {
+                selectedRouteMode = InputRouteMode.AUTO
+                selectedSourceMode = AudioSourceMode.MIC
+                selectedChannelMode = ChannelMode.MONO
+                selectedCodec = ExportCodec.WAV
+            }
+        }
+
+        val supportedRates = supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode)
+        var preferredRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode)
         if (supportedRates.isNotEmpty() && preferredRate !in supportedRates) {
             preferredRate = supportedRates.first()
         }
 
         sampleRate = if (preferredRate > 0) preferredRate else 48_000
-        fillRate = 2 * sampleRate
+        fillRate = sampleRate * selectedChannelMode.channelCount * 2
         sourceMode = selectedSourceMode
+        channelMode = selectedChannelMode
         audioSource = selectedSourceMode.sourceValue
-        outputCodec = if (isCodecSupported(selectedCodec, sampleRate)) selectedCodec else ExportCodec.WAV
+        outputCodec = if (isCodecSupported(selectedCodec, sampleRate, selectedChannelMode)) selectedCodec else ExportCodec.WAV
         inputRouteMode = selectedRouteMode
         if (this::audioHandler.isInitialized) {
             configureLiveExportHistory()
@@ -160,12 +194,14 @@ class TimeTravelService : Service() {
         }
 
         state = STATE_LISTENING
+        updateWakeLockState()
         ContextCompat.startForegroundService(this, Intent(this, javaClass))
 
-        val memorySize = getConfiguredMemorySizeBytes(this, sampleRate)
+        val memorySize = getConfiguredMemorySizeBytes(this, sampleRate, channelMode)
         audioHandler.post {
             releaseAudioRecord()
             audioMemory.allocate(memorySize)
+            restorePersistedBufferIfNeeded(memorySize)
 
             audioRecord = createAudioRecord()
             val record = audioRecord
@@ -173,6 +209,7 @@ class TimeTravelService : Service() {
                 Log.e(TAG, "Audio input initialization failed")
                 releaseAudioRecord()
                 state = STATE_READY
+                updateWakeLockState()
                 showToast(getString(R.string.audio_input_init_failed))
                 return@post
             }
@@ -183,6 +220,7 @@ class TimeTravelService : Service() {
                 Log.e(TAG, "AudioRecord.startRecording failed", e)
                 releaseAudioRecord()
                 state = STATE_READY
+                updateWakeLockState()
                 showToast(getString(R.string.audio_input_init_failed))
                 return@post
             }
@@ -200,6 +238,7 @@ class TimeTravelService : Service() {
         }
 
         state = STATE_PAUSED
+        updateWakeLockState()
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
             releaseAudioRecord()
@@ -214,13 +253,13 @@ class TimeTravelService : Service() {
         }
 
         state = STATE_READY
+        updateWakeLockState()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopService(Intent(this, javaClass))
 
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
             releaseAudioRecord()
-            audioMemory.allocate(0)
         }
     }
 
@@ -228,7 +267,7 @@ class TimeTravelService : Service() {
     private fun createAudioRecord(): AudioRecord? {
         val minBuffer = AudioRecord.getMinBufferSize(
             sampleRate,
-            AudioFormat.CHANNEL_IN_MONO,
+            channelMode.inputChannelMask,
             AudioFormat.ENCODING_PCM_16BIT,
         )
         if (minBuffer <= 0) {
@@ -242,7 +281,7 @@ class TimeTravelService : Service() {
                 .setAudioFormat(
                     AudioFormat.Builder()
                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                        .setChannelMask(channelMode.inputChannelMask)
                         .setSampleRate(sampleRate)
                         .build(),
                 )
@@ -304,7 +343,7 @@ class TimeTravelService : Service() {
                                     this@TimeTravelService,
                                     outTarget,
                                     snapshot.durationUs / 1000L,
-                                    buildCodecSummary(effectiveOutputCodec, sampleRate),
+                                    buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount),
                                 ),
                             )
                         } catch (e: IOException) {
@@ -335,7 +374,7 @@ class TimeTravelService : Service() {
                             this@TimeTravelService,
                             outTarget,
                             durationMillis,
-                            buildCodecSummary(effectiveOutputCodec, sampleRate),
+                            buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount),
                         ),
                     )
                 } catch (e: IOException) {
@@ -359,6 +398,7 @@ class TimeTravelService : Service() {
         }
 
         state = STATE_RECORDING
+        updateWakeLockState()
 
         audioHandler.post {
             flushAudioRecord()
@@ -426,21 +466,31 @@ class TimeTravelService : Service() {
         }
 
         val newSourceMode = getConfiguredAudioSourceMode(this)
+        val newChannelMode = getConfiguredChannelMode(this)
         val newRouteMode = getConfiguredInputRouteMode(this)
         val newCodec = getConfiguredOutputCodec(this)
-        val newSampleRate = getConfiguredSampleRate(this, newSourceMode, newRouteMode, newCodec)
+        val newSampleRate = getConfiguredSampleRate(this, newSourceMode, newRouteMode, newCodec, newChannelMode)
         val captureConfigChanged =
-            newSampleRate != sampleRate || newSourceMode != sourceMode || newRouteMode != inputRouteMode
+            newSampleRate != sampleRate ||
+                newSourceMode != sourceMode ||
+                newChannelMode != channelMode ||
+                newRouteMode != inputRouteMode
 
-        outputCodec = if (isCodecSupported(newCodec, sampleRate)) newCodec else ExportCodec.WAV
+        outputCodec = if (isCodecSupported(newCodec, newSampleRate, newChannelMode)) newCodec else ExportCodec.WAV
+        updateWakeLockState()
 
         if (state != STATE_LISTENING || !isListeningEnabled()) {
             loadConfiguration()
+            audioHandler.post {
+                syncPersistentBufferFromMemory()
+                restorePersistedBufferIfNeeded()
+            }
             return ApplySettingsResult.APPLIED_NOW
         }
 
         audioHandler.post {
-            audioMemory.allocate(getConfiguredMemorySizeBytes(this, sampleRate))
+            audioMemory.allocate(getConfiguredMemorySizeBytes(this, sampleRate, channelMode))
+            syncPersistentBufferFromMemory()
         }
 
         return if (captureConfigChanged) {
@@ -473,6 +523,7 @@ class TimeTravelService : Service() {
         }
 
         state = STATE_LISTENING
+        updateWakeLockState()
         audioHandler.post {
             flushAudioRecord()
 
@@ -495,13 +546,13 @@ class TimeTravelService : Service() {
                     this@TimeTravelService,
                     target,
                     runtimeMillis,
-                    buildCodecSummary(effectiveOutputCodec, sampleRate),
+                    buildCodecSummary(effectiveOutputCodec, sampleRate, channelMode.channelCount),
                 ),
             )
         }
 
         if (!isListeningEnabled()) {
-            innerStopListening()
+            innerPauseListening()
         }
     }
 
@@ -522,13 +573,13 @@ class TimeTravelService : Service() {
     }
 
     private val effectiveOutputCodec: ExportCodec
-        get() = if (isCodecSupported(outputCodec, sampleRate)) outputCodec else ExportCodec.WAV
+        get() = if (isCodecSupported(outputCodec, sampleRate, channelMode)) outputCodec else ExportCodec.WAV
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
         return when (effectiveOutputCodec) {
-            ExportCodec.AAC -> AacAudioFileWriter(this, target, sampleRate)
-            ExportCodec.WAV -> WavAudioFileWriter(this, target, sampleRate)
+            ExportCodec.AAC -> AacAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
+            ExportCodec.WAV -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
         }
     }
 
@@ -579,6 +630,16 @@ class TimeTravelService : Service() {
         }
         if (read > 0) {
             liveAacExportHistory?.appendPcm(array, offset, read)
+            if (isDiskBufferCacheEnabled(this@TimeTravelService)) {
+                persistentAudioRingStore.append(
+                    array = array,
+                    offset = offset,
+                    count = read,
+                    capacityBytes = audioMemory.allocatedMemorySize,
+                    sampleRate = sampleRate,
+                    channelCount = channelMode.channelCount,
+                )
+            }
         }
 
         if (read == count) {
@@ -635,6 +696,7 @@ class TimeTravelService : Service() {
             codec = effectiveOutputCodec,
             sampleRate = sampleRate,
             sourceMode = sourceMode,
+            channelMode = channelMode,
             routeMode = inputRouteMode,
         )
     }
@@ -646,6 +708,7 @@ class TimeTravelService : Service() {
         audioHandler.post {
             audioMemory.clear()
             liveAacExportHistory?.clear()
+            persistentAudioRingStore.clear()
         }
     }
 
@@ -675,26 +738,7 @@ class TimeTravelService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val shouldKeepBuffer = state == STATE_PAUSED || state == STATE_LISTENING || state == STATE_RECORDING || audioMemory.countFilled() > 0
-        if (!shouldKeepBuffer && !isListeningEnabled()) {
-            return
-        }
-
-        val restartServiceIntent = Intent(applicationContext, javaClass).apply {
-            setPackage(packageName)
-        }
-        val restartServicePendingIntent = PendingIntent.getService(
-            this,
-            1,
-            restartServiceIntent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
-        (getSystemService(ALARM_SERVICE) as? AlarmManager)?.set(
-            AlarmManager.ELAPSED_REALTIME,
-            SystemClock.elapsedRealtime() + 1000,
-            restartServicePendingIntent,
-        )
+        scheduleRestartIfNeeded()
     }
 
     private fun buildNotification(): Notification {
@@ -727,6 +771,105 @@ class TimeTravelService : Service() {
         }
     }
 
+    private fun restorePersistedBufferIfNeeded(memorySize: Long = getConfiguredMemorySizeBytes(this, sampleRate, channelMode)) {
+        if (!isDiskBufferCacheEnabled(this)) {
+            persistentAudioRingStore.clear()
+            return
+        }
+        if (memorySize <= 0L) {
+            return
+        }
+        if (audioMemory.allocatedMemorySize != memorySize) {
+            audioMemory.allocate(memorySize)
+        }
+        if (audioMemory.countFilled() > 0) {
+            return
+        }
+
+        val restored = persistentAudioRingStore.restoreInto(
+            audioMemory = audioMemory,
+            capacityBytes = memorySize,
+            sampleRate = sampleRate,
+            channelCount = channelMode.channelCount,
+        )
+        if (restored.restoredBytes > 0) {
+            liveAacExportHistory?.clear()
+            if (!isListeningEnabled() && state == STATE_READY) {
+                state = STATE_PAUSED
+            }
+        }
+    }
+
+    private fun syncPersistentBufferFromMemory() {
+        if (!isDiskBufferCacheEnabled(this)) {
+            persistentAudioRingStore.clear()
+            return
+        }
+        persistentAudioRingStore.replaceWith(audioMemory, sampleRate, channelMode.channelCount)
+    }
+
+    private fun updateWakeLockState() {
+        if (!isWakeLockEnabled(this)) {
+            releaseWakeLock()
+            return
+        }
+
+        val shouldHoldWakeLock = state == STATE_LISTENING || state == STATE_RECORDING
+        if (!shouldHoldWakeLock) {
+            releaseWakeLock()
+            return
+        }
+        if (wakeLock?.isHeld == true) {
+            return
+        }
+
+        val powerManager = getSystemService(PowerManager::class.java) ?: return
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:timeTravelBuffer").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+    }
+
+    private fun releaseWakeLock() {
+        val lock = wakeLock ?: return
+        if (lock.isHeld) {
+            lock.release()
+        }
+        wakeLock = null
+    }
+
+    private fun scheduleRestartIfNeeded() {
+        if (!isAggressiveRestartEnabled(this)) {
+            return
+        }
+
+        val shouldKeepBuffer =
+            state == STATE_PAUSED ||
+                state == STATE_LISTENING ||
+                state == STATE_RECORDING ||
+                audioMemory.countFilled() > 0 ||
+                persistentAudioRingStore.hasData()
+        if (!shouldKeepBuffer && !isListeningEnabled()) {
+            return
+        }
+
+        val restartServiceIntent = Intent(applicationContext, javaClass).apply {
+            setPackage(packageName)
+        }
+        val restartServicePendingIntent = PendingIntent.getService(
+            this,
+            1,
+            restartServiceIntent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        (getSystemService(ALARM_SERVICE) as? AlarmManager)?.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + 1_000L,
+            restartServicePendingIntent,
+        )
+    }
+
     interface AudioFileReceiver {
         fun fileReady(recording: RecordingEntity)
 
@@ -747,6 +890,7 @@ class TimeTravelService : Service() {
         val codec: ExportCodec,
         val sampleRate: Int,
         val sourceMode: AudioSourceMode,
+        val channelMode: ChannelMode,
         val routeMode: InputRouteMode,
     )
 
@@ -769,7 +913,7 @@ class TimeTravelService : Service() {
     }
 
     private fun configureLiveExportHistory() {
-        val retentionDurationUs = getConfiguredMemorySizeBytes(this, sampleRate) * 1_000_000L / maxOf(fillRate, 1)
+        val retentionDurationUs = getConfiguredMemorySizeBytes(this, sampleRate, channelMode) * 1_000_000L / maxOf(fillRate, 1)
         audioHandler.post {
             val shouldUseAacHistory = effectiveOutputCodec == ExportCodec.AAC
             if (!shouldUseAacHistory) {
@@ -779,9 +923,9 @@ class TimeTravelService : Service() {
             }
 
             val current = liveAacExportHistory
-            if (current == null || current.sampleRate != sampleRate) {
+            if (current == null || current.sampleRate != sampleRate || current.channelCount != channelMode.channelCount) {
                 current?.close()
-                liveAacExportHistory = LiveAacExportHistory(sampleRate).also {
+                liveAacExportHistory = LiveAacExportHistory(sampleRate, channelMode.channelCount).also {
                     it.setMaxDurationUs(retentionDurationUs)
                 }
             } else {

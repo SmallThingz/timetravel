@@ -37,6 +37,7 @@
             android:layout_marginStart="12dp"
             android:layout_weight="1"
             android:orientation="vertical">
+
             <TextView
                 android:id="@+id/recording_name"
                 android:layout_width="match_parent"
@@ -48,13 +49,13 @@
                 tools:text="1777307351127.m4a" />
 
             <TextView
-                android:id="@+id/recording_timestamp"
+                android:id="@+id/recording_duration"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="2:29 AM" />
+                tools:text="24 s" />
         </LinearLayout>
 
         <LinearLayout
@@ -65,21 +66,21 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/recording_size"
+                android:id="@+id/recording_timestamp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
                 android:textColor="?attr/colorOnSurface"
-                tools:text="297.5 KB" />
+                tools:text="2:29 AM" />
 
             <TextView
-                android:id="@+id/recording_duration"
+                android:id="@+id/recording_size"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="24 s" />
+                tools:text="297.5 KB" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

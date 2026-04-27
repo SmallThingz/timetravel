@@ -63,12 +63,14 @@ object RecordingRepository {
         }
     }
 
-    suspend fun hasMovableRecordings(context: Context): Boolean {
+    suspend fun hasMovableRecordings(
+        context: Context,
+        targetDirectoryId: String = getConfiguredOutputDirectoryId(context),
+    ): Boolean {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
                 syncConfiguredDirectory(context)
                 pruneMissingLocked(context)
-                val targetDirectoryId = getConfiguredOutputDirectoryId(context)
                 dao(context).listAll().any { it.directoryId != targetDirectoryId }
             }
         }

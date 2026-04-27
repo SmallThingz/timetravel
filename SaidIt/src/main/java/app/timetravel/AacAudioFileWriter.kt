@@ -15,6 +15,7 @@ internal class AacAudioFileWriter(
     context: Context,
     override val target: RecordingOutputTarget,
     private val sampleRate: Int,
+    private val channelCount: Int,
 ) : AudioFileWriter {
     private val codec: MediaCodec
     private val muxer: MediaMuxer
@@ -28,9 +29,9 @@ internal class AacAudioFileWriter(
         private set
 
     init {
-        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, CHANNEL_COUNT).apply {
+        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, aacBitrateForSampleRate(sampleRate))
+            setInteger(MediaFormat.KEY_BIT_RATE, aacBitrateForSampleRate(sampleRate, channelCount))
             setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
         }
 
@@ -139,12 +140,10 @@ internal class AacAudioFileWriter(
     }
 
     private fun bytesToDurationUs(pcmBytes: Int): Long {
-        val frames = pcmBytes / BYTES_PER_FRAME
+        val frames = pcmBytes / maxOf(channelCount * 2, 1)
         return frames * 1_000_000L / sampleRate
     }
     private companion object {
         const val TIMEOUT_US = 10_000L
-        const val CHANNEL_COUNT = 1
-        const val BYTES_PER_FRAME = CHANNEL_COUNT * 2
     }
 }

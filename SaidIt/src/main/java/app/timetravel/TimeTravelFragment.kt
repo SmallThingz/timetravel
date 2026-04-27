@@ -345,8 +345,9 @@ class TimeTravelFragment : Fragment() {
         val activeConfig = recorder?.getConfigurationSnapshot()
         val codec = activeConfig?.codec ?: getConfiguredOutputCodec(context)
         val sourceMode = activeConfig?.sourceMode ?: getConfiguredAudioSourceMode(context)
+        val channelMode = activeConfig?.channelMode ?: getConfiguredChannelMode(context)
         val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
-        val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, codec)
+        val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, codec, channelMode)
         formatSummary.text = when (getConfiguredRetentionMode(context)) {
             RetentionMode.TIME -> getString(
                 R.string.buffer_status_time,
@@ -355,7 +356,7 @@ class TimeTravelFragment : Fragment() {
 
             RetentionMode.SIZE -> getString(
                 R.string.buffer_status_size,
-                formatShortFileSize(getConfiguredMemorySizeBytes(context, sampleRate)),
+                formatShortFileSize(getConfiguredMemorySizeBytes(context, sampleRate, channelMode)),
             )
         }
     }

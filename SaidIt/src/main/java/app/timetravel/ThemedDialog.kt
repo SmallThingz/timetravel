@@ -2,10 +2,14 @@ package app.timetravel
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatDialog
@@ -31,11 +35,12 @@ internal object ThemedDialog {
         val dialogContext = ContextThemeWrapper(context, R.style.ThemeOverlay_TimeTravel_AlertDialog)
         val dialog = AppCompatDialog(dialogContext).apply {
             setCancelable(true)
+            window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         }
 
         val surface = LinearLayout(dialogContext).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = ViewGroup.LayoutParams(
+            layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
@@ -46,6 +51,8 @@ internal object ThemedDialog {
                     MaterialColors.getColor(dialogContext, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0),
                 )
             }
+            clipToOutline = true
+            outlineProvider = ViewOutlineProvider.BACKGROUND
             addView(
                 TextView(dialogContext).apply {
                     layoutParams = LinearLayout.LayoutParams(
@@ -92,7 +99,12 @@ internal object ThemedDialog {
         actionRow.addView(positiveButton)
 
         surface.addView(actionRow)
-        dialog.setContentView(surface)
+        dialog.setContentView(
+            FrameLayout(dialogContext).apply {
+                setPadding(dp(dialogContext, 12), dp(dialogContext, 12), dp(dialogContext, 12), dp(dialogContext, 12))
+                addView(surface)
+            },
+        )
         return Handle(dialog, negativeButton, positiveButton)
     }
 

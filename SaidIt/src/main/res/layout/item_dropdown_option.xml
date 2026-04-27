@@ -3,7 +3,7 @@
     android:id="@android:id/text1"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@android:color/transparent"
+    android:background="@drawable/dropdown_menu_item_selector"
     android:ellipsize="end"
     android:maxLines="1"
     android:paddingHorizontal="16dp"

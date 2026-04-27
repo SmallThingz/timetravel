@@ -11,6 +11,7 @@ internal class WavAudioFileWriter(
     context: Context,
     override val target: RecordingOutputTarget,
     private val sampleRate: Int,
+    private val channelCount: Int,
 ) : AudioFileWriter {
     private val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
     private val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
@@ -41,8 +42,8 @@ internal class WavAudioFileWriter(
 
     private fun writeHeader(dataSize: Int) {
         val chunkSize = 36 + dataSize
-        val byteRate = sampleRate * CHANNEL_COUNT * BITS_PER_SAMPLE / 8
-        val blockAlign = CHANNEL_COUNT * BITS_PER_SAMPLE / 8
+        val byteRate = sampleRate * channelCount * BITS_PER_SAMPLE / 8
+        val blockAlign = channelCount * BITS_PER_SAMPLE / 8
         val header = ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("RIFF".toByteArray(Charsets.US_ASCII))
             putInt(chunkSize)
@@ -50,7 +51,7 @@ internal class WavAudioFileWriter(
             put("fmt ".toByteArray(Charsets.US_ASCII))
             putInt(16)
             putShort(1)
-            putShort(CHANNEL_COUNT.toShort())
+            putShort(channelCount.toShort())
             putInt(sampleRate)
             putInt(byteRate)
             putShort(blockAlign.toShort())
@@ -66,7 +67,6 @@ internal class WavAudioFileWriter(
     }
 
     private companion object {
-        const val CHANNEL_COUNT = 1
         const val BITS_PER_SAMPLE = 16
         const val HEADER_SIZE = 44
     }

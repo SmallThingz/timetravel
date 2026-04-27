@@ -56,7 +56,11 @@ fun setConfiguredExportTreeUri(
 }
 
 fun getConfiguredOutputDirectoryId(context: Context): String {
-    return getConfiguredExportTreeUri(context)?.toString() ?: getSavedRecordingsDirectory().absolutePath
+    return getOutputDirectoryId(getConfiguredExportTreeUri(context))
+}
+
+fun getOutputDirectoryId(treeUri: Uri?): String {
+    return treeUri?.toString() ?: getSavedRecordingsDirectory().absolutePath
 }
 
 fun describeConfiguredOutputDirectory(context: Context): String {
@@ -157,10 +161,19 @@ fun resolveRecordingCodecInfo(
 fun buildCodecSummary(
     codec: ExportCodec,
     sampleRate: Int,
+    channelCount: Int,
 ): String {
+    val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
     return when (codec) {
-        ExportCodec.AAC -> "AAC • ${aacBitrateForSampleRate(sampleRate) / 1000} kbps"
-        ExportCodec.WAV -> "WAV • ${sampleRate / 1000} kHz"
+        ExportCodec.AAC -> "AAC • ${sampleRateLabel(sampleRate)} • $channelLabel • ${aacBitrateForSampleRate(sampleRate, channelCount) / 1000} kbps"
+        ExportCodec.WAV -> "WAV • ${sampleRateLabel(sampleRate)} • $channelLabel"
+    }
+}
+
+fun describeRecordingLocation(recording: RecordingEntity): String {
+    return when (RecordingStorageType.valueOf(recording.storageType)) {
+        RecordingStorageType.FILE -> recording.id
+        RecordingStorageType.DOCUMENT -> recording.id
     }
 }
 

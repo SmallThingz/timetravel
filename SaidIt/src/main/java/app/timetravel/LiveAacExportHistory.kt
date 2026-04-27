@@ -13,6 +13,7 @@ import java.util.ArrayDeque
 
 internal class LiveAacExportHistory(
     internal val sampleRate: Int,
+    internal val channelCount: Int,
 ) : Closeable {
     private val codec: MediaCodec
     private val bufferInfo = MediaCodec.BufferInfo()
@@ -25,9 +26,9 @@ internal class LiveAacExportHistory(
     private var closed = false
 
     init {
-        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, CHANNEL_COUNT).apply {
+        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, aacBitrateForSampleRate(sampleRate))
+            setInteger(MediaFormat.KEY_BIT_RATE, aacBitrateForSampleRate(sampleRate, channelCount))
             setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
         }
         codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).apply {
@@ -84,6 +85,7 @@ internal class LiveAacExportHistory(
         val selected = frames.toList().takeLast(requestedFrames)
         return AacExportSnapshot(
             sampleRate = sampleRate,
+            channelCount = channelCount,
             codecSpecificData = csd.copyOf(),
             frames = selected,
             durationUs = selected.size.toLong() * accessUnitDurationUs,
@@ -149,14 +151,12 @@ internal class LiveAacExportHistory(
     }
 
     private fun bytesToDurationUs(pcmBytes: Int): Long {
-        val frames = pcmBytes / BYTES_PER_FRAME
+        val frames = pcmBytes / maxOf(channelCount * 2, 1)
         return frames * 1_000_000L / sampleRate.coerceAtLeast(1)
     }
 
     private companion object {
         const val TIMEOUT_US = 10_000L
-        const val CHANNEL_COUNT = 1
-        const val BYTES_PER_FRAME = CHANNEL_COUNT * 2
         const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
     }
 }
@@ -169,6 +169,7 @@ internal data class EncodedAacFrame(
 
 internal data class AacExportSnapshot(
     val sampleRate: Int,
+    val channelCount: Int,
     val codecSpecificData: ByteArray,
     val frames: List<EncodedAacFrame>,
     val durationUs: Long,
@@ -184,7 +185,11 @@ internal object AacSnapshotExporter {
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
         val muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         try {
-            val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, snapshot.sampleRate, 1).apply {
+            val format = MediaFormat.createAudioFormat(
+                MediaFormat.MIMETYPE_AUDIO_AAC,
+                snapshot.sampleRate,
+                snapshot.channelCount,
+            ).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
                 setByteBuffer("csd-0", ByteBuffer.wrap(snapshot.codecSpecificData))
             }
