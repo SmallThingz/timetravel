@@ -49,9 +49,11 @@
     <string name="retention_time_invalid">MM:SS oder HH:MM:SS verwenden.</string>
     <string name="retention_time_too_large">Zu groß. Maximaler Puffer %1$s.</string>
     <string name="retention_time_limit_helper">Max. Export: %1$s</string>
+    <string name="retention_time_limits_helper">Max. Export: %1$s • Max. Puffer: %2$s</string>
     <string name="retention_size_label">Größe (MiB)</string>
     <string name="retention_size_too_large">Zu groß. Maximaler Puffer %1$s.</string>
     <string name="retention_size_limit_helper">Max. Export: %1$s</string>
+    <string name="retention_size_limits_helper">Max. Export: %1$s • Max. Puffer: %2$s</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Speicher</string>
     <string name="background_persistence_title">Hintergrund</string>

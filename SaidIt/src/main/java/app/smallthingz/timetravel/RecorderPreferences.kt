@@ -39,6 +39,7 @@ private const val MAX_AUTO_MERGE_DIVISOR = 600
 private const val DEFAULT_AUTO_MERGE_CUSTOM_SECONDS = 60
 private const val MIN_AUTO_MERGE_CUSTOM_SECONDS = 10
 private const val MAX_AUTO_MERGE_CUSTOM_SECONDS = 3600
+private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
 private val STANDARD_SAMPLE_RATES =
     intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000)
 private val codecSupportCache = ConcurrentHashMap<CodecSupportKey, Boolean>()
@@ -514,16 +515,55 @@ fun getConfiguredMemorySizeBytes(
     context: Context,
     sampleRate: Int,
     channelMode: ChannelMode = getConfiguredChannelMode(context),
+    format: ExportFormat = getConfiguredOutputFormat(context),
+    codec: ExportCodec = getConfiguredOutputCodec(context),
+    bitrateKbps: Int? = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
 ): Long {
     val prefs = getRecorderPreferences(context)
     return when (getConfiguredRetentionMode(context)) {
-        RetentionMode.SIZE -> prefs.getLong(
-            TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY,
-            Runtime.getRuntime().maxMemory() / 4,
-        ).coerceAtMost(getRetentionMemoryCapBytes())
+        RetentionMode.SIZE -> {
+            val configuredSizeBytes = prefs.getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, defaultConfiguredExportSizeBytes())
+            val retentionSeconds = estimateExportDurationSeconds(
+                format = format,
+                codec = codec,
+                sampleRate = sampleRate,
+                channelCount = channelMode.channelCount,
+                sizeBytes = configuredSizeBytes,
+                bitrateKbps = bitrateKbps,
+            )
+            bytesForRetentionSeconds(retentionSeconds, sampleRate, channelMode.channelCount)
+        }
 
         RetentionMode.TIME -> bytesForRetentionSeconds(getConfiguredRetentionSeconds(context), sampleRate, channelMode.channelCount)
     }
+}
+
+fun getConfiguredWorkingMemorySizeBytes(
+    context: Context,
+    sampleRate: Int,
+    channelMode: ChannelMode = getConfiguredChannelMode(context),
+    format: ExportFormat = getConfiguredOutputFormat(context),
+    codec: ExportCodec = getConfiguredOutputCodec(context),
+    bitrateKbps: Int? = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
+): Long {
+    return minOf(
+        getConfiguredMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps),
+        getWorkingMemoryCapBytes(),
+    )
+}
+
+fun getConfiguredPersistentPcmSizeBytes(
+    context: Context,
+    sampleRate: Int,
+    channelMode: ChannelMode = getConfiguredChannelMode(context),
+    format: ExportFormat = getConfiguredOutputFormat(context),
+    codec: ExportCodec = getConfiguredOutputCodec(context),
+    bitrateKbps: Int? = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
+): Long {
+    return minOf(
+        getConfiguredMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps),
+        getPersistentPcmBufferCapBytes(),
+    )
 }
 
 fun bytesForRetentionSeconds(
@@ -532,7 +572,12 @@ fun bytesForRetentionSeconds(
     channelCount: Int,
 ): Long {
     if (sampleRate <= 0 || channelCount <= 0) return 0
-    return (seconds * bytesPerSecond(sampleRate, channelCount)).coerceAtMost(getRetentionMemoryCapBytes())
+    val bytesPerSecond = bytesPerSecond(sampleRate, channelCount)
+    if (bytesPerSecond <= 0L || seconds <= 0L) return 0L
+    if (seconds > Long.MAX_VALUE / bytesPerSecond) {
+        return Long.MAX_VALUE
+    }
+    return seconds * bytesPerSecond
 }
 
 fun retentionSecondsForBytes(
@@ -767,19 +812,25 @@ fun resolveOperationalSampleRate(
     channelMode: ChannelMode,
 ): Int {
     val advertised = supportedSampleRates(context, sourceMode, routeMode, format, codec, channelMode)
-    if (advertised.isEmpty()) {
-        return requestedRate.takeIf { it > 0 } ?: getPreferredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
+    val operationalCandidates = buildList {
+        addAll(advertised)
+        addAll(standardSampleRates())
     }
-    val ordered = orderSampleRatesByPreference(advertised, requestedRate)
-    if (routeMode != InputRouteMode.AUTO) {
-        return ordered.first()
-    }
-    return ordered.firstOrNull { isInputConfigSupported(context, it, sourceMode, routeMode, channelMode) } ?: ordered.first()
+        .distinct()
+        .filter { rate ->
+            isCodecSupported(format, codec, rate, channelMode) &&
+                isInputConfigSupported(context, rate, sourceMode, routeMode, channelMode)
+        }
+    return orderSampleRatesByPreference(operationalCandidates, requestedRate).firstOrNull() ?: 0
 }
 
-fun getRetentionMemoryCapBytes(): Long {
+fun getWorkingMemoryCapBytes(): Long {
     return max(64L * 1024L * 1024L, Runtime.getRuntime().maxMemory() * 3L / 4L)
 }
+
+fun getRetentionMemoryCapBytes(): Long = getWorkingMemoryCapBytes()
+
+fun getPersistentPcmBufferCapBytes(): Long = MAX_PERSISTENT_PCM_BUFFER_BYTES
 
 fun supportedAudioSourceModes(
     context: Context,
@@ -1001,6 +1052,8 @@ private fun bytesPerSecond(
     if (sampleRate <= 0 || channelCount <= 0) return 0L
     return sampleRate.toLong() * channelCount.toLong() * BYTES_PER_PCM_SAMPLE
 }
+
+private fun defaultConfiguredExportSizeBytes(): Long = 512L * 1024L * 1024L
 
 fun codecBitrateBitsPerSecond(
     codec: ExportCodec,

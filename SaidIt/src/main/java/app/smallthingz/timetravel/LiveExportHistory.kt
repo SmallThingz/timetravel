@@ -99,6 +99,11 @@ internal class LiveExportHistory(
     }
 
     @Synchronized
+    fun countRetainedSampleBytes(): Long {
+        return segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
+    }
+
+    @Synchronized
     fun closePreservingHistory() {
         closeCurrentSegmentLocked()
         currentWriter = null
@@ -1024,7 +1029,7 @@ internal class LiveExportHistory(
     fun debugSnapshot(): DebugSnapshot {
         return DebugSnapshot(
             segmentCount = segments.size,
-            totalSampleBytes = segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L),
+            totalSampleBytes = countRetainedSampleBytes(),
             currentSegmentSampleBytes = currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L,
             nextSegmentStartMillis = nextSegmentStartMillis,
             segmentFiles = segments.map { it.file.name },

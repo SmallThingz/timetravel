@@ -107,6 +107,56 @@ internal class PersistentAudioRingStore(
     }
 
     @Synchronized
+    fun read(
+        skipBytes: Long,
+        maxBytes: Long,
+        reader: AudioMemory.Consumer,
+    ) {
+        val snapshot = peekSnapshot() ?: return
+        if (maxBytes <= 0L) {
+            return
+        }
+        ensureMapped(snapshot.capacityBytes, snapshot.sampleRate, snapshot.channelCount)
+        val data = dataMap ?: return
+        var remainingSkip = skipBytes.coerceAtLeast(0L)
+        var remainingTake = minOf(maxBytes, snapshot.filledBytes.toLong() - remainingSkip).coerceAtLeast(0L)
+        if (remainingTake <= 0L) {
+            return
+        }
+
+        val scratch = ByteArray(minOf(IO_CHUNK_SIZE.toLong(), remainingTake).toInt())
+        var readPosition = if (snapshot.filledBytes >= snapshot.capacityBytes) {
+            metaMap?.readWritePosition() ?: 0
+        } else {
+            0
+        }
+        val dataView = data.duplicate()
+        var unread = snapshot.filledBytes
+
+        while (unread > 0 && remainingTake > 0L) {
+            val chunkSize = minOf(unread, scratch.size, snapshot.capacityBytes - readPosition)
+            dataView.position(readPosition)
+            dataView.get(scratch, 0, chunkSize)
+
+            if (remainingSkip < chunkSize) {
+                val chunkOffset = remainingSkip.toInt()
+                val take = minOf((chunkSize - chunkOffset).toLong(), remainingTake).toInt()
+                reader.consume(scratch, chunkOffset, take)
+                remainingTake -= take.toLong()
+                remainingSkip = 0L
+            } else {
+                remainingSkip -= chunkSize.toLong()
+            }
+
+            unread -= chunkSize
+            readPosition += chunkSize
+            if (readPosition >= snapshot.capacityBytes) {
+                readPosition = 0
+            }
+        }
+    }
+
+    @Synchronized
     fun append(
         array: ByteArray,
         offset: Int,
@@ -171,6 +221,17 @@ internal class PersistentAudioRingStore(
 
     @Synchronized
     fun hasData(): Boolean = peekSnapshot() != null
+
+    @Synchronized
+    fun countFilledBytes(): Long = peekSnapshot()?.filledBytes?.toLong() ?: 0L
+
+    @Synchronized
+    fun configuredCapacityBytes(): Long = peekSnapshot()?.capacityBytes?.toLong() ?: 0L
+
+    @Synchronized
+    fun checkpoint() {
+        force()
+    }
 
     @Synchronized
     fun clear() {

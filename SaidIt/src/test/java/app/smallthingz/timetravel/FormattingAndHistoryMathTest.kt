@@ -84,6 +84,15 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
+    fun bytesForRetentionSeconds_handlesLongDurationsWithoutHeapClamp() {
+        val fortyEightHours = 48L * 60L * 60L
+        val bytes = bytesForRetentionSeconds(fortyEightHours, 48_000, 1)
+
+        assertEquals(16_588_800_000L, bytes)
+        assertEquals(fortyEightHours, retentionSecondsForBytes(bytes, 48_000, 1))
+    }
+
+    @Test
     fun codecFormatMatrix_keepsExpectedContainers() {
         assertTrue(ExportFormat.THREE_GPP in ExportCodec.AMR_WB.supportedFormats)
         assertTrue(ExportFormat.AMR_WB_FILE in ExportCodec.AMR_WB.supportedFormats)

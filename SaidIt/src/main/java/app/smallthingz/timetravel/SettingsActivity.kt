@@ -550,8 +550,8 @@ class SettingsActivity : AppCompatActivity() {
         val configuredTime = getConfiguredRetentionSeconds(this).toInt()
         val storedSizeBytes = prefs.getLong(
             TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY,
-            Runtime.getRuntime().maxMemory() / 4,
-        ).coerceAtMost(getRetentionMemoryCapBytes())
+            512L * BYTES_IN_MEGABYTE,
+        )
         val configuredFormat = getConfiguredOutputFormat(this)
         val configuredCodec = getConfiguredOutputCodec(this)
         val configuredRoute = getConfiguredInputRouteMode(this)
@@ -1038,10 +1038,14 @@ class SettingsActivity : AppCompatActivity() {
         }
         retentionTimeLayout.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
         retentionSizeLayout.alpha = if (activeRetentionMode == RetentionMode.SIZE) 1f else 0.82f
-        val exportLimitSizeSummary = formatShortFileSize(exportLimitBytes)
-        val exportLimitTimeSummary = "$estimatePrefix${formatDurationInput(exportLimitDurationSeconds)}"
-        retentionTimeLayout.helperText = getString(R.string.retention_time_limit_helper, exportLimitTimeSummary)
-        retentionSizeLayout.helperText = getString(R.string.retention_size_limit_helper, exportLimitSizeSummary)
+        retentionTimeLayout.helperText = getString(
+            R.string.retention_time_limit_helper,
+            "$estimatePrefix${formatDurationInput(exportLimitDurationSeconds)}",
+        )
+        retentionSizeLayout.helperText = getString(
+            R.string.retention_size_limit_helper,
+            formatShortFileSize(exportLimitBytes),
+        )
         bindingUi = previousBindingUi
     }
 
@@ -1089,24 +1093,7 @@ class SettingsActivity : AppCompatActivity() {
             return false
         }
 
-        val maxSupportedBytes = retentionCapacityLimitBytes()
-        val requestedTimeBytes = rawBytesForRetentionSeconds(retentionTime.toLong(), sampleRate, channelMode.channelCount)
-        if (requestedTimeBytes > maxSupportedBytes) {
-            retentionTimeLayout.error = getString(
-                R.string.retention_time_too_large,
-                formatDurationInput(retentionSecondsForBytes(maxSupportedBytes, sampleRate, channelMode.channelCount)),
-            )
-            return false
-        }
-
         val requestedSizeBytes = rawMegabytesToBytes(sizeMb)
-        if (requestedSizeBytes > maxSupportedBytes) {
-            retentionSizeLayout.error = getString(
-                R.string.retention_size_too_large,
-                formatShortFileSize(maxSupportedBytes),
-            )
-            return false
-        }
 
         val bitrateRange = codecBitrateRangeKbps(codec)
         if (bitrateRange != null && (bitrateKbps == null || bitrateKbps !in bitrateRange)) {
@@ -1420,17 +1407,6 @@ class SettingsActivity : AppCompatActivity() {
         return maxOf(1L, kotlin.math.ceil(bytes.toDouble() / BYTES_IN_MEGABYTE).toLong())
     }
 
-    private fun retentionCapacityLimitBytes(): Long {
-        return minOf(getRetentionMemoryCapBytes(), Int.MAX_VALUE.toLong())
-    }
-
-    private fun megabytesToBytes(memoryInMegabytes: Long): Long {
-        if (memoryInMegabytes > Long.MAX_VALUE / BYTES_IN_MEGABYTE) {
-            return getRetentionMemoryCapBytes()
-        }
-        return (memoryInMegabytes * BYTES_IN_MEGABYTE).coerceAtMost(getRetentionMemoryCapBytes())
-    }
-
     private fun rawMegabytesToBytes(memoryInMegabytes: Long): Long {
         if (memoryInMegabytes <= 0L) {
             return 0L
@@ -1439,21 +1415,6 @@ class SettingsActivity : AppCompatActivity() {
             return Long.MAX_VALUE
         }
         return memoryInMegabytes * BYTES_IN_MEGABYTE
-    }
-
-    private fun rawBytesForRetentionSeconds(
-        seconds: Long,
-        sampleRate: Int,
-        channelCount: Int,
-    ): Long {
-        val bytesPerSecond = (sampleRate.toLong() * channelCount.toLong() * 2L).coerceAtLeast(1L)
-        if (seconds <= 0L) {
-            return 0L
-        }
-        if (seconds > Long.MAX_VALUE / bytesPerSecond) {
-            return Long.MAX_VALUE
-        }
-        return seconds * bytesPerSecond
     }
 
     private companion object {
