@@ -1045,11 +1045,12 @@ class TimeTravelService : Service() {
             bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount),
             retentionBytes = retentionBytes,
             segmentDurationMillis = getConfiguredHistoryChunkSeconds(this).toLong() * 1000L,
-            compactionTargetDurationMillis = configuredAutoMergeTargetDurationMillis(
+            compactionTargetSampleBytes = configuredAutoMergeTargetSampleBytes(
                 context = this,
                 retentionBytes = retentionBytes,
                 sampleRate = sampleRate,
                 channelCount = channelMode.channelCount,
+                baseChunkSeconds = getConfiguredHistoryChunkSeconds(this),
             ),
         )
     }

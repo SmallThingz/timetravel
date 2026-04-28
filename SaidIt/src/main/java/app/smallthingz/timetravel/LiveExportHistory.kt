@@ -29,7 +29,7 @@ internal class LiveExportHistory(
     private var config: Config? = null
     private var retentionBytes = 0L
     private var segmentDurationMillis = DEFAULT_SEGMENT_DURATION_MS
-    private var compactionTargetDurationMillis: Long? = null
+    private var compactionTargetSampleBytes: Long? = null
     private var currentWriter: AudioFileWriter? = null
     private var currentSegment: Segment? = null
     private var nextSegmentStartMillis: Long? = null
@@ -44,18 +44,18 @@ internal class LiveExportHistory(
         bitrateKbps: Int?,
         retentionBytes: Long,
         segmentDurationMillis: Long,
-        compactionTargetDurationMillis: Long?,
+        compactionTargetSampleBytes: Long?,
     ) {
         val updatedConfig = Config(format, codec, sampleRate, channelCount, bitrateKbps)
         val previousConfig = config
         val configChanged = previousConfig != updatedConfig
         val retentionChanged = this.retentionBytes != retentionBytes
         val segmentDurationChanged = this.segmentDurationMillis != segmentDurationMillis
-        val compactionChanged = this.compactionTargetDurationMillis != compactionTargetDurationMillis
+        val compactionChanged = this.compactionTargetSampleBytes != compactionTargetSampleBytes
         config = updatedConfig
         this.retentionBytes = retentionBytes
         this.segmentDurationMillis = segmentDurationMillis.coerceIn(MIN_SEGMENT_DURATION_MS, MAX_SEGMENT_DURATION_MS)
-        this.compactionTargetDurationMillis = compactionTargetDurationMillis?.coerceIn(MIN_COMPACTION_DURATION_MS, MAX_COMPACTION_DURATION_MS)
+        this.compactionTargetSampleBytes = compactionTargetSampleBytes?.coerceAtLeast(1L)
         if (previousConfig == null) {
             migrateLegacySegmentsLocked()
             restorePersistedSegmentsLocked(updatedConfig)
@@ -613,74 +613,57 @@ internal class LiveExportHistory(
             return null
         }
         val currentConfig = config ?: return null
-        val targetDurationMillis = compactionTargetDurationMillis ?: return null
-        if (targetDurationMillis <= segmentDurationMillis) {
-            return null
-        }
-
-        val compactableBytes = currentConfig.durationMillisToSampleBytes(targetDurationMillis)
-        if (compactableBytes <= 0L) {
+        val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
+        val targetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = false) ?: return null
+        if (targetSampleBytes <= baseSegmentBytes) {
             return null
         }
 
         val currentSegments = segments.toList()
-        var startIndex = -1
-        var totalSampleBytes = 0L
-        val selectedSegments = ArrayList<Segment>()
-
-        for ((index, segment) in currentSegments.withIndex()) {
-            val key = segment.file.absolutePath
-            val alreadyPinned = pinnedFiles.containsKey(key)
-            val alreadyLargeEnough = segment.sampleBytes >= compactableBytes
-
-            if (alreadyPinned || alreadyLargeEnough) {
-                if (selectedSegments.isNotEmpty()) {
+        for (startIndex in currentSegments.indices) {
+            val selectedSegments = ArrayList<Segment>()
+            var totalSampleBytes = 0L
+            for (index in startIndex until currentSegments.size) {
+                val segment = currentSegments[index]
+                if (!isCompactionCandidateLocked(segment, targetSampleBytes, baseSegmentBytes)) {
                     break
                 }
-                continue
-            }
-
-            if (startIndex < 0) {
-                startIndex = index
-            }
-            selectedSegments += segment
-            totalSampleBytes += segment.sampleBytes
-            if (totalSampleBytes >= compactableBytes) {
-                break
+                val nextTotal = totalSampleBytes + segment.sampleBytes
+                if (nextTotal > targetSampleBytes) {
+                    break
+                }
+                selectedSegments += segment
+                totalSampleBytes = nextTotal
+                if (totalSampleBytes == targetSampleBytes && selectedSegments.size >= MIN_COMPACTION_SEGMENTS) {
+                    val slices = selectedSegments.map { selected ->
+                        val key = selected.file.absolutePath
+                        pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
+                        SegmentSlice(selected, 0L, selected.sampleBytes)
+                    }
+                    ensureHistoryRootExists()
+                    val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+                    val outputTarget = RecordingOutputTarget(
+                        id = tempFile.absolutePath,
+                        displayName = tempFile.name,
+                        mimeType = currentConfig.format.outputMimeType,
+                        storageType = RecordingStorageType.FILE,
+                        directoryId = historyRoot.absolutePath,
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        file = tempFile,
+                    )
+                    compactionInFlight = true
+                    return CompactionTask(
+                        startIndex = startIndex,
+                        sourcePaths = selectedSegments.map { it.file.absolutePath },
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        totalSampleBytes = totalSampleBytes,
+                        snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+                        outputTarget = outputTarget,
+                    )
+                }
             }
         }
-
-        if (selectedSegments.size < MIN_COMPACTION_SEGMENTS || startIndex < 0 || totalSampleBytes <= 0L) {
-            return null
-        }
-
-        val slices = selectedSegments.map { segment ->
-            val key = segment.file.absolutePath
-            pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
-            SegmentSlice(segment, 0L, segment.sampleBytes)
-        }
-
-        ensureHistoryRootExists()
-
-        val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
-        val outputTarget = RecordingOutputTarget(
-            id = tempFile.absolutePath,
-            displayName = tempFile.name,
-            mimeType = currentConfig.format.outputMimeType,
-            storageType = RecordingStorageType.FILE,
-            directoryId = historyRoot.absolutePath,
-            startedAtMillis = selectedSegments.first().startedAtMillis,
-            file = tempFile,
-        )
-        compactionInFlight = true
-        return CompactionTask(
-            startIndex = startIndex,
-            sourcePaths = selectedSegments.map { it.file.absolutePath },
-            startedAtMillis = selectedSegments.first().startedAtMillis,
-            totalSampleBytes = totalSampleBytes,
-            snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
-            outputTarget = outputTarget,
-        )
+        return null
     }
 
     private fun buildRegionalCompactionPlanLocked(
@@ -688,103 +671,108 @@ internal class LiveExportHistory(
         preferredParallelism: Int,
     ): RegionalCompactionPlan? {
         val currentConfig = config ?: return null
-        val fullSliceIndices = snapshot.slices.indices.filter { index ->
-            val slice = snapshot.slices[index]
-            slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes
-        }
-        if (fullSliceIndices.size < MIN_COMPACTION_SEGMENTS) {
-            return null
-        }
-
-        val desiredParallelism = preferredParallelism.coerceIn(1, MAX_EXPORT_COMPACTION_PARALLELISM)
-        val totalFullBytes = fullSliceIndices.sumOf { snapshot.slices[it].takeSampleBytes }
-        if (totalFullBytes <= 0L) {
-            return null
-        }
-        val minTargetBytes = currentConfig.durationMillisToSampleBytes(MIN_EXPORT_COMPACTION_DURATION_MS)
-        val targetBytes = maxOf(minTargetBytes, totalFullBytes / desiredParallelism.coerceAtLeast(1))
-
         val groups = ArrayList<RegionalCompactionGroup>()
         var runStart = -1
         for (index in snapshot.slices.indices) {
-            val isFull = index in fullSliceIndices
+            val slice = snapshot.slices[index]
+            val isFull = slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes
             if (isFull) {
                 if (runStart < 0) {
                     runStart = index
                 }
             } else if (runStart >= 0) {
-                groups += buildRegionalGroupsForRunLocked(snapshot, runStart, index, targetBytes)
+                buildRegionalGroupForRunLocked(snapshot, runStart, index)?.let(groups::add)
                 runStart = -1
             }
         }
         if (runStart >= 0) {
-            groups += buildRegionalGroupsForRunLocked(snapshot, runStart, snapshot.slices.size, targetBytes)
+            buildRegionalGroupForRunLocked(snapshot, runStart, snapshot.slices.size)?.let(groups::add)
         }
-
-        return if (groups.isEmpty()) null else RegionalCompactionPlan(snapshot, groups)
+        val desiredParallelism = preferredParallelism.coerceIn(1, MAX_EXPORT_COMPACTION_PARALLELISM)
+        val grouped = rebalanceRegionalGroups(groups, desiredParallelism)
+        return if (grouped.isEmpty()) null else RegionalCompactionPlan(snapshot, grouped)
     }
 
-    private fun buildRegionalGroupsForRunLocked(
+    private fun buildRegionalGroupForRunLocked(
         snapshot: Snapshot,
         runStartInclusive: Int,
         runEndExclusive: Int,
-        targetBytes: Long,
+    ): RegionalCompactionGroup? {
+        val currentConfig = config ?: return null
+        val sliceCount = runEndExclusive - runStartInclusive
+        if (sliceCount < MIN_COMPACTION_SEGMENTS) {
+            return null
+        }
+        val slices = snapshot.slices.subList(runStartInclusive, runEndExclusive).map { it.copy() }
+        val totalSampleBytes = slices.sumOf { it.takeSampleBytes }
+        if (totalSampleBytes <= 0L) {
+            return null
+        }
+        val startedAtMillis = slices.first().segment.startedAtMillis
+        val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+        return RegionalCompactionGroup(
+            startSliceIndex = runStartInclusive,
+            endSliceIndexExclusive = runEndExclusive,
+            sourcePaths = slices.map { it.segment.file.absolutePath },
+            startedAtMillis = startedAtMillis,
+            totalSampleBytes = totalSampleBytes,
+            snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+            outputTarget = RecordingOutputTarget(
+                id = tempFile.absolutePath,
+                displayName = tempFile.name,
+                mimeType = currentConfig.format.outputMimeType,
+                storageType = RecordingStorageType.FILE,
+                directoryId = historyRoot.absolutePath,
+                startedAtMillis = startedAtMillis,
+                file = tempFile,
+            ),
+        )
+    }
+
+    private fun rebalanceRegionalGroups(
+        groups: List<RegionalCompactionGroup>,
+        desiredParallelism: Int,
     ): List<RegionalCompactionGroup> {
-        val runSlices = snapshot.slices.subList(runStartInclusive, runEndExclusive)
-        if (runSlices.size < MIN_COMPACTION_SEGMENTS) {
-            return emptyList()
+        if (groups.size <= desiredParallelism) {
+            return groups
         }
-        val currentConfig = config ?: return emptyList()
-        val groups = ArrayList<RegionalCompactionGroup>()
-        var groupStart = runStartInclusive
-        var groupBytes = 0L
-        var groupCount = 0
+        return groups.sortedByDescending { it.totalSampleBytes }
+    }
 
-        fun finalizeGroup(endExclusive: Int) {
-            val sliceCount = endExclusive - groupStart
-            if (sliceCount < MIN_COMPACTION_SEGMENTS || groupBytes <= 0L) {
-                groupStart = endExclusive
-                groupBytes = 0L
-                groupCount = 0
-                return
-            }
-            val slices = snapshot.slices.subList(groupStart, endExclusive).map { it.copy() }
-            val startedAtMillis = slices.first().segment.startedAtMillis
-            val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
-            groups +=
-                RegionalCompactionGroup(
-                    startSliceIndex = groupStart,
-                    endSliceIndexExclusive = endExclusive,
-                    sourcePaths = slices.map { it.segment.file.absolutePath },
-                    startedAtMillis = startedAtMillis,
-                    totalSampleBytes = groupBytes,
-                    snapshot = Snapshot(currentConfig, slices, groupBytes),
-                    outputTarget = RecordingOutputTarget(
-                        id = tempFile.absolutePath,
-                        displayName = tempFile.name,
-                        mimeType = currentConfig.format.outputMimeType,
-                        storageType = RecordingStorageType.FILE,
-                        directoryId = historyRoot.absolutePath,
-                        startedAtMillis = startedAtMillis,
-                        file = tempFile,
-                    ),
-                )
-            groupStart = endExclusive
-            groupBytes = 0L
-            groupCount = 0
+    private fun resolvedCompactionTargetSampleBytesLocked(
+        currentConfig: Config,
+        includeExportFallback: Boolean,
+    ): Long? {
+        val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
+        if (baseSegmentBytes <= 0L) {
+            return null
         }
+        val rawTargetBytes =
+            compactionTargetSampleBytes ?: if (includeExportFallback) {
+                (retentionBytes / DEFAULT_EXPORT_COMPACTION_DIVISOR).coerceAtLeast(baseSegmentBytes)
+            } else {
+                null
+            }
+        val boundedTargetBytes = minOf(rawTargetBytes ?: return null, retentionBytes.coerceAtLeast(baseSegmentBytes))
+        val alignedTargetBytes = (boundedTargetBytes / baseSegmentBytes) * baseSegmentBytes
+        return alignedTargetBytes.takeIf { it > baseSegmentBytes }
+    }
 
-        for (index in runStartInclusive until runEndExclusive) {
-            groupBytes += snapshot.slices[index].takeSampleBytes
-            groupCount++
-            if (groupBytes >= targetBytes && groupCount >= MIN_COMPACTION_SEGMENTS) {
-                finalizeGroup(index + 1)
-            }
+    private fun baseSegmentSampleBytesLocked(currentConfig: Config): Long {
+        return currentConfig.durationMillisToSampleBytes(segmentDurationMillis).coerceAtLeast(1L)
+    }
+
+    private fun isCompactionCandidateLocked(
+        segment: Segment,
+        targetSampleBytes: Long,
+        baseSegmentBytes: Long,
+    ): Boolean {
+        val key = segment.file.absolutePath
+        if (pinnedFiles.containsKey(key)) {
+            return false
         }
-        if (groupCount >= MIN_COMPACTION_SEGMENTS) {
-            finalizeGroup(runEndExclusive)
-        }
-        return groups
+        val sampleBytes = segment.sampleBytes
+        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes && sampleBytes % baseSegmentBytes == 0L
     }
 
     @Throws(IOException::class)
@@ -1323,10 +1311,8 @@ internal class LiveExportHistory(
         const val DEFAULT_SEGMENT_DURATION_MS = 10_000L
         const val MIN_SEGMENT_DURATION_MS = 2_000L
         const val MAX_SEGMENT_DURATION_MS = 300_000L
-        const val MIN_COMPACTION_DURATION_MS = 30_000L
-        const val MAX_COMPACTION_DURATION_MS = 300_000L
         const val MIN_COMPACTION_SEGMENTS = 2
-        const val MIN_EXPORT_COMPACTION_DURATION_MS = 60_000L
+        const val DEFAULT_EXPORT_COMPACTION_DIVISOR = 100L
         const val MAX_EXPORT_COMPACTION_PARALLELISM = 4
         const val DEFAULT_EXPORT_COMPACTION_PARALLELISM = 4
         const val TEMP_FILE_SUFFIX = ".tmp"

@@ -109,9 +109,10 @@ class SettingsActivity : AppCompatActivity() {
     private var retentionTimeSecondsValue = 0
     private var retentionSizeMbValue = 0.0
     private var historyChunkSecondsValue = 0
-    private var activeAutoMergeMode = AutoMergeMode.OFF
-    private var autoMergeDivisorValue = 0
-    private var autoMergeCustomSecondsValue = 0
+    private var activeAutoMergeMode = AutoMergeMode.RATIO
+    private var autoMergeDivisorValue = defaultAutoMergeDivisor()
+    private var autoMergeCustomSecondsValue = defaultAutoMergeCustomSeconds()
+    private var autoMergeCustomSizeMibValue = defaultAutoMergeCustomSizeMib()
     private var selectedExportTreeUri: Uri? = null
 
     data class SettingsSnapshot(
@@ -127,9 +128,10 @@ class SettingsActivity : AppCompatActivity() {
         var route: InputRouteMode? = null,
         var sampleRate: Int = 0,
         var historyChunkSeconds: Int = 10,
-        var autoMergeMode: AutoMergeMode = AutoMergeMode.OFF,
-        var autoMergeDivisor: Int = 60,
-        var autoMergeCustomSeconds: Int = 60,
+        var autoMergeMode: AutoMergeMode = AutoMergeMode.RATIO,
+        var autoMergeDivisor: Int = defaultAutoMergeDivisor(),
+        var autoMergeCustomSeconds: Int = defaultAutoMergeCustomSeconds(),
+        var autoMergeCustomSizeMib: Double = defaultAutoMergeCustomSizeMib(),
         var exportDirectoryUri: String? = null,
         var persistentBufferEnabled: Boolean = true,
         var aggressiveRestartEnabled: Boolean = true,
@@ -151,6 +153,7 @@ class SettingsActivity : AppCompatActivity() {
             autoMergeMode = other.autoMergeMode
             autoMergeDivisor = other.autoMergeDivisor
             autoMergeCustomSeconds = other.autoMergeCustomSeconds
+            autoMergeCustomSizeMib = other.autoMergeCustomSizeMib
             exportDirectoryUri = other.exportDirectoryUri
             persistentBufferEnabled = other.persistentBufferEnabled
             aggressiveRestartEnabled = other.aggressiveRestartEnabled
@@ -503,8 +506,11 @@ class SettingsActivity : AppCompatActivity() {
                     AutoMergeMode.RATIO -> autoMergeValueInput.text?.toString()?.trim()?.toIntOrNull()?.let {
                         autoMergeDivisorValue = it
                     }
-                    AutoMergeMode.CUSTOM -> parseDurationInput(autoMergeValueInput.text?.toString().orEmpty())?.let {
+                    AutoMergeMode.CUSTOM_TIME -> parseDurationInput(autoMergeValueInput.text?.toString().orEmpty())?.let {
                         autoMergeCustomSecondsValue = it
+                    }
+                    AutoMergeMode.CUSTOM_SIZE -> parseRetentionSizeMib(autoMergeValueInput.text?.toString().orEmpty())?.let {
+                        autoMergeCustomSizeMibValue = it
                     }
                 }
                 saveCurrentToSnapshot(currentSettings)
@@ -582,6 +588,7 @@ class SettingsActivity : AppCompatActivity() {
         val configuredAutoMergeMode = getConfiguredAutoMergeMode(this)
         val configuredAutoMergeDivisor = getConfiguredAutoMergeDivisor(this)
         val configuredAutoMergeCustomSeconds = getConfiguredAutoMergeCustomSeconds(this)
+        val configuredAutoMergeCustomSizeMib = getConfiguredAutoMergeCustomSizeMib(this)
         val configuredExportTreeUri = getConfiguredExportTreeUri(this)
         val configuredPersistentBuffer = isDiskBufferCacheEnabled(this)
         val configuredAggressiveRestart = isAggressiveRestartEnabled(this)
@@ -594,6 +601,7 @@ class SettingsActivity : AppCompatActivity() {
         activeAutoMergeMode = configuredAutoMergeMode
         autoMergeDivisorValue = configuredAutoMergeDivisor
         autoMergeCustomSecondsValue = configuredAutoMergeCustomSeconds
+        autoMergeCustomSizeMibValue = configuredAutoMergeCustomSizeMib
         selectedExportTreeUri = configuredExportTreeUri
 
         availableThemes = AppThemeMode.entries
@@ -738,6 +746,7 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.autoMergeMode = activeAutoMergeMode
         snapshot.autoMergeDivisor = autoMergeDivisorValue
         snapshot.autoMergeCustomSeconds = autoMergeCustomSecondsValue
+        snapshot.autoMergeCustomSizeMib = autoMergeCustomSizeMibValue
         snapshot.exportDirectoryUri = selectedExportTreeUri?.toString()
         snapshot.persistentBufferEnabled = persistentBufferSwitch.isChecked
         snapshot.aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
@@ -761,6 +770,7 @@ class SettingsActivity : AppCompatActivity() {
         activeAutoMergeMode = previous.autoMergeMode
         autoMergeDivisorValue = previous.autoMergeDivisor
         autoMergeCustomSecondsValue = previous.autoMergeCustomSeconds
+        autoMergeCustomSizeMibValue = previous.autoMergeCustomSizeMib
         selectedExportTreeUri = previous.exportDirectoryUri?.let(Uri::parse)
         persistentBufferSwitch.isChecked = previous.persistentBufferEnabled
         aggressiveRestartSwitch.isChecked = previous.aggressiveRestartEnabled
@@ -955,12 +965,19 @@ class SettingsActivity : AppCompatActivity() {
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER
                 autoMergeValueInput.setText(autoMergeDivisorValue.toString())
             }
-            AutoMergeMode.CUSTOM -> {
-                autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_value_label)
-                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_supporting)
+            AutoMergeMode.CUSTOM_TIME -> {
+                autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_time_value_label)
+                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_time_supporting)
                 autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789:")
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 autoMergeValueInput.setText(formatDurationInput(autoMergeCustomSecondsValue))
+            }
+            AutoMergeMode.CUSTOM_SIZE -> {
+                autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_size_value_label)
+                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_size_supporting)
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789.,")
+                autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                autoMergeValueInput.setText(formatRetentionSizeMib(autoMergeCustomSizeMibValue))
             }
         }
         bindingUi = previousBindingUi
@@ -1134,8 +1151,12 @@ class SettingsActivity : AppCompatActivity() {
             else -> autoMergeDivisorValue
         }
         val autoMergeCustomSeconds = when (activeAutoMergeMode) {
-            AutoMergeMode.CUSTOM -> parseDurationInput(autoMergeValueInput.text?.toString().orEmpty())
+            AutoMergeMode.CUSTOM_TIME -> parseDurationInput(autoMergeValueInput.text?.toString().orEmpty())
             else -> autoMergeCustomSecondsValue
+        }
+        val autoMergeCustomSizeMib = when (activeAutoMergeMode) {
+            AutoMergeMode.CUSTOM_SIZE -> parseRetentionSizeMib(autoMergeValueInput.text?.toString().orEmpty())
+            else -> autoMergeCustomSizeMibValue
         }
         val divisorRange = autoMergeDivisorRange()
         if (activeAutoMergeMode == AutoMergeMode.RATIO) {
@@ -1149,16 +1170,31 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         val customRange = autoMergeCustomSecondsRange()
-        if (activeAutoMergeMode == AutoMergeMode.CUSTOM) {
+        if (activeAutoMergeMode == AutoMergeMode.CUSTOM_TIME) {
             if (autoMergeCustomSeconds == null) {
-                autoMergeValueLayout.error = getString(R.string.auto_merge_custom_invalid)
+                autoMergeValueLayout.error = getString(R.string.auto_merge_custom_time_invalid)
                 return false
             }
             if (autoMergeCustomSeconds !in customRange) {
                 autoMergeValueLayout.error = getString(
-                    R.string.auto_merge_custom_range_invalid,
+                    R.string.auto_merge_custom_time_range_invalid,
                     formatDurationInput(customRange.first),
                     formatDurationInput(customRange.last),
+                )
+                return false
+            }
+        }
+        val customSizeRange = autoMergeCustomSizeRangeMib()
+        if (activeAutoMergeMode == AutoMergeMode.CUSTOM_SIZE) {
+            if (autoMergeCustomSizeMib == null) {
+                autoMergeValueLayout.error = getString(R.string.auto_merge_custom_size_invalid)
+                return false
+            }
+            if (autoMergeCustomSizeMib !in customSizeRange) {
+                autoMergeValueLayout.error = getString(
+                    R.string.auto_merge_custom_size_range_invalid,
+                    formatRetentionSizeMib(customSizeRange.start),
+                    formatRetentionSizeMib(customSizeRange.endInclusive),
                 )
                 return false
             }
@@ -1169,6 +1205,7 @@ class SettingsActivity : AppCompatActivity() {
         historyChunkSecondsValue = historyChunkSeconds
         autoMergeDivisorValue = autoMergeDivisor ?: autoMergeDivisorValue
         autoMergeCustomSecondsValue = autoMergeCustomSeconds ?: autoMergeCustomSecondsValue
+        autoMergeCustomSizeMibValue = autoMergeCustomSizeMib ?: autoMergeCustomSizeMibValue
         val sizeBytes = requestedSizeBytes
 
         setConfiguredThemeMode(this, themeMode)
@@ -1187,6 +1224,7 @@ class SettingsActivity : AppCompatActivity() {
             .putString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, activeAutoMergeMode.prefValue)
             .putInt(TimeTravelConfig.AUTO_MERGE_DIVISOR_KEY, autoMergeDivisorValue)
             .putInt(TimeTravelConfig.AUTO_MERGE_CUSTOM_SECONDS_KEY, autoMergeCustomSecondsValue)
+            .putString(TimeTravelConfig.AUTO_MERGE_CUSTOM_SIZE_MIB_KEY, formatRetentionSizeMib(autoMergeCustomSizeMibValue))
             .putBoolean(TimeTravelConfig.BUFFER_DISK_CACHE_ENABLED_KEY, persistentBufferEnabled)
             .putBoolean(TimeTravelConfig.AGGRESSIVE_RESTART_ENABLED_KEY, aggressiveRestartEnabled)
             .putBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, wakeLockEnabled)
