@@ -1,10 +1,20 @@
 package app.smallthingz.timetravel
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.os.Build
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import com.google.android.material.color.MaterialColors
+
+internal fun Activity.applyPhonePortraitOnly() {
+    requestedOrientation =
+        if (resources.configuration.smallestScreenWidthDp >= 600) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+}
 
 internal fun Activity.applyTimeTravelSystemBars() {
     val surfaceColor = MaterialColors.getColor(window.decorView, com.google.android.material.R.attr.colorSurface)

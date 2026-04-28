@@ -804,10 +804,10 @@ class TimeTravelService : Service() {
 
         audioHandler.post {
             val stats = audioMemory.getStats(fillRate)
-            var recordedBytes = 0
+            var recordedBytes = 0L
             val writer = audioFileWriter
             if (writer != null) {
-                recordedBytes += writer.totalSampleBytesWritten
+                recordedBytes += writer.totalSampleBytesWritten.toLong()
                 recordedBytes += stats.estimation
             }
             val finalRecordedBytes = recordedBytes

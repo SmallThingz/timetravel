@@ -61,6 +61,7 @@ class TimeTravelActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        applyPhonePortraitOnly()
         applyConfiguredThemeMode(this)
         DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)

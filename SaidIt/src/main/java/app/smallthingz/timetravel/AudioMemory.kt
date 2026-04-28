@@ -205,16 +205,16 @@ internal class AudioMemory {
 
     @Synchronized
     fun getStats(fillRate: Int): Stats {
-        val total = (filled.size + free.size + if (current == null) 0 else 1) * CHUNK_SIZE
-        val filledBytes = filled.size * CHUNK_SIZE + when {
-            current == null -> 0
-            currentWasFilled -> CHUNK_SIZE
+        val total = (filled.size.toLong() + free.size.toLong() + if (current == null) 0L else 1L) * CHUNK_SIZE.toLong()
+        val filledBytes = filled.size.toLong() * CHUNK_SIZE.toLong() + when {
+            current == null -> 0L
+            currentWasFilled -> CHUNK_SIZE.toLong()
             else -> offset
-        }
+        }.toLong()
         val estimation = if (filling) {
-            ((SystemClock.uptimeMillis() - fillingStartUptimeMillis) * fillRate / 1000).toInt()
+            ((SystemClock.uptimeMillis() - fillingStartUptimeMillis) * fillRate.toLong() / 1000L)
         } else {
-            0
+            0L
         }
         return Stats(
             filled = filledBytes,
@@ -225,9 +225,9 @@ internal class AudioMemory {
     }
 
     data class Stats(
-        val filled: Int,
-        val total: Int,
-        val estimation: Int,
+        val filled: Long,
+        val total: Long,
+        val estimation: Long,
         val overwriting: Boolean,
     )
 

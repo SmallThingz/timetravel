@@ -326,17 +326,19 @@ class TimeTravelFragment : Fragment() {
         val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
         val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, codec, channelMode)
         val bytesPerSecond = (sampleRate * channelMode.channelCount * 2L).coerceAtLeast(1L)
-        val currentBytes = (lastMemorizedSeconds * bytesPerSecond).toLong().coerceAtLeast(0L)
-        val limitBytes = (lastTotalMemorySeconds * bytesPerSecond).toLong().coerceAtLeast(0L)
+        val displayedCurrentSeconds = lastMemorizedSeconds.coerceAtLeast(0f).toInt()
+        val displayedLimitSeconds = lastTotalMemorySeconds.coerceAtLeast(0f).toInt()
+        val currentBytes = displayedCurrentSeconds.toLong() * bytesPerSecond
+        val limitBytes = displayedLimitSeconds.toLong() * bytesPerSecond
         when (getConfiguredRetentionMode(context)) {
             RetentionMode.TIME -> {
-                historySize.text = "${formatShortTimer(lastMemorizedSeconds)} / ${formatShortTimer(lastTotalMemorySeconds)}"
+                historySize.text = "${formatShortTimer(displayedCurrentSeconds.toFloat())} / ${formatShortTimer(displayedLimitSeconds.toFloat())}"
                 formatSummary.text = formatShortFileSize(currentBytes)
             }
 
             RetentionMode.SIZE -> {
                 historySize.text = "${formatShortFileSize(currentBytes)} / ${formatShortFileSize(limitBytes)}"
-                formatSummary.text = formatShortTimer(lastMemorizedSeconds)
+                formatSummary.text = formatShortTimer(displayedCurrentSeconds.toFloat())
             }
         }
     }

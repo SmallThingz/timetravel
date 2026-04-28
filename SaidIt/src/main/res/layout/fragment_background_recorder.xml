@@ -99,22 +99,24 @@
 
             <TextView
                 android:id="@+id/history_size"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="64sp"
+                android:gravity="center"
                 android:textAppearance="?attr/textAppearanceDisplayLarge"
+                android:textSize="19sp"
                 android:textColor="?attr/colorOnSurface"
                 android:typeface="monospace"
                 tools:text="10:24:37" />
 
             <TextView
                 android:id="@+id/format_summary"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:fontFamily="monospace"
                 android:gravity="center"
-                android:textAppearance="?attr/textAppearanceTitleLarge"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textSize="19sp"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 tools:text="Recording the past 60 seconds" />
 
