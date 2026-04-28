@@ -13,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.Fragment
@@ -41,9 +42,14 @@ class DebugChunksFragment : Fragment() {
     private lateinit var mergeButton: View
     private lateinit var operationsList: LinearLayout
     private lateinit var chunksList: LinearLayout
+    private lateinit var selectionActions: View
+    private lateinit var selectionTitle: TextView
+    private lateinit var selectionClearButton: View
+    private lateinit var selectionDeleteButton: View
     private lateinit var brandLockup: View
     private lateinit var settingsButton: ImageButton
 
+    private val selectedChunkPaths = linkedSetOf<String>()
     private val timeFormatter = SimpleDateFormat("dd MMM yyyy HH:mm:ss", Locale.getDefault())
 
     private val connection = object : android.content.ServiceConnection {
@@ -76,6 +82,10 @@ class DebugChunksFragment : Fragment() {
         mergeButton = view.findViewById(R.id.chunks_merge_button)
         operationsList = view.findViewById(R.id.operations_list)
         chunksList = view.findViewById(R.id.chunks_list)
+        selectionActions = view.findViewById(R.id.chunks_selection_actions)
+        selectionTitle = view.findViewById(R.id.chunks_selection_title)
+        selectionClearButton = view.findViewById(R.id.chunks_selection_clear_button)
+        selectionDeleteButton = view.findViewById(R.id.chunks_selection_delete_button)
         brandLockup = view.findViewById(R.id.brand_lockup)
         settingsButton = view.findViewById(R.id.settings_button)
 
@@ -96,11 +106,15 @@ class DebugChunksFragment : Fragment() {
                 },
             )
         }
+        selectionClearButton.setOnClickListener { clearSelection() }
+        selectionDeleteButton.setOnClickListener { deleteSelectedChunks() }
 
         val start = content.paddingStart
         val top = content.paddingTop
         val end = content.paddingEnd
         val bottom = content.paddingBottom
+        val selectionStart = selectionActions.paddingStart
+        val selectionEnd = selectionActions.paddingEnd
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             content.updatePadding(
@@ -108,6 +122,10 @@ class DebugChunksFragment : Fragment() {
                 top = top,
                 right = end + bars.right,
                 bottom = bottom + bars.bottom,
+            )
+            selectionActions.updatePadding(
+                left = selectionStart + bars.left,
+                right = selectionEnd + bars.right,
             )
             insets
         }
@@ -161,6 +179,7 @@ class DebugChunksFragment : Fragment() {
         }
         val operations = history?.operations.orEmpty()
         val chunks = history?.chunks.orEmpty()
+        selectedChunkPaths.retainAll(chunks.mapTo(HashSet()) { it.filePath })
         val activeChunks = chunks.count { it.active }
         val totalFileBytes = chunks.sumOf { it.fileSizeBytes }
         val totalSampleBytes = chunks.sumOf { it.sampleBytes }
@@ -199,8 +218,10 @@ class DebugChunksFragment : Fragment() {
                 row.findViewById<TextView>(R.id.operation_sources).text =
                     summarizeOperationSources(operation.sourcePaths)
                 operationsList.addView(row)
+                }
             }
-        }
+
+        updateSelectionChrome()
 
         chunksList.removeAllViews()
         if (chunks.isEmpty()) {
@@ -209,6 +230,7 @@ class DebugChunksFragment : Fragment() {
         }
         chunks.forEach { chunk ->
             val row = layoutInflater.inflate(R.layout.item_debug_chunk, chunksList, false)
+            row.isActivated = chunk.filePath in selectedChunkPaths
             row.findViewById<TextView>(R.id.chunk_name).text = chunk.fileName
             row.findViewById<TextView>(R.id.chunk_timing).text =
                 "${timeFormatter.format(Date(chunk.startedAtMillis))} → ${timeFormatter.format(Date(chunk.endedAtMillis))}"
@@ -233,8 +255,8 @@ class DebugChunksFragment : Fragment() {
                         )
                     }
             }
-            exportButton.isEnabled = !chunk.active
-            exportButton.alpha = if (!chunk.active) 1f else 0.45f
+            exportButton.isEnabled = !chunk.active && selectedChunkPaths.isEmpty()
+            exportButton.alpha = if (exportButton.isEnabled) 1f else 0.45f
             exportButton.setOnClickListener {
                 service?.debugExportChunk(
                     chunk.filePath,
@@ -261,6 +283,15 @@ class DebugChunksFragment : Fragment() {
                     },
                 )
             }
+            row.setOnClickListener {
+                if (selectedChunkPaths.isNotEmpty()) {
+                    toggleSelection(chunk.filePath)
+                }
+            }
+            row.setOnLongClickListener {
+                toggleSelection(chunk.filePath)
+                true
+            }
             chunksList.addView(row)
         }
     }
@@ -275,6 +306,56 @@ class DebugChunksFragment : Fragment() {
             val vertical = context.resources.displayMetrics.density.times(12).toInt()
             setPadding(horizontal, vertical, horizontal, vertical)
         }
+    }
+
+    private fun toggleSelection(filePath: String) {
+        if (!selectedChunkPaths.add(filePath)) {
+            selectedChunkPaths.remove(filePath)
+        }
+        updateSelectionChrome()
+        requestSnapshot()
+    }
+
+    private fun clearSelection() {
+        if (selectedChunkPaths.isEmpty()) {
+            return
+        }
+        selectedChunkPaths.clear()
+        updateSelectionChrome()
+        requestSnapshot()
+    }
+
+    private fun deleteSelectedChunks() {
+        val selectedPaths = selectedChunkPaths.toList()
+        if (selectedPaths.isEmpty()) {
+            return
+        }
+        service?.debugDeleteChunks(
+            selectedPaths,
+            callback = object : TimeTravelService.ChunkActionCallback {
+                override fun completed(success: Boolean, message: String) {
+                    if (!isAdded) return
+                    if (success) {
+                        selectedChunkPaths.clear()
+                    }
+                    showDebugMessage(message)
+                    requestSnapshot()
+                }
+            },
+        )
+    }
+
+    private fun updateSelectionChrome() {
+        if (!this::selectionActions.isInitialized || !this::brandLockup.isInitialized || !this::settingsButton.isInitialized) {
+            return
+        }
+        val count = selectedChunkPaths.size
+        val selectionActive = count > 0
+        brandLockup.isVisible = !selectionActive
+        settingsButton.isVisible = !selectionActive
+        selectionActions.isVisible = selectionActive
+        selectionTitle.isVisible = selectionActive
+        selectionTitle.text = resources.getQuantityString(R.plurals.chunks_selected, count, count)
     }
 
     private fun summarizeOperationSources(sourcePaths: List<String>): String {

@@ -1968,6 +1968,52 @@ internal class LiveExportHistory(
         return -1
     }
 
+    private fun buildHistoryReencodeRangesLocked(
+        expectedConfig: Config,
+    ): List<ReencodeSourceRange> {
+        if (segments.isEmpty()) {
+            return emptyList()
+        }
+        val ranges = ArrayList<ReencodeSourceRange>()
+        var currentRangeSegments: MutableList<ReencodeSourceSegment>? = null
+        var currentRangeTotalSampleBytes = 0L
+
+        fun flushCurrentRange() {
+            val rangeSegments = currentRangeSegments ?: return
+            if (rangeSegments.isNotEmpty() && currentRangeTotalSampleBytes > 0L) {
+                ranges += ReencodeSourceRange(
+                    sourceSegments = rangeSegments.toList(),
+                    sourcePaths = rangeSegments.map { it.file.absolutePath },
+                    totalSampleBytes = currentRangeTotalSampleBytes,
+                )
+            }
+            currentRangeSegments = null
+            currentRangeTotalSampleBytes = 0L
+        }
+
+        segments.forEach { segment ->
+            val matchesExpectedConfig = inspectPersistedSegment(segment.file, expectedConfig) != null
+            if (matchesExpectedConfig) {
+                flushCurrentRange()
+                return@forEach
+            }
+            if (currentRangeSegments == null) {
+                currentRangeSegments = ArrayList()
+            }
+            currentRangeSegments?.add(
+                ReencodeSourceSegment(
+                    file = segment.file,
+                    startedAtMillis = segment.startedAtMillis,
+                    sampleBytes = segment.sampleBytes,
+                ),
+            )
+            currentRangeTotalSampleBytes += segment.sampleBytes
+        }
+
+        flushCurrentRange()
+        return ranges
+    }
+
     private fun releasePinnedSourcePathsLocked(
         sourcePaths: List<String>,
     ) {
@@ -2270,6 +2316,12 @@ internal class LiveExportHistory(
     )
 
     data class HistoryReencodeSourceSnapshot(
+        val sourceRanges: List<ReencodeSourceRange>,
+        val sourcePaths: List<String>,
+        val totalSampleBytes: Long,
+    )
+
+    data class ReencodeSourceRange(
         val sourceSegments: List<ReencodeSourceSegment>,
         val sourcePaths: List<String>,
         val totalSampleBytes: Long,
@@ -2279,6 +2331,17 @@ internal class LiveExportHistory(
         val file: File,
         val startedAtMillis: Long,
         val sampleBytes: Long,
+    )
+
+    data class HistoryReencodeReplacementRange(
+        val sourcePaths: List<String>,
+        val importedSegments: List<ImportedSegment>,
+    )
+
+    private data class IndexedHistoryReencodeReplacementRange(
+        val startIndex: Int,
+        val endIndexExclusive: Int,
+        val replacement: HistoryReencodeReplacementRange,
     )
 
     private data class CompactionTask(

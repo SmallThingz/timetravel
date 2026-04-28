@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -8,6 +9,45 @@
     tools:context="app.smallthingz.timetravel.DebugChunksFragment">
 
     <include layout="@layout/include_app_top_bar" />
+
+    <LinearLayout
+        android:id="@+id/chunks_selection_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/chunks_selection_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textColor="?attr/colorOnSurface"
+            tools:text="2 selected" />
+
+        <ImageButton
+            android:id="@+id/chunks_selection_clear_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/clear_selection"
+            android:src="@drawable/ic_close"
+            app:tint="?attr/colorOnSurfaceVariant" />
+
+        <ImageButton
+            android:id="@+id/chunks_selection_delete_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/delete_recording"
+            android:src="@drawable/ic_delete"
+            app:tint="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
 
     <ScrollView
         android:id="@+id/chunks_scroll"

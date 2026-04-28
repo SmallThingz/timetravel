@@ -23,6 +23,8 @@
                 <action android:name="app.smallthingz.timetravel.debug.EXPORT_SECONDS" />
                 <action android:name="app.smallthingz.timetravel.debug.MERGE_ALL" />
                 <action android:name="app.smallthingz.timetravel.debug.REENCODE_ALL" />
+                <action android:name="app.smallthingz.timetravel.debug.SET_OUTPUT_CONFIG" />
+                <action android:name="app.smallthingz.timetravel.debug.APPLY_SETTINGS" />
                 <action android:name="app.smallthingz.timetravel.debug.CHECKPOINT" />
                 <action android:name="app.smallthingz.timetravel.debug.LOG_STATE" />
                 <action android:name="app.smallthingz.timetravel.debug.DUMP_REPORT" />

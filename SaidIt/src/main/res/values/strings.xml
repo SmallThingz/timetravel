@@ -177,6 +177,7 @@
     <string name="chunks_merge_failed" translatable="false">Couldn\'t merge chunk.</string>
     <string name="chunks_export_done" translatable="false">Chunk exported.</string>
     <string name="chunks_export_failed" translatable="false">Couldn\'t export chunk.</string>
+    <string name="chunks_delete_failed" translatable="false">Couldn\'t delete chunk.</string>
     <string name="open_github">Open GitHub</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
