@@ -6,10 +6,10 @@
     android:viewportHeight="100">
     <path
         android:fillColor="@android:color/white"
-        android:pathData="M46.5,11L65,22L46.5,33zM30,47h5v6h-5zM38,39h5v22h-5zM46,31h5v38h-5zM54,39h5v22h-5zM62,47h5v6h-5z" />
+        android:pathData="M47,14L61,22L47,30zM32,46h5v8h-5zM40,38h5v24h-5zM48,30h5v40h-5zM56,38h5v24h-5zM64,46h5v8h-5z" />
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M50,22A28,28 0 1,0 70.3,29.7"
+        android:pathData="M50,22A28,28 0 1,0 71,30.7"
         android:strokeColor="@android:color/white"
         android:strokeLineCap="round"
         android:strokeWidth="7" />

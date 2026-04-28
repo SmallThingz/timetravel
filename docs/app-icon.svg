@@ -6,11 +6,11 @@
     </linearGradient>
   </defs>
   <rect x="6" y="6" width="88" height="88" rx="22" fill="url(#bg)"/>
-  <path d="M46.5 11L65 22L46.5 33Z" fill="#FFFFFF"/>
-  <path d="M50 22A28 28 0 1 0 70.3 29.7" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
-  <rect x="30" y="47" width="5" height="6" rx="2.5" fill="#FFFFFF"/>
-  <rect x="38" y="39" width="5" height="22" rx="2.5" fill="#FFFFFF"/>
-  <rect x="46" y="31" width="5" height="38" rx="2.5" fill="#FFFFFF"/>
-  <rect x="54" y="39" width="5" height="22" rx="2.5" fill="#FFFFFF"/>
-  <rect x="62" y="47" width="5" height="6" rx="2.5" fill="#FFFFFF"/>
+  <path d="M47 14L61 22L47 30Z" fill="#FFFFFF"/>
+  <path d="M50 22A28 28 0 1 0 71 30.7" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+  <rect x="32" y="46" width="5" height="8" rx="2.5" fill="#FFFFFF"/>
+  <rect x="40" y="38" width="5" height="24" rx="2.5" fill="#FFFFFF"/>
+  <rect x="48" y="30" width="5" height="40" rx="2.5" fill="#FFFFFF"/>
+  <rect x="56" y="38" width="5" height="24" rx="2.5" fill="#FFFFFF"/>
+  <rect x="64" y="46" width="5" height="8" rx="2.5" fill="#FFFFFF"/>
 </svg>
