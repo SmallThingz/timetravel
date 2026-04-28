@@ -16,10 +16,15 @@
     <string name="custom_time">カスタムでエクスポート</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">MM:SS または HH:MM:SS を使用してください。</string>
+    <string name="custom_export_mode_range">範囲</string>
+    <string name="custom_export_mode_past">過去</string>
+    <string name="custom_export_unit_time">時間</string>
+    <string name="custom_export_unit_size">サイズ</string>
     <string name="custom_export_start_label">開始</string>
     <string name="custom_export_end_label">終了</string>
     <string name="custom_export_range_invalid">終了は開始より後である必要があります。</string>
     <string name="custom_export_past_label">どこまで遡るか</string>
+    <string name="custom_export_size_invalid">12.0 のような MiB 値を入力してください。</string>
     <string name="export_limit_summary">最大エクスポート: %1$s</string>
     <string name="export_limit_dialog_title">エクスポート制限</string>
     <string name="export_limit_dialog_message">現在の長さが大きすぎます。最後の %1$s のみを書き出します。</string>
@@ -140,6 +145,7 @@
     <string name="recording_deleted">録音を削除しました。</string>
     <string name="recording_delete_failed">録音を削除できませんでした。</string>
     <string name="recording_info">情報</string>
+    <string name="open_github">GitHub を開く</string>
     <string name="about_version">バージョン %1$s</string>
     <string name="recording_details_name">名前:</string>
     <string name="recording_details_started">開始:</string>

@@ -18,7 +18,17 @@ internal object AboutInfoDialog {
     fun show(context: Context) {
         val content = LayoutInflater.from(context).inflate(R.layout.dialog_about_info, null, false)
         content.findViewById<ImageView>(R.id.about_icon).setImageResource(R.drawable.ic_app_icon_preview)
-        content.findViewById<TextView>(R.id.about_version).text = context.getString(R.string.about_version, appVersionName(context))
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                android.content.pm.PackageManager.PackageInfoFlags.of(0),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }
+        content.findViewById<TextView>(R.id.about_version).text =
+            context.getString(R.string.about_version, packageInfo.versionName.orEmpty())
         content.findViewById<TextView>(R.id.about_github_value).apply {
             text = GITHUB_REPO_URL.removePrefix("https://")
             ellipsize = TextUtils.TruncateAt.END
@@ -46,16 +56,4 @@ internal object AboutInfoDialog {
         }
     }
 
-    private fun appVersionName(context: Context): String {
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(
-                context.packageName,
-                android.content.pm.PackageManager.PackageInfoFlags.of(0),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, 0)
-        }
-        return packageInfo.versionName.orEmpty()
-    }
 }

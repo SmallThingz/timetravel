@@ -21,7 +21,6 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="@string/rename_recording"
             app:errorEnabled="true">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -41,7 +40,6 @@
             android:layout_height="40dp"
             android:layout_gravity="center_vertical"
             android:layout_marginStart="12dp"
-            android:layout_marginTop="8dp"
             android:background="@drawable/bg_circle_outlined"
             android:contentDescription="@string/done"
             android:minWidth="0dp"

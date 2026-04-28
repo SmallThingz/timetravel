@@ -198,7 +198,7 @@ internal class AudioMemory {
         }
 
         val currentBuffer = requireNotNull(current)
-        val read = filler.consume(currentBuffer, offset, currentBuffer.size - offset)
+        val read = filler.consume(currentBuffer, offset, currentBuffer.size - offset).coerceAtLeast(0)
 
         synchronized(this) {
             if (offset + read >= currentBuffer.size) {

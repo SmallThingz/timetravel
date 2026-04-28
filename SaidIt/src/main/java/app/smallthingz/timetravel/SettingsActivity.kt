@@ -246,7 +246,7 @@ class SettingsActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (hasUnsavedChanges) {
-                    saveSettingsSilently()
+                    persistSettings(showFeedback = false)
                 }
                 finish()
                 applyNoAnimationCloseTransition()
@@ -674,13 +674,9 @@ class SettingsActivity : AppCompatActivity() {
         refreshCapabilityUiAsync(resetOriginalSnapshot = true)
     }
 
-    private fun snapshotCurrentUi(): SettingsSnapshot {
-        return SettingsSnapshot().also(::saveCurrentToSnapshot)
-    }
-
     private fun refreshCapabilityUiAsync(resetOriginalSnapshot: Boolean) {
         val generation = ++capabilityRefreshGeneration
-        val preferred = snapshotCurrentUi()
+        val preferred = SettingsSnapshot().also(::saveCurrentToSnapshot)
         lifecycleScope.launch(Dispatchers.Default) {
             warmRecorderCapabilityCache(applicationContext)
             withContext(Dispatchers.Main) {
@@ -1448,11 +1444,6 @@ class SettingsActivity : AppCompatActivity() {
     private companion object {
         const val BYTES_IN_MEGABYTE = 1024L * 1024L
     }
-
-    private fun saveSettingsSilently() {
-        persistSettings(showFeedback = false)
-    }
-
     private fun updateUndoButton(enabled: Boolean) {
         undoButton.isEnabled = enabled
         undoButton.alpha = if (enabled) 1f else 0.38f

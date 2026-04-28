@@ -16,10 +16,15 @@
     <string name="custom_time">Exportar personalizado</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">Usa MM:SS o HH:MM:SS.</string>
+    <string name="custom_export_mode_range">Rango</string>
+    <string name="custom_export_mode_past">Atrás</string>
+    <string name="custom_export_unit_time">Tiempo</string>
+    <string name="custom_export_unit_size">Tamaño</string>
     <string name="custom_export_start_label">Inicio</string>
     <string name="custom_export_end_label">Fin</string>
     <string name="custom_export_range_invalid">El final debe ser posterior al inicio.</string>
     <string name="custom_export_past_label">Cuánto atrás</string>
+    <string name="custom_export_size_invalid">Usa un valor en MiB como 12.0.</string>
     <string name="export_limit_summary">Máx. exportación: %1$s</string>
     <string name="export_limit_dialog_title">Límite de exportación</string>
     <string name="export_limit_dialog_message">La longitud actual es demasiado grande. Solo se exportarán los últimos %1$s.</string>
@@ -140,6 +145,7 @@
     <string name="recording_deleted">Grabación eliminada.</string>
     <string name="recording_delete_failed">No se pudo eliminar la grabación.</string>
     <string name="recording_info">Información</string>
+    <string name="open_github">Abrir GitHub</string>
     <string name="about_version">Versión %1$s</string>
     <string name="recording_details_name">Nombre:</string>
     <string name="recording_details_started">Inicio:</string>

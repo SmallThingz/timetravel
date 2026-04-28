@@ -16,10 +16,15 @@
     <string name="custom_time">Benutzerdefiniert exportieren</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">MM:SS oder HH:MM:SS verwenden.</string>
+    <string name="custom_export_mode_range">Bereich</string>
+    <string name="custom_export_mode_past">Zurück</string>
+    <string name="custom_export_unit_time">Zeit</string>
+    <string name="custom_export_unit_size">Größe</string>
     <string name="custom_export_start_label">Start</string>
     <string name="custom_export_end_label">Ende</string>
     <string name="custom_export_range_invalid">Ende muss nach dem Start liegen.</string>
     <string name="custom_export_past_label">Wie weit zurück</string>
+    <string name="custom_export_size_invalid">MiB-Wert wie 12.0 eingeben.</string>
     <string name="export_limit_summary">Max. Export: %1$s</string>
     <string name="export_limit_dialog_title">Exportlimit</string>
     <string name="export_limit_dialog_message">Aktuelle Länge ist zu groß. Es werden nur die letzten %1$s exportiert.</string>
@@ -140,6 +145,7 @@
     <string name="recording_deleted">Aufnahme gelöscht.</string>
     <string name="recording_delete_failed">Aufnahme konnte nicht gelöscht werden.</string>
     <string name="recording_info">Info</string>
+    <string name="open_github">GitHub öffnen</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
     <string name="recording_details_started">Beginn:</string>

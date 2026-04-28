@@ -35,7 +35,7 @@ internal class RecordingPlayerDialog(
         iconResId = R.drawable.ic_info,
         contentDescription = context.getString(R.string.recording_info),
     ).apply {
-        (layoutParams as LinearLayout.LayoutParams).marginEnd = dp(context, 8)
+        (layoutParams as LinearLayout.LayoutParams).marginEnd = (context.resources.displayMetrics.density * 8).toInt()
     }
     private val handle = ThemedDialog.create(
         context = context,
@@ -221,14 +221,8 @@ internal class RecordingPlayerDialog(
         mediaPlayer?.release()
         mediaPlayer = null
     }
-
     private companion object {
         const val PROGRESS_UPDATE_INTERVAL_MS = 250L
         const val SEEK_JUMP_MS = 10_000
-
-        private fun dp(
-            context: Context,
-            value: Int,
-        ): Int = (context.resources.displayMetrics.density * value).toInt()
     }
 }
