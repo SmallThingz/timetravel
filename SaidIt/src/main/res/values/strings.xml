@@ -16,21 +16,27 @@
     <string name="buffer_inactive_summary">OFF</string>
     <string name="buffer_status_paused">Buffer paused</string>
     <string name="clear_buffer">Clear</string>
+    <string name="clear_buffer_confirm_message">Delete current buffer?</string>
 
     <string name="record_all_memory">Export full</string>
     <string name="custom_time">Export custom</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
+    <string name="custom_export_tab_range">Range</string>
+    <string name="custom_export_tab_past">Past</string>
     <string name="custom_export_range_supporting">Use positions inside current buffer. Start is oldest edge. End is newest edge.</string>
     <string name="custom_export_start_label">Start</string>
     <string name="custom_export_end_label">End</string>
     <string name="custom_export_range_invalid">End must be after start.</string>
+    <string name="custom_export_past_supporting">Save the last amount from the current buffer.</string>
+    <string name="custom_export_past_label">How far back</string>
     <string name="export_limit_summary">Max export: %1$s</string>
     <string name="export_limit_dialog_title">Export limit</string>
     <string name="export_limit_dialog_message">Current length is too large. Only exporting last %1$s.</string>
     <string name="saving">Saving…</string>
     <string name="saved_snackbar">Saved</string>
     <string name="save_failed">Couldn\'t save recording.</string>
+    <string name="nothing_to_export">Nothing to export.</string>
     <string name="settings_open">Settings</string>
     <string name="settings_apply">Apply</string>
     <string name="open">Open</string>
@@ -115,8 +121,8 @@
     <string name="audio_source_unprocessed">Unprocessed</string>
     <string name="audio_source_voice_performance">Voice perf</string>
     <string name="input_route_label">Route</string>
-    <string name="input_route_auto">System chosen input</string>
-    <string name="input_route_builtin_mic">Prefer phone mic</string>
+    <string name="input_route_auto">System</string>
+    <string name="input_route_builtin_mic">Prefer mic</string>
     <string name="choose_folder">Choose</string>
     <string name="default_folder">Default</string>
     <string name="move_recordings">Move existing</string>
@@ -150,6 +156,8 @@
     <string name="recording_deleted">Recording deleted.</string>
     <string name="recording_delete_failed">Couldn\'t delete recording.</string>
     <string name="recording_info">Info</string>
+    <string name="about_open_github">Open GitHub</string>
+    <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
     <string name="recording_details_started">Started:</string>
     <string name="recording_details_duration">Duration:</string>

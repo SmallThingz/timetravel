@@ -41,6 +41,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.RelativeCornerSize
@@ -52,13 +53,14 @@ import kotlin.math.roundToInt
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
+    private lateinit var brandLockup: View
     private lateinit var recordMaxButton: MaterialButton
     private lateinit var recordCustomButton: MaterialButton
     private lateinit var contentScroll: View
     private lateinit var historySize: TextView
     private lateinit var recTime: TextView
     private lateinit var formatSummary: TextView
-    private lateinit var clearBufferButton: MaterialButton
+    private lateinit var clearBufferButton: View
     private lateinit var recTouchArea: View
     private lateinit var recButtonCircle: View
     private lateinit var listenSurface: View
@@ -207,6 +209,7 @@ class TimeTravelFragment : Fragment() {
         applyWindowInsets(view)
 
         contentScroll = view.findViewById(R.id.content_scroll)
+        brandLockup = view.findViewById(R.id.brand_lockup)
         historySize = view.findViewById(R.id.history_size)
         formatSummary = view.findViewById(R.id.format_summary)
         clearBufferButton = view.findViewById(R.id.clear_buffer_button)
@@ -225,11 +228,16 @@ class TimeTravelFragment : Fragment() {
         configureListenSurface()
 
         settingsButton = view.findViewById(R.id.settings_button)
+        installPressAnimation(brandLockup, 0.96f)
         installPressAnimation(settingsButton, 0.92f)
+        installPressAnimation(clearBufferButton, 0.92f)
         installPressAnimation(listenSurface, 0.965f)
         installPressAnimation(recordMaxButton, 0.98f)
         installPressAnimation(recordCustomButton, 0.98f)
 
+        brandLockup.setOnClickListener {
+            AboutInfoDialog.show(requireContext())
+        }
         settingsButton.setOnClickListener {
             startActivity(
                 Intent(activity, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
@@ -238,7 +246,7 @@ class TimeTravelFragment : Fragment() {
         }
         clearBufferButton.setOnClickListener {
             if (!isSaving && !isRecording) {
-                recorder?.clearBuffer()
+                showClearBufferDialog()
             }
         }
         listenSurface.setOnClickListener(ListenButtonClickListener())
@@ -462,11 +470,32 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun clearPressAnimations() {
-        listOf(settingsButton, listenSurface, recordMaxButton, recordCustomButton).forEach { target ->
+        listOf(brandLockup, settingsButton, clearBufferButton, listenSurface, recordMaxButton, recordCustomButton).forEach { target ->
             target.animate().cancel()
             target.scaleX = 1f
             target.scaleY = 1f
         }
+    }
+
+    private fun showClearBufferDialog() {
+        val content = TextView(requireContext()).apply {
+            setPadding(dp(24), dp(12), dp(24), 0)
+            text = getString(R.string.clear_buffer_confirm_message)
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+        }
+        val handle = ThemedDialog.create(
+            context = requireContext(),
+            title = getString(R.string.clear_buffer),
+            content = content,
+            positiveText = getString(R.string.delete_recording),
+        )
+        handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
+        handle.positiveButton.setOnClickListener {
+            handle.dialog.dismiss()
+            recorder?.clearBuffer()
+        }
+        handle.dialog.show()
     }
 
     private fun updateListenSurfaceAppearance() {
@@ -597,7 +626,7 @@ class TimeTravelFragment : Fragment() {
 
             val currentSeconds = lastMemorizedSeconds.coerceAtLeast(0f)
             if (currentSeconds <= 0f) {
-                Toast.makeText(requireContext(), R.string.custom_export_duration_invalid, Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
                 return
             }
             startExport(clampExportRange(0f, currentSeconds))
@@ -605,14 +634,48 @@ class TimeTravelFragment : Fragment() {
 
         private fun promptForCustomRange() {
             val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null, false)
+            val prefs = getRecorderPreferences(requireContext())
+            val modeGroup = content.findViewById<MaterialButtonToggleGroup>(R.id.custom_export_mode_group)
+            val rangePanel = content.findViewById<View>(R.id.custom_range_panel)
+            val pastPanel = content.findViewById<View>(R.id.custom_past_panel)
+            val rangeButton = content.findViewById<MaterialButton>(R.id.custom_export_range_button)
+            val pastButton = content.findViewById<MaterialButton>(R.id.custom_export_past_button)
             val startLayout = content.findViewById<TextInputLayout>(R.id.custom_start_layout)
             val endLayout = content.findViewById<TextInputLayout>(R.id.custom_end_layout)
             val startField = content.findViewById<TextInputEditText>(R.id.custom_start_value)
             val endField = content.findViewById<TextInputEditText>(R.id.custom_end_value)
+            val pastLayout = content.findViewById<TextInputLayout>(R.id.custom_past_layout)
+            val pastField = content.findViewById<TextInputEditText>(R.id.custom_past_value)
             startField.setSelectAllOnFocus(true)
             endField.setSelectAllOnFocus(true)
+            pastField.setSelectAllOnFocus(true)
             startField.setText("0:00")
             endField.setText(formatDurationInput(lastMemorizedSeconds.coerceAtLeast(0f).roundToInt()))
+            val lastPastSeconds = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, 5 * 60).coerceAtLeast(1)
+            pastField.setText(formatDurationInput(lastPastSeconds))
+
+            fun setMode(tabKey: String) {
+                val rangeMode = tabKey == TimeTravelConfig.CUSTOM_EXPORT_TAB_RANGE
+                rangePanel.visibility = if (rangeMode) View.VISIBLE else View.GONE
+                pastPanel.visibility = if (rangeMode) View.GONE else View.VISIBLE
+            }
+
+            val initialTabKey = prefs.getString(
+                TimeTravelConfig.CUSTOM_EXPORT_TAB_KEY,
+                TimeTravelConfig.CUSTOM_EXPORT_TAB_PAST,
+            ) ?: TimeTravelConfig.CUSTOM_EXPORT_TAB_PAST
+            setMode(initialTabKey)
+            modeGroup.check(
+                if (initialTabKey == TimeTravelConfig.CUSTOM_EXPORT_TAB_RANGE) rangeButton.id else pastButton.id,
+            )
+            modeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+                if (!isChecked) return@addOnButtonCheckedListener
+                val tabKey =
+                    if (checkedId == rangeButton.id) TimeTravelConfig.CUSTOM_EXPORT_TAB_RANGE
+                    else TimeTravelConfig.CUSTOM_EXPORT_TAB_PAST
+                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_TAB_KEY, tabKey).apply()
+                setMode(tabKey)
+            }
 
             val handle = ThemedDialog.create(
                 context = requireContext(),
@@ -623,32 +686,47 @@ class TimeTravelFragment : Fragment() {
 
             fun submit(): Boolean {
                 val currentSeconds = lastMemorizedSeconds.coerceAtLeast(0f)
+                if (currentSeconds <= 0f) {
+                    Toast.makeText(requireContext(), R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
+                    return false
+                }
                 val startSeconds = parseDurationInput(startField.text?.toString().orEmpty())?.toFloat()
                 val endSeconds = parseDurationInput(endField.text?.toString().orEmpty())?.toFloat()
+                val pastSeconds = parseDurationInput(pastField.text?.toString().orEmpty())?.toFloat()
                 startLayout.error = null
                 endLayout.error = null
-                if (startSeconds == null || startSeconds < 0f) {
-                    startLayout.error = getString(R.string.custom_export_duration_invalid)
+                pastLayout.error = null
+                if (modeGroup.checkedButtonId == rangeButton.id) {
+                    if (startSeconds == null || startSeconds < 0f) {
+                        startLayout.error = getString(R.string.custom_export_duration_invalid)
+                        return false
+                    }
+                    if (endSeconds == null || endSeconds <= 0f) {
+                        endLayout.error = getString(R.string.custom_export_duration_invalid)
+                        return false
+                    }
+                    if (endSeconds <= startSeconds) {
+                        endLayout.error = getString(R.string.custom_export_range_invalid)
+                        return false
+                    }
+                    if (startSeconds > currentSeconds || endSeconds > currentSeconds) {
+                        endLayout.error = getString(R.string.custom_export_range_invalid)
+                        return false
+                    }
+                    handle.dialog.dismiss()
+                    return startExport(clampExportRange(startSeconds, endSeconds))
+                }
+                if (pastSeconds == null || pastSeconds <= 0f) {
+                    pastLayout.error = getString(R.string.custom_export_duration_invalid)
                     return false
                 }
-                if (endSeconds == null || endSeconds <= 0f) {
-                    endLayout.error = getString(R.string.custom_export_duration_invalid)
-                    return false
-                }
-                if (endSeconds <= startSeconds) {
-                    endLayout.error = getString(R.string.custom_export_range_invalid)
-                    return false
-                }
-                if (startSeconds > currentSeconds || endSeconds > currentSeconds) {
-                    endLayout.error = getString(R.string.custom_export_range_invalid)
-                    return false
-                }
+                prefs.edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, pastSeconds.roundToInt()).apply()
                 handle.dialog.dismiss()
-                return startExport(clampExportRange(startSeconds, endSeconds))
+                return startExport(clampExportRange((currentSeconds - pastSeconds).coerceAtLeast(0f), currentSeconds))
             }
             handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
             handle.positiveButton.setOnClickListener { submit() }
-            endField.setOnEditorActionListener { _, actionId, event ->
+            val submitListener = TextView.OnEditorActionListener { _, actionId, event ->
                 if (
                     actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
                     event?.keyCode == KeyEvent.KEYCODE_ENTER
@@ -658,14 +736,17 @@ class TimeTravelFragment : Fragment() {
                     false
                 }
             }
+            endField.setOnEditorActionListener(submitListener)
+            pastField.setOnEditorActionListener(submitListener)
 
             handle.dialog.show()
-            startField.post {
-                startField.requestFocus()
-                startField.selectAll()
+            val initialField = if (modeGroup.checkedButtonId == rangeButton.id) startField else pastField
+            initialField.post {
+                initialField.requestFocus()
+                initialField.selectAll()
                 val imm =
                     context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-                imm?.showSoftInput(startField, 0)
+                imm?.showSoftInput(initialField, 0)
             }
         }
 

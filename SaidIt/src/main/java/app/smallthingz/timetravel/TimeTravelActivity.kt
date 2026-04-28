@@ -21,7 +21,6 @@ class TimeTravelActivity : AppCompatActivity() {
     private var permissionDeniedDialog: AlertDialog? = null
     private lateinit var container: android.view.View
     private lateinit var bottomNavigation: BottomNavigationView
-    private lateinit var bottomDivider: android.view.View
     private var selectedTabId = R.id.navigation_capture
 
     private val permissionLauncher =
@@ -48,7 +47,6 @@ class TimeTravelActivity : AppCompatActivity() {
                     }
                 }
                 container.isVisible = true
-                bottomDivider.isVisible = true
                 bottomNavigation.isVisible = true
                 if (bottomNavigation.selectedItemId != selectedTabId) {
                     bottomNavigation.selectedItemId = selectedTabId
@@ -69,7 +67,6 @@ class TimeTravelActivity : AppCompatActivity() {
         applyTimeTravelSystemBars()
         selectedTabId = savedInstanceState?.getInt(KEY_SELECTED_TAB, R.id.navigation_capture) ?: R.id.navigation_capture
         container = findViewById(R.id.container)
-        bottomDivider = findViewById(R.id.bottom_navigation_divider)
         bottomNavigation = findViewById(R.id.bottom_navigation)
         bottomNavigation.setOnItemSelectedListener { item ->
             selectTab(item.itemId)

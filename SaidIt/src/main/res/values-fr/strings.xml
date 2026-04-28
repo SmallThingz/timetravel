@@ -12,21 +12,27 @@
     <string name="buffer_inactive_summary">OFF</string>
     <string name="buffer_status_paused">Tampon en pause</string>
     <string name="clear_buffer">Effacer</string>
+    <string name="clear_buffer_confirm_message">Supprimer le tampon actuel ?</string>
 
     <string name="record_all_memory">Exporter tout</string>
     <string name="custom_time">Exporter personnalisé</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">Utilisez MM:SS ou HH:MM:SS.</string>
+    <string name="custom_export_tab_range">Plage</string>
+    <string name="custom_export_tab_past">Passé</string>
     <string name="custom_export_range_supporting">Utilisez des positions dans le tampon actuel. Début = point le plus ancien. Fin = point le plus récent.</string>
     <string name="custom_export_start_label">Début</string>
     <string name="custom_export_end_label">Fin</string>
     <string name="custom_export_range_invalid">La fin doit être après le début.</string>
+    <string name="custom_export_past_supporting">Enregistrer la dernière portion du tampon actuel.</string>
+    <string name="custom_export_past_label">Jusqu’où remonter</string>
     <string name="export_limit_summary">Export max : %1$s</string>
     <string name="export_limit_dialog_title">Limite d’export</string>
     <string name="export_limit_dialog_message">La durée actuelle est trop grande. Seules les %1$s dernières seront exportées.</string>
     <string name="saving">Enregistrement…</string>
     <string name="saved_snackbar">Enregistré</string>
     <string name="save_failed">Impossible d’enregistrer l’enregistrement.</string>
+    <string name="nothing_to_export">Rien à exporter.</string>
     <string name="settings_open">Paramètres</string>
     <string name="settings_apply">Appliquer</string>
     <string name="open">Ouvrir</string>
@@ -111,8 +117,8 @@
     <string name="audio_source_unprocessed">Non traité</string>
     <string name="audio_source_voice_performance">Voix perf.</string>
     <string name="input_route_label">Entrée</string>
-    <string name="input_route_auto">Entrée choisie par le système</string>
-    <string name="input_route_builtin_mic">Préférer le micro du téléphone</string>
+    <string name="input_route_auto">Système</string>
+    <string name="input_route_builtin_mic">Préférer le micro</string>
     <string name="choose_folder">Choisir</string>
     <string name="default_folder">Par défaut</string>
     <string name="move_recordings">Déplacer l’existant</string>
@@ -146,6 +152,8 @@
     <string name="recording_deleted">Enregistrement supprimé.</string>
     <string name="recording_delete_failed">Impossible de supprimer l’enregistrement.</string>
     <string name="recording_info">Infos</string>
+    <string name="about_open_github">Ouvrir GitHub</string>
+    <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Nom :</string>
     <string name="recording_details_started">Début :</string>
     <string name="recording_details_duration">Durée :</string>

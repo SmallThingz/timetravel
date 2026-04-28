@@ -47,11 +47,6 @@
                 app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
-        <com.google.android.material.divider.MaterialDivider
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:dividerColor="?attr/colorOutlineVariant" />
-
         <ScrollView
             android:id="@+id/settings_scroll"
             android:layout_width="match_parent"

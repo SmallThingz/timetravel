@@ -19,6 +19,7 @@
         android:paddingVertical="1dp">
 
         <LinearLayout
+            android:id="@+id/brand_lockup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
@@ -108,25 +109,22 @@
                 android:typeface="monospace"
                 tools:text="10:24:37" />
 
-            <TextView
-                android:id="@+id/format_summary"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFamily="monospace"
-                android:gravity="center"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textSize="19sp"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="Recording the past 60 seconds" />
+                android:layout_marginTop="8dp">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/clear_buffer_button"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/clear_buffer" />
+                <TextView
+                    android:id="@+id/format_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:gravity="center"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    android:textSize="19sp"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="12.0 MiB" />
+            </FrameLayout>
         </LinearLayout>
 
         <!-- Big circle button -->
@@ -175,26 +173,39 @@
             android:id="@+id/export_actions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
             android:layout_gravity="bottom"
             android:orientation="horizontal"
             android:paddingHorizontal="16dp"
-            android:paddingBottom="8dp">
+            android:paddingBottom="12dp">
+
+            <ImageButton
+                android:id="@+id/clear_buffer_button"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/clear_buffer"
+                android:src="@drawable/ic_delete"
+                app:tint="?attr/colorOnSurfaceVariant" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/record_last_max"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.TimeTravel.ExportButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:icon="@drawable/ic_export"
                 android:text="@string/record_all_memory" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/record_last_custom"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.TimeTravel.ExportButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
+                android:icon="@drawable/ic_export"
                 android:text="@string/custom_time" />
         </LinearLayout>
     </FrameLayout>

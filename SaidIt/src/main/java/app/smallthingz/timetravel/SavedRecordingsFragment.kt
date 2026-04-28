@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
@@ -29,6 +30,7 @@ import java.util.Locale
 class SavedRecordingsFragment : Fragment() {
     private lateinit var brandLockup: View
     private lateinit var settingsButton: View
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var selectionTitle: TextView
     private lateinit var selectionActions: View
     private lateinit var selectionClearButton: View
@@ -76,6 +78,7 @@ class SavedRecordingsFragment : Fragment() {
         applyWindowInsets(view)
         brandLockup = view.findViewById(R.id.brand_lockup)
         settingsButton = view.findViewById(R.id.settings_button)
+        swipeRefresh = view.findViewById(R.id.recordings_refresh)
         selectionTitle = view.findViewById(R.id.selection_title)
         selectionActions = view.findViewById(R.id.selection_actions)
         selectionClearButton = view.findViewById(R.id.selection_clear_button)
@@ -83,6 +86,9 @@ class SavedRecordingsFragment : Fragment() {
         selectionInfoButton = view.findViewById(R.id.selection_info_button)
         selectionDeleteButton = view.findViewById(R.id.selection_delete_button)
 
+        brandLockup.setOnClickListener {
+            AboutInfoDialog.show(requireContext())
+        }
         settingsButton.setOnClickListener {
             startActivity(
                 Intent(requireContext(), SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
@@ -96,6 +102,7 @@ class SavedRecordingsFragment : Fragment() {
 
         list = view.findViewById(R.id.recordings_list)
         emptyState = view.findViewById(R.id.recordings_empty)
+        swipeRefresh.setOnRefreshListener { refreshRecordings() }
 
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter
@@ -126,12 +133,18 @@ class SavedRecordingsFragment : Fragment() {
         if (!this::list.isInitialized) return
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val storedRecordings = RecordingRepository.refresh(requireContext())
-            latestRecordings = storedRecordings
-            latestRecordingsById = storedRecordings.associateBy { it.id }
-            reconcilePendingDeletions()
-            selectedRecordingIds.retainAll(latestRecordingsById.keys - pendingDeletionIds)
-            renderRecordings()
+            try {
+                val storedRecordings = RecordingRepository.refresh(requireContext())
+                latestRecordings = storedRecordings
+                latestRecordingsById = storedRecordings.associateBy { it.id }
+                reconcilePendingDeletions()
+                selectedRecordingIds.retainAll(latestRecordingsById.keys - pendingDeletionIds)
+                renderRecordings()
+            } finally {
+                if (this@SavedRecordingsFragment::swipeRefresh.isInitialized) {
+                    swipeRefresh.isRefreshing = false
+                }
+            }
         }
     }
 

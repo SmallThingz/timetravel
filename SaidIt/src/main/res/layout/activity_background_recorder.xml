@@ -14,17 +14,12 @@
         android:visibility="gone"
         tools:name="app.smallthingz.timetravel.TimeTravelFragment" />
 
-    <com.google.android.material.divider.MaterialDivider
-        android:id="@+id/bottom_navigation_divider"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:dividerColor="?attr/colorOutlineVariant" />
-
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        android:elevation="0dp"
         android:visibility="gone"
         app:itemActiveIndicatorStyle="@style/Widget.TimeTravel.BottomNavigation.ActiveIndicator"
         app:labelVisibilityMode="unlabeled"
