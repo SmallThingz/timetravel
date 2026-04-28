@@ -98,9 +98,17 @@ internal class EncodedAudioFileWriter(
     }
 
     private fun drainEncoder(endOfStream: Boolean) {
+        var endOfStreamPollCount = 0
         while (true) {
             when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)) {
-                MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return
+                MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                    if (!endOfStream) return
+                    endOfStreamPollCount++
+                    if (endOfStreamPollCount >= MAX_END_OF_STREAM_POLL_COUNT) {
+                        throw IOException("Timed out waiting for encoder end-of-stream output")
+                    }
+                }
+
                 MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     if (muxerStarted) {
                         throw IOException("Encoder muxer format changed twice")
@@ -108,9 +116,11 @@ internal class EncodedAudioFileWriter(
                     trackIndex = muxer.addTrack(codec.outputFormat)
                     muxer.start()
                     muxerStarted = true
+                    endOfStreamPollCount = 0
                 }
 
                 else -> if (outputIndex >= 0) {
+                    endOfStreamPollCount = 0
                     val outputBuffer = codec.getOutputBuffer(outputIndex)
                         ?: throw IOException("Encoder output buffer is null")
                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
@@ -140,5 +150,6 @@ internal class EncodedAudioFileWriter(
 
     private companion object {
         const val TIMEOUT_US = 10_000L
+        const val MAX_END_OF_STREAM_POLL_COUNT = 200
     }
 }

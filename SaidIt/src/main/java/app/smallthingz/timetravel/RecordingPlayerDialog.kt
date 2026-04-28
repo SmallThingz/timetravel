@@ -78,7 +78,7 @@ internal class RecordingPlayerDialog(
         metaText.text = buildPlayerCodecSummary(recording.codecSummary)
         content.findViewById<TextView>(R.id.player_size_text).text = formatShortFileSize(recording.sizeBytes)
         elapsedText.text = formatPlaybackTime(0)
-        durationText.text = formatPlaybackTime(recording.durationMillis.toInt())
+        durationText.text = formatPlaybackTime(recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
         seekBar.max = recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt().coerceAtLeast(1)
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(
@@ -221,6 +221,7 @@ internal class RecordingPlayerDialog(
         mediaPlayer?.release()
         mediaPlayer = null
     }
+
     private companion object {
         const val PROGRESS_UPDATE_INTERVAL_MS = 250L
         const val SEEK_JUMP_MS = 10_000

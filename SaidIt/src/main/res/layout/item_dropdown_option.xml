@@ -4,7 +4,6 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/dropdown_menu_item_selector"
-    android:duplicateParentState="true"
     android:gravity="center_vertical"
     android:minHeight="52dp"
     android:orientation="horizontal"
@@ -18,7 +17,6 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:duplicateParentState="true"
         android:ellipsize="end"
         android:maxLines="1"
         android:textAppearance="?attr/textAppearanceBodyLarge"
@@ -30,7 +28,6 @@
         android:layout_height="20dp"
         android:layout_marginStart="12dp"
         android:contentDescription="@null"
-        android:duplicateParentState="true"
         android:src="@drawable/ic_check"
         android:visibility="gone" />
 </LinearLayout>

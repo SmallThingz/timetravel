@@ -1499,18 +1499,13 @@ private class DropdownHighlightAdapter(
         view: View,
         value: String,
     ) {
-        val label = view.findViewById<TextView>(android.R.id.text1)
         val row = view.findViewById<View>(R.id.dropdown_row)
         val check = view.findViewById<ImageView>(R.id.dropdown_check)
         val active = value == selectedValue
-        view.isActivated = active
-        view.isSelected = active
         row.isActivated = active
         row.isSelected = active
-        label.isActivated = active
-        label.isSelected = active
-        check.isActivated = active
-        check.isSelected = active
+        view.isActivated = false
+        view.isSelected = false
         check.visibility = if (active) View.VISIBLE else View.GONE
     }
 }

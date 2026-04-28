@@ -56,6 +56,7 @@ internal object ThemedDialog {
         headerAccessory: View? = null,
         headerAccessoryGravity: Int = Gravity.CENTER,
         showCloseButton: Boolean = true,
+        headerCloseSpacingDp: Int = 12,
     ): Handle {
         val dialogContext = ContextThemeWrapper(context, R.style.ThemeOverlay_TimeTravel_AlertDialog)
         val dialog = AppCompatDialog(dialogContext).apply {
@@ -132,7 +133,7 @@ internal object ThemedDialog {
                             contentDescription = dialogContext.getString(R.string.close),
                         ).apply {
                             layoutParams = LinearLayout.LayoutParams(dp(dialogContext, 40), dp(dialogContext, 40)).apply {
-                                marginStart = if (headerAccessory == null) 0 else dp(dialogContext, 12)
+                                marginStart = if (headerAccessory == null) 0 else dp(dialogContext, headerCloseSpacingDp)
                             }
                             visibility = if (showCloseButton) View.VISIBLE else View.GONE
                             setOnClickListener { dialog.dismiss() }

@@ -86,7 +86,7 @@ class TimeTravelActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        dismissDialogs()
+        permissionDeniedDialog?.dismiss()
         permissionLauncher.launch(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 arrayOf(
@@ -146,10 +146,6 @@ class TimeTravelActivity : AppCompatActivity() {
             .setNegativeButton(R.string.exit) { _, _ -> finish() }
             .setCancelable(false)
             .show()
-    }
-
-    private fun dismissDialogs() {
-        permissionDeniedDialog?.dismiss()
     }
 
     private companion object {
