@@ -1,16 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="TimeTravel app icon">
   <defs>
-    <linearGradient id="bg" x1="12%" y1="10%" x2="88%" y2="90%">
-      <stop offset="0%" stop-color="#2E3A3D"/>
-      <stop offset="100%" stop-color="#182124"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D1B20"/>
+      <stop offset="100%" stop-color="#36343B"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="23%" y1="22%" x2="71%" y2="30.7%">
+      <stop offset="0%" stop-color="#D0BCFF"/>
+      <stop offset="100%" stop-color="#7F67BE"/>
     </linearGradient>
   </defs>
-  <rect x="6" y="6" width="88" height="88" rx="22" fill="url(#bg)"/>
-  <path d="M47 14L61 22L47 30Z" fill="#FFFFFF"/>
-  <path d="M50 22A28 28 0 1 0 71 30.7" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
-  <rect x="32" y="46" width="5" height="8" rx="2.5" fill="#FFFFFF"/>
-  <rect x="40" y="38" width="5" height="24" rx="2.5" fill="#FFFFFF"/>
-  <rect x="48" y="30" width="5" height="40" rx="2.5" fill="#FFFFFF"/>
-  <rect x="56" y="38" width="5" height="24" rx="2.5" fill="#FFFFFF"/>
-  <rect x="64" y="46" width="5" height="8" rx="2.5" fill="#FFFFFF"/>
+  <rect width="100" height="100" fill="url(#bg)"/>
+  <path d="M31 45H38V55H31Z M39 37H46V63H39Z M47 29H54V71H47Z M55 37H62V63H55Z M63 45H70V55H63Z" fill="#FFFFFF" fill-opacity="0.18"/>
+  <path d="M32 46H37V54H32Z M40 38H45V62H40Z M48 30H53V70H48Z M56 38H61V62H56Z M64 46H69V54H64Z" fill="#FFFFFF"/>
+  <path d="M47 14L61 22L47 30Z" fill="url(#accent)"/>
+  <path d="M50 22A28 28 0 1 0 71 30.7" fill="none" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
 </svg>

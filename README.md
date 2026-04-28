@@ -1,5 +1,5 @@
 <h1>
-  <img src="docs/app-icon.svg" alt="TimeTravel app icon" width="34" valign="middle" />
+  <img src="docs/app-icon.svg" alt="TimeTravel app icon" width="44" valign="middle" />
   TimeTravel
 </h1>
 
