@@ -18,6 +18,10 @@ object TimeTravelConfig {
     const val INPUT_ROUTE_KEY = "input_route"
     const val SAMPLE_RATE_KEY = "sample_rate"
     const val THEME_MODE_KEY = "theme_mode"
+    const val HISTORY_CHUNK_SECONDS_KEY = "history_chunk_seconds"
+    const val AUTO_MERGE_MODE_KEY = "auto_merge_mode"
+    const val AUTO_MERGE_DIVISOR_KEY = "auto_merge_divisor"
+    const val AUTO_MERGE_CUSTOM_SECONDS_KEY = "auto_merge_custom_seconds"
 
     const val RETENTION_MODE_SIZE = "size"
     const val RETENTION_MODE_TIME = "time"
@@ -38,6 +42,9 @@ object TimeTravelConfig {
     const val THEME_MODE_SYSTEM = "system"
     const val THEME_MODE_LIGHT = "light"
     const val THEME_MODE_DARK = "dark"
+    const val AUTO_MERGE_MODE_OFF = "off"
+    const val AUTO_MERGE_MODE_RATIO = "ratio"
+    const val AUTO_MERGE_MODE_CUSTOM = "custom"
 
     const val APP_STORAGE_FOLDER_NAME = "Timetravel"
     const val BUFFER_CACHE_FOLDER_NAME = "buffer-cache"

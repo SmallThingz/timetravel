@@ -29,6 +29,15 @@ private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
 private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
 private const val MIN_AAC_BITRATE_KBPS = 32
 private const val MAX_AAC_BITRATE_KBPS = 320
+private const val DEFAULT_HISTORY_CHUNK_SECONDS = 10
+private const val MIN_HISTORY_CHUNK_SECONDS = 2
+private const val MAX_HISTORY_CHUNK_SECONDS = 300
+private const val DEFAULT_AUTO_MERGE_DIVISOR = 60
+private const val MIN_AUTO_MERGE_DIVISOR = 2
+private const val MAX_AUTO_MERGE_DIVISOR = 600
+private const val DEFAULT_AUTO_MERGE_CUSTOM_SECONDS = 60
+private const val MIN_AUTO_MERGE_CUSTOM_SECONDS = 10
+private const val MAX_AUTO_MERGE_CUSTOM_SECONDS = 3600
 private val SAMPLE_RATE_CANDIDATES = intArrayOf(48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 11_025, 8_000)
 private val codecSupportCache = ConcurrentHashMap<CodecSupportKey, Boolean>()
 private val inputConfigCache = ConcurrentHashMap<InputConfigKey, Boolean>()
@@ -257,6 +266,22 @@ enum class AppThemeMode(
     }
 }
 
+enum class AutoMergeMode(
+    val prefValue: String,
+    @StringRes val labelRes: Int,
+) {
+    OFF(TimeTravelConfig.AUTO_MERGE_MODE_OFF, R.string.auto_merge_mode_off),
+    RATIO(TimeTravelConfig.AUTO_MERGE_MODE_RATIO, R.string.auto_merge_mode_ratio),
+    CUSTOM(TimeTravelConfig.AUTO_MERGE_MODE_CUSTOM, R.string.auto_merge_mode_custom),
+    ;
+
+    companion object {
+        fun fromPrefValue(value: String?): AutoMergeMode {
+            return entries.firstOrNull { it.prefValue == value } ?: OFF
+        }
+    }
+}
+
 fun getRecorderPreferences(context: Context): SharedPreferences {
     return context.getSharedPreferences(TimeTravelConfig.PACKAGE_NAME, Context.MODE_PRIVATE)
 }
@@ -306,6 +331,52 @@ fun applyConfiguredThemeMode(context: Context) {
 
 fun getConfiguredRetentionSeconds(context: Context): Long {
     return max(60L, getRecorderPreferences(context).getLong(TimeTravelConfig.RETENTION_SECONDS_KEY, 30L * 60))
+}
+
+fun getConfiguredHistoryChunkSeconds(context: Context): Int {
+    return getRecorderPreferences(context)
+        .getInt(TimeTravelConfig.HISTORY_CHUNK_SECONDS_KEY, DEFAULT_HISTORY_CHUNK_SECONDS)
+        .coerceIn(MIN_HISTORY_CHUNK_SECONDS, MAX_HISTORY_CHUNK_SECONDS)
+}
+
+fun getConfiguredAutoMergeMode(context: Context): AutoMergeMode {
+    return AutoMergeMode.fromPrefValue(
+        getRecorderPreferences(context).getString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, TimeTravelConfig.AUTO_MERGE_MODE_OFF),
+    )
+}
+
+fun getConfiguredAutoMergeDivisor(context: Context): Int {
+    return getRecorderPreferences(context)
+        .getInt(TimeTravelConfig.AUTO_MERGE_DIVISOR_KEY, DEFAULT_AUTO_MERGE_DIVISOR)
+        .coerceIn(MIN_AUTO_MERGE_DIVISOR, MAX_AUTO_MERGE_DIVISOR)
+}
+
+fun getConfiguredAutoMergeCustomSeconds(context: Context): Int {
+    return getRecorderPreferences(context)
+        .getInt(TimeTravelConfig.AUTO_MERGE_CUSTOM_SECONDS_KEY, DEFAULT_AUTO_MERGE_CUSTOM_SECONDS)
+        .coerceIn(MIN_AUTO_MERGE_CUSTOM_SECONDS, MAX_AUTO_MERGE_CUSTOM_SECONDS)
+}
+
+fun configuredAutoMergeTargetDurationMillis(
+    context: Context,
+    retentionBytes: Long,
+    sampleRate: Int,
+    channelCount: Int,
+): Long? {
+    val retentionMillis = retentionSecondsForBytes(retentionBytes, sampleRate, channelCount) * 1000L
+    if (retentionMillis <= 0L) {
+        return null
+    }
+    return when (getConfiguredAutoMergeMode(context)) {
+        AutoMergeMode.OFF -> null
+        AutoMergeMode.RATIO -> {
+            val divisor = getConfiguredAutoMergeDivisor(context).coerceAtLeast(1)
+            (retentionMillis / divisor).coerceAtLeast(MIN_AUTO_MERGE_CUSTOM_SECONDS * 1000L)
+        }
+        AutoMergeMode.CUSTOM -> {
+            getConfiguredAutoMergeCustomSeconds(context).toLong().coerceAtLeast(MIN_AUTO_MERGE_CUSTOM_SECONDS.toLong()) * 1000L
+        }
+    }
 }
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {
@@ -655,6 +726,12 @@ fun supportedInputRouteModes(context: Context): List<InputRouteMode> {
 }
 
 fun standardSampleRates(): List<Int> = SAMPLE_RATE_CANDIDATES.toList()
+
+fun historyChunkSecondsRange(): IntRange = MIN_HISTORY_CHUNK_SECONDS..MAX_HISTORY_CHUNK_SECONDS
+
+fun autoMergeDivisorRange(): IntRange = MIN_AUTO_MERGE_DIVISOR..MAX_AUTO_MERGE_DIVISOR
+
+fun autoMergeCustomSecondsRange(): IntRange = MIN_AUTO_MERGE_CUSTOM_SECONDS..MAX_AUTO_MERGE_CUSTOM_SECONDS
 
 fun isRecorderCapabilityCacheWarm(): Boolean = capabilityCacheWarm
 

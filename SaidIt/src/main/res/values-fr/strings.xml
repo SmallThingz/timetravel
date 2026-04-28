@@ -48,6 +48,23 @@
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Stockage</string>
     <string name="background_persistence_title">Arrière-plan</string>
+    <string name="history_settings_title">Historique</string>
+    <string name="history_chunk_summary">La taille de segment définit la fréquence à laquelle l’historique en direct est scellé sur disque. Des segments plus petits résistent mieux aux crashs et découpent les exports personnalisés plus précisément. Des segments plus grands signifient moins de fichiers et des exports longs plus rapides.</string>
+    <string name="history_chunk_label">Taille de segment</string>
+    <string name="history_chunk_invalid">Utilisez MM:SS ou HH:MM:SS.</string>
+    <string name="history_chunk_range_invalid">Utilisez %1$s-%2$s.</string>
+    <string name="auto_merge_label">Fusion auto</string>
+    <string name="auto_merge_mode_off">Désactivé</string>
+    <string name="auto_merge_mode_ratio">1/x du tampon</string>
+    <string name="auto_merge_mode_custom">Personnalisé</string>
+    <string name="auto_merge_value_label">Cible de fusion</string>
+    <string name="auto_merge_ratio_value_label">Valeur 1/x</string>
+    <string name="auto_merge_custom_value_label">Cible de fusion</string>
+    <string name="auto_merge_ratio_supporting">Cible de fusion en arrière-plan. Environ 1/x du tampon conservé.</string>
+    <string name="auto_merge_custom_supporting">Utilisez MM:SS ou HH:MM:SS.</string>
+    <string name="auto_merge_divisor_invalid">Utilisez %1$d-%2$d.</string>
+    <string name="auto_merge_custom_invalid">Utilisez MM:SS ou HH:MM:SS.</string>
+    <string name="auto_merge_custom_range_invalid">Utilisez %1$s-%2$s.</string>
     <string name="codec_label">Codec</string>
     <string name="codec_aac_lc">AAC-LC / M4A</string>
     <string name="codec_he_aac">HE-AAC / M4A</string>
@@ -123,13 +140,11 @@
 
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d enregistrement déplacé.</item>
-        <item quantity="many">%1$d enregistrements déplacés.</item>
         <item quantity="other">%1$d enregistrements déplacés.</item>
     </plurals>
 
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">%1$d entrée manquante supprimée.</item>
-        <item quantity="many">%1$d entrées manquantes supprimées.</item>
         <item quantity="other">%1$d entrées manquantes supprimées.</item>
     </plurals>
 </resources>

@@ -852,12 +852,20 @@ class TimeTravelService : Service() {
             return
         }
         val codec = effectiveOutputCodec
+        val retentionBytes = memorySizeOverride ?: getConfiguredMemorySizeBytes(this, sampleRate, channelMode)
         liveExportHistory.updateConfiguration(
             codec = codec,
             sampleRate = sampleRate,
             channelCount = channelMode.channelCount,
             bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount),
-            retentionBytes = memorySizeOverride ?: getConfiguredMemorySizeBytes(this, sampleRate, channelMode),
+            retentionBytes = retentionBytes,
+            segmentDurationMillis = getConfiguredHistoryChunkSeconds(this).toLong() * 1000L,
+            compactionTargetDurationMillis = configuredAutoMergeTargetDurationMillis(
+                context = this,
+                retentionBytes = retentionBytes,
+                sampleRate = sampleRate,
+                channelCount = channelMode.channelCount,
+            ),
         )
     }
 

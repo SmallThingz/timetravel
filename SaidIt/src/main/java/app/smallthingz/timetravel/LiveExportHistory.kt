@@ -25,6 +25,7 @@ internal class LiveExportHistory(
     private var config: Config? = null
     private var retentionBytes = 0L
     private var segmentDurationMillis = DEFAULT_SEGMENT_DURATION_MS
+    private var compactionTargetDurationMillis: Long? = null
     private var currentWriter: AudioFileWriter? = null
     private var currentSegment: Segment? = null
     private var nextSegmentStartMillis: Long? = null
@@ -37,21 +38,26 @@ internal class LiveExportHistory(
         channelCount: Int,
         bitrateKbps: Int?,
         retentionBytes: Long,
+        segmentDurationMillis: Long,
+        compactionTargetDurationMillis: Long?,
     ) {
         val updatedConfig = Config(codec, sampleRate, channelCount, bitrateKbps)
         val previousConfig = config
         val configChanged = previousConfig != updatedConfig
         val retentionChanged = this.retentionBytes != retentionBytes
+        val segmentDurationChanged = this.segmentDurationMillis != segmentDurationMillis
+        val compactionChanged = this.compactionTargetDurationMillis != compactionTargetDurationMillis
         config = updatedConfig
         this.retentionBytes = retentionBytes
-        segmentDurationMillis = updatedConfig.suggestedSegmentDurationMillis(retentionBytes)
+        this.segmentDurationMillis = segmentDurationMillis.coerceIn(MIN_SEGMENT_DURATION_MS, MAX_SEGMENT_DURATION_MS)
+        this.compactionTargetDurationMillis = compactionTargetDurationMillis?.coerceIn(MIN_COMPACTION_DURATION_MS, MAX_COMPACTION_DURATION_MS)
         if (previousConfig == null) {
             migrateLegacySegmentsLocked()
             restorePersistedSegmentsLocked(updatedConfig)
             pruneLocked()
         } else if (configChanged) {
             resetLocked()
-        } else if (retentionChanged) {
+        } else if (retentionChanged || segmentDurationChanged || compactionChanged) {
             pruneLocked()
         }
     }
@@ -406,7 +412,7 @@ internal class LiveExportHistory(
             return null
         }
         val currentConfig = config ?: return null
-        val targetDurationMillis = currentConfig.suggestedCompactionDurationMillis(retentionBytes)
+        val targetDurationMillis = compactionTargetDurationMillis ?: return null
         if (targetDurationMillis <= segmentDurationMillis) {
             return null
         }
@@ -457,7 +463,7 @@ internal class LiveExportHistory(
             historyRoot.mkdirs()
         }
 
-        val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}")
+        val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}.tmp")
         val outputTarget = RecordingOutputTarget(
             id = tempFile.absolutePath,
             displayName = tempFile.name,
@@ -594,22 +600,43 @@ internal class LiveExportHistory(
             ?.asSequence()
             ?.filter { it.isFile }
             ?.mapNotNull { file -> inspectPersistedSegment(file, currentConfig) }
-            ?.sortedBy { it.startedAtMillis }
+            ?.sortedWith(compareBy<Segment>({ it.startedAtMillis }).thenByDescending { it.sampleBytes })
             ?.toList()
             .orEmpty()
+        val normalizedSegments = discardFullyOverlappedSegments(restoredSegments, currentConfig)
 
         segments.clear()
-        segments.addAll(restoredSegments)
-        nextSegmentStartMillis = restoredSegments.lastOrNull()?.let { segment ->
+        segments.addAll(normalizedSegments)
+        nextSegmentStartMillis = normalizedSegments.lastOrNull()?.let { segment ->
             segment.startedAtMillis + currentConfig.bytesToDurationMillis(segment.sampleBytes)
         }
 
-        val keep = restoredSegments.mapTo(HashSet()) { it.file.absolutePath }
+        val keep = normalizedSegments.mapTo(HashSet()) { it.file.absolutePath }
         historyRoot.listFiles()?.forEach { file ->
-            if (file.isFile && file.absolutePath !in keep) {
+            if (file.isFile && (file.absolutePath !in keep || file.name.endsWith(TEMP_FILE_SUFFIX))) {
                 file.delete()
             }
         }
+    }
+
+    private fun discardFullyOverlappedSegments(
+        restoredSegments: List<Segment>,
+        currentConfig: Config,
+    ): List<Segment> {
+        if (restoredSegments.size < 2) {
+            return restoredSegments
+        }
+        val kept = ArrayList<Segment>(restoredSegments.size)
+        var keptEndMillis = Long.MIN_VALUE
+        restoredSegments.forEach { segment ->
+            val segmentEndMillis = segment.startedAtMillis + currentConfig.bytesToDurationMillis(segment.sampleBytes)
+            if (kept.isNotEmpty() && segmentEndMillis <= keptEndMillis) {
+                return@forEach
+            }
+            kept += segment
+            keptEndMillis = maxOf(keptEndMillis, segmentEndMillis)
+        }
+        return kept.sortedBy { it.startedAtMillis }
     }
 
     private fun inspectPersistedSegment(
@@ -785,17 +812,6 @@ internal class LiveExportHistory(
             return durationMillis * bytesPerSecond / 1000L
         }
 
-        fun suggestedSegmentDurationMillis(retentionBytes: Long): Long {
-            val retentionMillis = bytesToDurationMillis(retentionBytes)
-            val quarterWindow = retentionMillis / 4L
-            return quarterWindow.coerceIn(MIN_SEGMENT_DURATION_MS, MAX_SEGMENT_DURATION_MS)
-        }
-
-        fun suggestedCompactionDurationMillis(retentionBytes: Long): Long {
-            val retentionMillis = bytesToDurationMillis(retentionBytes)
-            val twelfthWindow = retentionMillis / 12L
-            return twelfthWindow.coerceIn(MIN_COMPACTION_DURATION_MS, MAX_COMPACTION_DURATION_MS)
-        }
     }
 
     internal data class Segment(
@@ -854,6 +870,7 @@ internal class LiveExportHistory(
         const val MIN_COMPACTION_DURATION_MS = 30_000L
         const val MAX_COMPACTION_DURATION_MS = 300_000L
         const val MIN_COMPACTION_SEGMENTS = 2
+        const val TEMP_FILE_SUFFIX = ".tmp"
         val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
         val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")
 

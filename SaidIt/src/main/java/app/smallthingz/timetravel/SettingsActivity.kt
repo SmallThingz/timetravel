@@ -8,7 +8,9 @@ import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.DigitsKeyListener
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -44,6 +46,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var audioSourceLayout: TextInputLayout
     private lateinit var channelModeLayout: TextInputLayout
     private lateinit var inputRouteLayout: TextInputLayout
+    private lateinit var historyChunkLayout: TextInputLayout
+    private lateinit var autoMergeLayout: TextInputLayout
+    private lateinit var autoMergeValueLayout: TextInputLayout
     private lateinit var bitrateGroup: View
     private lateinit var bitrateValue: TextView
     private lateinit var bitrateSlider: Slider
@@ -53,8 +58,11 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var audioSourceDropdown: MaterialAutoCompleteTextView
     private lateinit var channelModeDropdown: MaterialAutoCompleteTextView
     private lateinit var inputRouteDropdown: MaterialAutoCompleteTextView
+    private lateinit var autoMergeDropdown: MaterialAutoCompleteTextView
     private lateinit var retentionTimeInput: EditText
     private lateinit var retentionSizeInput: EditText
+    private lateinit var historyChunkInput: EditText
+    private lateinit var autoMergeValueInput: EditText
     private lateinit var exportPathValue: TextView
     private lateinit var chooseFolderButton: MaterialButton
     private lateinit var defaultFolderButton: MaterialButton
@@ -86,10 +94,15 @@ class SettingsActivity : AppCompatActivity() {
     private var availableSourceModes: List<AudioSourceMode> = emptyList()
     private var availableChannelModes: List<ChannelMode> = emptyList()
     private var availableRouteModes: List<InputRouteMode> = emptyList()
+    private var availableAutoMergeModes: List<AutoMergeMode> = emptyList()
     private var availableSampleRates: List<Int> = emptyList()
     private var activeRetentionMode = RetentionMode.TIME
     private var retentionTimeSecondsValue = 0
     private var retentionSizeMbValue = 0L
+    private var historyChunkSecondsValue = 0
+    private var activeAutoMergeMode = AutoMergeMode.OFF
+    private var autoMergeDivisorValue = 0
+    private var autoMergeCustomSecondsValue = 0
     private var selectedExportTreeUri: Uri? = null
 
     data class SettingsSnapshot(
@@ -103,6 +116,10 @@ class SettingsActivity : AppCompatActivity() {
         var channelMode: ChannelMode? = null,
         var route: InputRouteMode? = null,
         var sampleRate: Int = 0,
+        var historyChunkSeconds: Int = 10,
+        var autoMergeMode: AutoMergeMode = AutoMergeMode.OFF,
+        var autoMergeDivisor: Int = 60,
+        var autoMergeCustomSeconds: Int = 60,
         var exportDirectoryUri: String? = null,
         var persistentBufferEnabled: Boolean = true,
         var aggressiveRestartEnabled: Boolean = true,
@@ -119,6 +136,10 @@ class SettingsActivity : AppCompatActivity() {
             channelMode = other.channelMode
             route = other.route
             sampleRate = other.sampleRate
+            historyChunkSeconds = other.historyChunkSeconds
+            autoMergeMode = other.autoMergeMode
+            autoMergeDivisor = other.autoMergeDivisor
+            autoMergeCustomSeconds = other.autoMergeCustomSeconds
             exportDirectoryUri = other.exportDirectoryUri
             persistentBufferEnabled = other.persistentBufferEnabled
             aggressiveRestartEnabled = other.aggressiveRestartEnabled
@@ -178,6 +199,9 @@ class SettingsActivity : AppCompatActivity() {
         audioSourceLayout = findViewById(R.id.audio_source_layout)
         channelModeLayout = findViewById(R.id.channel_mode_layout)
         inputRouteLayout = findViewById(R.id.input_route_layout)
+        historyChunkLayout = findViewById(R.id.history_chunk_layout)
+        autoMergeLayout = findViewById(R.id.auto_merge_layout)
+        autoMergeValueLayout = findViewById(R.id.auto_merge_value_layout)
         bitrateGroup = findViewById(R.id.bitrate_group)
         bitrateValue = findViewById(R.id.bitrate_value)
         bitrateSlider = findViewById(R.id.bitrate_slider)
@@ -187,8 +211,11 @@ class SettingsActivity : AppCompatActivity() {
         audioSourceDropdown = findViewById(R.id.audio_source_dropdown)
         channelModeDropdown = findViewById(R.id.channel_mode_dropdown)
         inputRouteDropdown = findViewById(R.id.input_route_dropdown)
+        autoMergeDropdown = findViewById(R.id.auto_merge_dropdown)
         retentionTimeInput = findViewById(R.id.retention_time_input)
         retentionSizeInput = findViewById(R.id.retention_size_input)
+        historyChunkInput = findViewById(R.id.history_chunk_input)
+        autoMergeValueInput = findViewById(R.id.auto_merge_value_input)
         exportPathValue = findViewById(R.id.export_path_value)
         chooseFolderButton = findViewById(R.id.choose_folder_button)
         defaultFolderButton = findViewById(R.id.default_folder_button)
@@ -417,6 +444,47 @@ class SettingsActivity : AppCompatActivity() {
                 pushUndoState()
             }
         }
+        historyChunkInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+
+            override fun afterTextChanged(s: Editable?) {
+                if (bindingUi) return
+                parseDurationInput(historyChunkInput.text?.toString().orEmpty())?.let {
+                    historyChunkSecondsValue = it
+                }
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        })
+        autoMergeDropdown.setOnItemClickListener { _, _, _, _ ->
+            if (!bindingUi) {
+                updateDropdownSelection(autoMergeDropdown)
+                activeAutoMergeMode = currentAutoMergeMode()
+                refreshAutoMergeValueUi()
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
+        autoMergeValueInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+
+            override fun afterTextChanged(s: Editable?) {
+                if (bindingUi) return
+                when (activeAutoMergeMode) {
+                    AutoMergeMode.OFF -> Unit
+                    AutoMergeMode.RATIO -> autoMergeValueInput.text?.toString()?.trim()?.toIntOrNull()?.let {
+                        autoMergeDivisorValue = it
+                    }
+                    AutoMergeMode.CUSTOM -> parseDurationInput(autoMergeValueInput.text?.toString().orEmpty())?.let {
+                        autoMergeCustomSecondsValue = it
+                    }
+                }
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        })
         persistentBufferSwitch.setOnCheckedChangeListener { _, _ ->
             if (!bindingUi) {
                 saveCurrentToSnapshot(currentSettings)
@@ -466,6 +534,10 @@ class SettingsActivity : AppCompatActivity() {
             .takeIf { it > 0 }
             ?: standardSampleRates().first()
         val configuredBitrateKbps = getConfiguredCodecBitrateKbps(this, configuredCodec, configuredRate, configuredChannelMode.channelCount) ?: 0
+        val configuredHistoryChunkSeconds = getConfiguredHistoryChunkSeconds(this)
+        val configuredAutoMergeMode = getConfiguredAutoMergeMode(this)
+        val configuredAutoMergeDivisor = getConfiguredAutoMergeDivisor(this)
+        val configuredAutoMergeCustomSeconds = getConfiguredAutoMergeCustomSeconds(this)
         val configuredExportTreeUri = getConfiguredExportTreeUri(this)
         val configuredPersistentBuffer = isDiskBufferCacheEnabled(this)
         val configuredAggressiveRestart = isAggressiveRestartEnabled(this)
@@ -474,6 +546,10 @@ class SettingsActivity : AppCompatActivity() {
         activeRetentionMode = configuredMode
         retentionTimeSecondsValue = configuredTime
         retentionSizeMbValue = bytesToMegabytes(storedSizeBytes)
+        historyChunkSecondsValue = configuredHistoryChunkSeconds
+        activeAutoMergeMode = configuredAutoMergeMode
+        autoMergeDivisorValue = configuredAutoMergeDivisor
+        autoMergeCustomSecondsValue = configuredAutoMergeCustomSeconds
         selectedExportTreeUri = configuredExportTreeUri
 
         availableThemes = AppThemeMode.entries
@@ -510,6 +586,14 @@ class SettingsActivity : AppCompatActivity() {
             availableChannelModes.map { getString(it.labelRes) },
             getString(configuredChannelMode.labelRes),
         )
+
+        availableAutoMergeModes = AutoMergeMode.entries
+        setDropdownItems(
+            autoMergeDropdown,
+            availableAutoMergeModes.map { getString(it.labelRes) },
+            getString(configuredAutoMergeMode.labelRes),
+        )
+        refreshHistorySettingsUi()
 
         availableSampleRates = buildList {
             add(configuredRate)
@@ -602,6 +686,10 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.channelMode = currentChannelMode()
         snapshot.route = currentRouteMode()
         snapshot.sampleRate = currentSampleRate() ?: 0
+        snapshot.historyChunkSeconds = historyChunkSecondsValue
+        snapshot.autoMergeMode = activeAutoMergeMode
+        snapshot.autoMergeDivisor = autoMergeDivisorValue
+        snapshot.autoMergeCustomSeconds = autoMergeCustomSecondsValue
         snapshot.exportDirectoryUri = selectedExportTreeUri?.toString()
         snapshot.persistentBufferEnabled = persistentBufferSwitch.isChecked
         snapshot.aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
@@ -621,6 +709,10 @@ class SettingsActivity : AppCompatActivity() {
         activeRetentionMode = previous.retentionMode
         retentionTimeSecondsValue = previous.retentionTime
         retentionSizeMbValue = previous.retentionSizeMb
+        historyChunkSecondsValue = previous.historyChunkSeconds
+        activeAutoMergeMode = previous.autoMergeMode
+        autoMergeDivisorValue = previous.autoMergeDivisor
+        autoMergeCustomSecondsValue = previous.autoMergeCustomSeconds
         selectedExportTreeUri = previous.exportDirectoryUri?.let(Uri::parse)
         persistentBufferSwitch.isChecked = previous.persistentBufferEnabled
         aggressiveRestartSwitch.isChecked = previous.aggressiveRestartEnabled
@@ -641,6 +733,12 @@ class SettingsActivity : AppCompatActivity() {
             availableRouteModes.map { getString(it.labelRes) },
             getString(previous.route?.labelRes ?: availableRouteModes.first().labelRes),
         )
+        setDropdownItems(
+            autoMergeDropdown,
+            availableAutoMergeModes.map { getString(it.labelRes) },
+            getString(previous.autoMergeMode.labelRes),
+        )
+        refreshHistorySettingsUi()
 
         if (capabilityUiReady) {
             refreshCodecOptions(
@@ -770,6 +868,47 @@ class SettingsActivity : AppCompatActivity() {
         refreshRetentionFields(preserveActiveInputs = true)
     }
 
+    private fun refreshHistorySettingsUi(preserveHistoryChunkInput: Boolean = false) {
+        val previousBindingUi = bindingUi
+        bindingUi = true
+        if (!preserveHistoryChunkInput) {
+            historyChunkInput.setText(formatDurationInput(historyChunkSecondsValue))
+        }
+        refreshAutoMergeValueUi()
+        bindingUi = previousBindingUi
+    }
+
+    private fun refreshAutoMergeValueUi() {
+        val previousBindingUi = bindingUi
+        bindingUi = true
+        autoMergeValueLayout.error = null
+        autoMergeValueLayout.isVisible = activeAutoMergeMode != AutoMergeMode.OFF
+        if (activeAutoMergeMode == AutoMergeMode.OFF) {
+            autoMergeValueLayout.helperText = null
+            bindingUi = previousBindingUi
+            return
+        }
+
+        when (activeAutoMergeMode) {
+            AutoMergeMode.OFF -> Unit
+            AutoMergeMode.RATIO -> {
+                autoMergeValueLayout.hint = getString(R.string.auto_merge_ratio_value_label)
+                autoMergeValueLayout.helperText = getString(R.string.auto_merge_ratio_supporting)
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789")
+                autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER
+                autoMergeValueInput.setText(autoMergeDivisorValue.toString())
+            }
+            AutoMergeMode.CUSTOM -> {
+                autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_value_label)
+                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_supporting)
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789:")
+                autoMergeValueInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                autoMergeValueInput.setText(formatDurationInput(autoMergeCustomSecondsValue))
+            }
+        }
+        bindingUi = previousBindingUi
+    }
+
     private fun activateRetentionMode(mode: RetentionMode) {
         if (bindingUi || activeRetentionMode == mode) return
         updateRetentionValuesFromActiveInput()
@@ -851,6 +990,7 @@ class SettingsActivity : AppCompatActivity() {
         val source = currentSourceMode()
         val sampleRate = currentSampleRate()
         val bitrateKbps = currentBitrateKbpsOrNull()
+        val historyChunkSeconds = parseDurationInput(historyChunkInput.text?.toString().orEmpty())
         val persistentBufferEnabled = persistentBufferSwitch.isChecked
         val aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
         val wakeLockEnabled = wakeLockSwitch.isChecked
@@ -889,8 +1029,61 @@ class SettingsActivity : AppCompatActivity() {
             return false
         }
 
+        if (historyChunkSeconds == null) {
+            historyChunkLayout.error = getString(R.string.history_chunk_invalid)
+            return false
+        }
+
+        val historyChunkRange = historyChunkSecondsRange()
+        if (historyChunkSeconds !in historyChunkRange) {
+            historyChunkLayout.error = getString(
+                R.string.history_chunk_range_invalid,
+                formatDurationInput(historyChunkRange.first),
+                formatDurationInput(historyChunkRange.last),
+            )
+            return false
+        }
+
+        val autoMergeDivisor = when (activeAutoMergeMode) {
+            AutoMergeMode.RATIO -> autoMergeValueInput.text?.toString()?.trim()?.toIntOrNull()
+            else -> autoMergeDivisorValue
+        }
+        val autoMergeCustomSeconds = when (activeAutoMergeMode) {
+            AutoMergeMode.CUSTOM -> parseDurationInput(autoMergeValueInput.text?.toString().orEmpty())
+            else -> autoMergeCustomSecondsValue
+        }
+        val divisorRange = autoMergeDivisorRange()
+        if (activeAutoMergeMode == AutoMergeMode.RATIO) {
+            if (autoMergeDivisor == null || autoMergeDivisor !in divisorRange) {
+                autoMergeValueLayout.error = getString(
+                    R.string.auto_merge_divisor_invalid,
+                    divisorRange.first,
+                    divisorRange.last,
+                )
+                return false
+            }
+        }
+        val customRange = autoMergeCustomSecondsRange()
+        if (activeAutoMergeMode == AutoMergeMode.CUSTOM) {
+            if (autoMergeCustomSeconds == null) {
+                autoMergeValueLayout.error = getString(R.string.auto_merge_custom_invalid)
+                return false
+            }
+            if (autoMergeCustomSeconds !in customRange) {
+                autoMergeValueLayout.error = getString(
+                    R.string.auto_merge_custom_range_invalid,
+                    formatDurationInput(customRange.first),
+                    formatDurationInput(customRange.last),
+                )
+                return false
+            }
+        }
+
         retentionTimeSecondsValue = retentionTime
         retentionSizeMbValue = sizeMb
+        historyChunkSecondsValue = historyChunkSeconds
+        autoMergeDivisorValue = autoMergeDivisor ?: autoMergeDivisorValue
+        autoMergeCustomSecondsValue = autoMergeCustomSeconds ?: autoMergeCustomSecondsValue
         val sizeBytes = megabytesToBytes(sizeMb)
 
         setConfiguredThemeMode(this, themeMode)
@@ -904,6 +1097,10 @@ class SettingsActivity : AppCompatActivity() {
             .putString(TimeTravelConfig.CHANNEL_MODE_KEY, channelMode.prefValue)
             .putString(TimeTravelConfig.INPUT_ROUTE_KEY, route.prefValue)
             .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
+            .putInt(TimeTravelConfig.HISTORY_CHUNK_SECONDS_KEY, historyChunkSecondsValue)
+            .putString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, activeAutoMergeMode.prefValue)
+            .putInt(TimeTravelConfig.AUTO_MERGE_DIVISOR_KEY, autoMergeDivisorValue)
+            .putInt(TimeTravelConfig.AUTO_MERGE_CUSTOM_SECONDS_KEY, autoMergeCustomSecondsValue)
             .putBoolean(TimeTravelConfig.BUFFER_DISK_CACHE_ENABLED_KEY, persistentBufferEnabled)
             .putBoolean(TimeTravelConfig.AGGRESSIVE_RESTART_ENABLED_KEY, aggressiveRestartEnabled)
             .putBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, wakeLockEnabled)
@@ -950,6 +1147,8 @@ class SettingsActivity : AppCompatActivity() {
         audioSourceLayout.error = null
         channelModeLayout.error = null
         inputRouteLayout.error = null
+        historyChunkLayout.error = null
+        autoMergeValueLayout.error = null
     }
 
     private fun setDropdownItems(
@@ -1020,6 +1219,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun currentSampleRate(): Int? {
         val selected = sampleRateDropdown.text?.toString().orEmpty()
         return availableSampleRates.firstOrNull { sampleRateLabel(it) == selected }
+    }
+
+    private fun currentAutoMergeMode(): AutoMergeMode {
+        val selected = autoMergeDropdown.text?.toString().orEmpty()
+        return availableAutoMergeModes.firstOrNull { getString(it.labelRes) == selected } ?: availableAutoMergeModes.firstOrNull() ?: AutoMergeMode.OFF
     }
 
     private fun refreshExportDirectoryUi() {

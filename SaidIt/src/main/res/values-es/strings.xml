@@ -48,6 +48,23 @@
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Almacenamiento</string>
     <string name="background_persistence_title">Segundo plano</string>
+    <string name="history_settings_title">Historial</string>
+    <string name="history_chunk_summary">El tamaño del bloque decide con qué frecuencia se cierra el historial en vivo en disco. Bloques más pequeños sobreviven mejor a fallos y recortan exportaciones personalizadas con más precisión. Bloques más grandes significan menos archivos y exportaciones largas más rápidas.</string>
+    <string name="history_chunk_label">Tamaño del bloque</string>
+    <string name="history_chunk_invalid">Usa MM:SS o HH:MM:SS.</string>
+    <string name="history_chunk_range_invalid">Usa %1$s-%2$s.</string>
+    <string name="auto_merge_label">Mezcla automática</string>
+    <string name="auto_merge_mode_off">Desactivado</string>
+    <string name="auto_merge_mode_ratio">1/x del búfer</string>
+    <string name="auto_merge_mode_custom">Personalizado</string>
+    <string name="auto_merge_value_label">Objetivo de mezcla</string>
+    <string name="auto_merge_ratio_value_label">Valor 1/x</string>
+    <string name="auto_merge_custom_value_label">Objetivo de mezcla</string>
+    <string name="auto_merge_ratio_supporting">Objetivo de mezcla en segundo plano. Aproximadamente 1/x del búfer conservado.</string>
+    <string name="auto_merge_custom_supporting">Usa MM:SS o HH:MM:SS.</string>
+    <string name="auto_merge_divisor_invalid">Usa %1$d-%2$d.</string>
+    <string name="auto_merge_custom_invalid">Usa MM:SS o HH:MM:SS.</string>
+    <string name="auto_merge_custom_range_invalid">Usa %1$s-%2$s.</string>
     <string name="codec_label">Códec</string>
     <string name="codec_aac_lc">AAC-LC / M4A</string>
     <string name="codec_he_aac">HE-AAC / M4A</string>
@@ -123,13 +140,11 @@
 
     <plurals name="move_recordings_done">
         <item quantity="one">Se movió %1$d grabación.</item>
-        <item quantity="many">Se movieron %1$d grabaciones.</item>
         <item quantity="other">Se movieron %1$d grabaciones.</item>
     </plurals>
 
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">Se eliminó %1$d entrada faltante.</item>
-        <item quantity="many">Se eliminaron %1$d entradas faltantes.</item>
         <item quantity="other">Se eliminaron %1$d entradas faltantes.</item>
     </plurals>
 </resources>
