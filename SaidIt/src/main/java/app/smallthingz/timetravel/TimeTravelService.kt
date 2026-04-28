@@ -1302,18 +1302,6 @@ class TimeTravelService : Service() {
         return true
     }
 
-    private fun maybeStartHistoryReencode() {
-        if (!historyReencodePending || historyReencoding) {
-            return
-        }
-        historyReencoding = true
-        historyReencodeStartedAtMillis = System.currentTimeMillis()
-        historyReencodeVisibleUntilElapsedRealtime = 0L
-        historyReencodeProcessedBytes = 0L
-        historyReencodeTotalBytes = availableBufferedSampleBytes()
-        exportHandler.post { performHistoryReencode() }
-    }
-
     private val bytesToSeconds: Float
         get() = if (fillRate > 0) 1f / fillRate else 0f
 
@@ -1784,8 +1772,7 @@ class TimeTravelService : Service() {
                                 historyReencodePending = true
                                 historyReencodeProcessedBytes = 0L
                                 historyReencodeTotalBytes = availableBufferedSampleBytes()
-                                maybeStartHistoryReencode()
-                                true
+                                startHistoryReencode()
                             } else {
                                 false
                             }

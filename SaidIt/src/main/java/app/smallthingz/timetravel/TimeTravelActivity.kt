@@ -12,8 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
-import androidx.fragment.app.commit
-import androidx.fragment.app.commitNow
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -32,7 +30,7 @@ class TimeTravelActivity : AppCompatActivity() {
                 if (existingCapture == null || existingFiles == null) {
                     val captureFragment = existingCapture ?: TimeTravelFragment()
                     val filesFragment = existingFiles ?: SavedRecordingsFragment()
-                    supportFragmentManager.commitNow {
+                    supportFragmentManager.beginTransaction().apply {
                         setReorderingAllowed(true)
                         if (!captureFragment.isAdded) {
                             add(R.id.container, captureFragment, CAPTURE_FRAGMENT_TAG)
@@ -45,7 +43,7 @@ class TimeTravelActivity : AppCompatActivity() {
                         } else {
                             hide(captureFragment)
                         }
-                    }
+                    }.commitNow()
                 }
                 container.isVisible = true
                 refreshBottomNavigation()
@@ -122,7 +120,7 @@ class TimeTravelActivity : AppCompatActivity() {
         val filesFragment = supportFragmentManager.findFragmentByTag(FILES_FRAGMENT_TAG) ?: return
         val chunksFragment = supportFragmentManager.findFragmentByTag(CHUNKS_FRAGMENT_TAG)
 
-        supportFragmentManager.commit {
+        supportFragmentManager.beginTransaction().apply {
             setReorderingAllowed(true)
             when (selectedTabId) {
                 R.id.navigation_capture -> {
@@ -146,7 +144,7 @@ class TimeTravelActivity : AppCompatActivity() {
                     hide(filesFragment)
                 }
             }
-        }
+        }.commit()
 
         if (selectedTabId == R.id.navigation_files) {
             (filesFragment as? SavedRecordingsFragment)?.refreshRecordings()
