@@ -1,4 +1,7 @@
-# TimeTravel ⏪
+<h1>
+  <img src="docs/app-icon.svg" alt="TimeTravel app icon" width="34" valign="middle" />
+  TimeTravel
+</h1>
 
 `Android` `Kotlin` `Material 3`
 
