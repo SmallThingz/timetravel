@@ -1,4 +1,4 @@
-package app.timetravel
+package app.smallthingz.timetravel
 
 import java.text.DecimalFormat
 import java.util.Locale

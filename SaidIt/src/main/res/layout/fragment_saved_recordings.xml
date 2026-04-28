@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context="app.timetravel.SavedRecordingsFragment">
+    tools:context="app.smallthingz.timetravel.SavedRecordingsFragment">
 
     <LinearLayout
         android:id="@+id/recordings_header"

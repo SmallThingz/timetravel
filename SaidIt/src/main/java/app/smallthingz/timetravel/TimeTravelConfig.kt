@@ -1,7 +1,7 @@
-package app.timetravel
+package app.smallthingz.timetravel
 
 object TimeTravelConfig {
-    const val PACKAGE_NAME = "app.timetravel"
+    const val PACKAGE_NAME = "app.smallthingz.timetravel"
 
     const val AUDIO_MEMORY_ENABLED_KEY = "audio_memory_enabled"
     const val AUDIO_MEMORY_SIZE_KEY = "audio_memory_size"

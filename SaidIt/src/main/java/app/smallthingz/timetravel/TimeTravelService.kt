@@ -1,4 +1,4 @@
-package app.timetravel
+package app.smallthingz.timetravel
 
 import android.annotation.SuppressLint
 import android.app.AlarmManager
@@ -1089,7 +1089,7 @@ class TimeTravelService : Service() {
 
     private fun storeDebugStatus(status: String) {
         runCatching {
-            val clazz = Class.forName("app.timetravel.DebugStatusStore")
+            val clazz = Class.forName("app.smallthingz.timetravel.DebugStatusStore")
             val method = clazz.getMethod("write", Context::class.java, String::class.java)
             method.invoke(null, this, status)
         }
@@ -1216,7 +1216,7 @@ class TimeTravelService : Service() {
         const val FOREGROUND_NOTIFICATION_ID = 458
         const val MIN_AUDIO_RECORD_BUFFER_SIZE = 16 * 1024
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
-        const val DEBUG_ACTION_PREFIX = "app.timetravel.debug."
+        const val DEBUG_ACTION_PREFIX = "app.smallthingz.timetravel.debug."
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
         const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
         const val ACTION_DEBUG_CLEAR_BUFFER = "${DEBUG_ACTION_PREFIX}CLEAR_BUFFER"

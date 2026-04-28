@@ -31,12 +31,12 @@ def releaseSigningReady =
         releaseKeyPassword
 
 android {
-    namespace 'app.timetravel'
+    namespace 'app.smallthingz.timetravel'
     compileSdk 37
     buildToolsVersion '37.0.0'
 
     defaultConfig{
-        applicationId "app.timetravel"
+        applicationId "app.smallthingz.timetravel"
         minSdk 30
         targetSdk 37
         versionCode 15

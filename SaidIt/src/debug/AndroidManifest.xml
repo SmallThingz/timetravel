@@ -8,15 +8,15 @@
             android:exported="true"
             tools:ignore="ExportedReceiver">
             <intent-filter>
-                <action android:name="app.timetravel.debug.ENABLE_LISTENING" />
-                <action android:name="app.timetravel.debug.DISABLE_LISTENING" />
-                <action android:name="app.timetravel.debug.CLEAR_BUFFER" />
-                <action android:name="app.timetravel.debug.FORCE_APP_STORAGE_EXPORTS" />
-                <action android:name="app.timetravel.debug.EXPORT_FULL" />
-                <action android:name="app.timetravel.debug.EXPORT_SECONDS" />
-                <action android:name="app.timetravel.debug.CHECKPOINT" />
-                <action android:name="app.timetravel.debug.LOG_STATE" />
-                <action android:name="app.timetravel.debug.DUMP_REPORT" />
+                <action android:name="app.smallthingz.timetravel.debug.ENABLE_LISTENING" />
+                <action android:name="app.smallthingz.timetravel.debug.DISABLE_LISTENING" />
+                <action android:name="app.smallthingz.timetravel.debug.CLEAR_BUFFER" />
+                <action android:name="app.smallthingz.timetravel.debug.FORCE_APP_STORAGE_EXPORTS" />
+                <action android:name="app.smallthingz.timetravel.debug.EXPORT_FULL" />
+                <action android:name="app.smallthingz.timetravel.debug.EXPORT_SECONDS" />
+                <action android:name="app.smallthingz.timetravel.debug.CHECKPOINT" />
+                <action android:name="app.smallthingz.timetravel.debug.LOG_STATE" />
+                <action android:name="app.smallthingz.timetravel.debug.DUMP_REPORT" />
             </intent-filter>
         </receiver>
 
@@ -25,7 +25,7 @@
             android:exported="true"
             tools:ignore="ExportedReceiver">
             <intent-filter>
-                <action android:name="app.timetravel.debug.QUERY_STATUS" />
+                <action android:name="app.smallthingz.timetravel.debug.QUERY_STATUS" />
             </intent-filter>
         </receiver>
     </application>

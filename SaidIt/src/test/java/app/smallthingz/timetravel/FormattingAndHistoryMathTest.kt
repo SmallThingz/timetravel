@@ -1,4 +1,4 @@
-package app.timetravel
+package app.smallthingz.timetravel
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

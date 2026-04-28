@@ -1,4 +1,4 @@
-package app.timetravel
+package app.smallthingz.timetravel
 
 import android.content.BroadcastReceiver
 import android.content.Context
