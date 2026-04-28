@@ -223,7 +223,10 @@ private fun describeFileRecordingLocation(
     val appStoragePath = getSavedRecordingsDirectory(context).absolutePath.replace('\\', '/').trimEnd('/')
     if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
         val relativePath = normalizedPath.removePrefix(appStoragePath).trimStart('/')
-        return buildAppStorageLocationLabel(relativePath)
+        return appendRelativePath(
+            "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
+            relativePath.replace('\\', '/').trim('/'),
+        )
     }
     return normalizedPath
 }
@@ -239,7 +242,12 @@ private fun describeDocumentRecordingLocation(
         return it
     }
     describeDocumentIdPath(context, directoryUri?.let { runCatching { DocumentsContract.getTreeDocumentId(it) }.getOrNull() })?.let {
-        return appendDisplayNameIfMissing(it, recording.displayName)
+        val normalizedBasePath = it.trimEnd('/')
+        return if (normalizedBasePath.endsWith("/${recording.displayName}") || normalizedBasePath == recording.displayName) {
+            normalizedBasePath
+        } else {
+            "$normalizedBasePath/${recording.displayName}"
+        }
     }
     return Uri.decode(documentUri.toString())
 }
@@ -274,27 +282,12 @@ private fun describeAppStorageRelativePath(
     val appStorageRelativeRoot = "Android/data/${context.packageName}/files/${Environment.DIRECTORY_MUSIC}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
     if (normalizedPath == appStorageRelativeRoot || normalizedPath.startsWith("$appStorageRelativeRoot/")) {
         val tail = normalizedPath.removePrefix(appStorageRelativeRoot).trimStart('/')
-        return buildAppStorageLocationLabel(tail)
+        return appendRelativePath(
+            "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
+            tail.replace('\\', '/').trim('/'),
+        )
     }
     return null
-}
-
-private fun buildAppStorageLocationLabel(relativePath: String): String {
-    val baseLabel = "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
-    val normalizedTail = relativePath.replace('\\', '/').trim('/')
-    return appendRelativePath(baseLabel, normalizedTail)
-}
-
-private fun appendDisplayNameIfMissing(
-    basePath: String,
-    displayName: String,
-): String {
-    val normalizedBasePath = basePath.trimEnd('/')
-    return if (normalizedBasePath.endsWith("/$displayName") || normalizedBasePath == displayName) {
-        normalizedBasePath
-    } else {
-        "$normalizedBasePath/$displayName"
-    }
 }
 
 private fun appendRelativePath(

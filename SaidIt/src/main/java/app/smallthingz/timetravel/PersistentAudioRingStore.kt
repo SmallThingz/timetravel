@@ -416,6 +416,9 @@ internal class PersistentAudioRingStore(
     }
 
     private companion object {
+        // Fixed mmap metadata header shared by the tiny meta file and the large PCM ring file.
+        // Values stay intentionally primitive/offset-based so restore can recover after process death
+        // without needing any schema object allocation or parsing.
         const val META_FILE_BYTES = 512
         const val IO_CHUNK_SIZE = 64 * 1024
         const val FORCE_INTERVAL_MS = 250L

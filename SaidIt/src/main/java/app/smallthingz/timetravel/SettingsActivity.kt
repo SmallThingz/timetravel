@@ -338,25 +338,21 @@ class SettingsActivity : AppCompatActivity() {
     private fun installFocusClear(target: View) {
         target.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                clearCurrentInputFocus(target)
+                currentFocus?.let { focused ->
+                    focused.clearFocus()
+                    (getSystemService(InputMethodManager::class.java))?.hideSoftInputFromWindow(focused.windowToken, 0)
+                }
             }
             false
         }
     }
 
-    private fun clearCurrentInputFocus(target: View) {
-        currentFocus?.let { focused ->
-            focused.clearFocus()
-            (getSystemService(InputMethodManager::class.java))?.hideSoftInputFromWindow(focused.windowToken, 0)
-        }
-    }
-
     private fun setupListeners() {
-        bindSwitchRow(persistentBufferRow, persistentBufferSwitch)
-        bindSwitchRow(aggressiveRestartRow, aggressiveRestartSwitch)
-        bindSwitchRow(wakeLockRow, wakeLockSwitch)
-        bindSwitchRow(autoMergeEagerRow, autoMergeEagerSwitch)
-        bindSwitchRow(debugChunksRow, debugChunksSwitch)
+        persistentBufferRow.setOnClickListener { persistentBufferSwitch.performClick() }
+        aggressiveRestartRow.setOnClickListener { aggressiveRestartSwitch.performClick() }
+        wakeLockRow.setOnClickListener { wakeLockSwitch.performClick() }
+        autoMergeEagerRow.setOnClickListener { autoMergeEagerSwitch.performClick() }
+        debugChunksRow.setOnClickListener { debugChunksSwitch.performClick() }
 
         retentionTimeInput.setOnClickListener { activateRetentionMode(RetentionMode.TIME) }
         retentionSizeInput.setOnClickListener { activateRetentionMode(RetentionMode.SIZE) }
@@ -569,15 +565,6 @@ class SettingsActivity : AppCompatActivity() {
                 saveCurrentToSnapshot(currentSettings)
                 pushUndoState()
             }
-        }
-    }
-
-    private fun bindSwitchRow(
-        row: View,
-        toggle: MaterialSwitch,
-    ) {
-        row.setOnClickListener {
-            toggle.performClick()
         }
     }
 
