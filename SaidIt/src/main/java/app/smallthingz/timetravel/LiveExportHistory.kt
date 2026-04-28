@@ -335,7 +335,7 @@ internal class LiveExportHistory(
     }
 
     fun compactIfNeeded(): Boolean {
-        val task = synchronized(this) { claimCompactionTaskLocked() } ?: return false
+        val task = synchronized(this) { claimCompactionTaskLocked(includeExportFallback = false) } ?: return false
         var mergedFile: File? = null
         return try {
             synchronized(this) {
@@ -1363,13 +1363,13 @@ internal class LiveExportHistory(
         pruneLocked()
     }
 
-    private fun claimCompactionTaskLocked(): CompactionTask? {
+    private fun claimCompactionTaskLocked(includeExportFallback: Boolean): CompactionTask? {
         if (compactionInFlight) {
             return null
         }
         val currentConfig = config ?: return null
         val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
-        val targetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = false) ?: return null
+        val targetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = includeExportFallback) ?: return null
         if (targetSampleBytes <= baseSegmentBytes) {
             return null
         }
@@ -2358,7 +2358,7 @@ internal class LiveExportHistory(
     fun debugCompactAllChunksNow(): Int {
         var mergedCount = 0
         while (true) {
-            val task = synchronized(this) { claimCompactionTaskLocked() } ?: break
+            val task = synchronized(this) { claimCompactionTaskLocked(includeExportFallback = true) } ?: break
             var mergedFile: File? = null
             val merged =
                 try {
