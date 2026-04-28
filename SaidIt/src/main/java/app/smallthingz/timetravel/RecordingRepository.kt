@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 object RecordingRepository {
+    private const val MISSING_RECORDING_TTL_MILLIS = 24L * 60L * 60L * 1000L
     private val mutex = Mutex()
 
     suspend fun refresh(context: Context): List<RecordingEntity> {
@@ -129,12 +130,14 @@ object RecordingRepository {
         val imported = listCurrentOutputDirectoryRecordings(context)
         val existing = dao.listByDirectory(currentDirectoryId)
         val importedIds = imported.mapTo(mutableSetOf()) { it.id }
+        val nowMillis = System.currentTimeMillis()
         val staleIds = existing.asSequence()
             .filter { it.id !in importedIds }
             // Keep DB rows for files that still exist even if the directory scan
             // did not rediscover them yet (for example, provider lag or format-
             // specific scan gaps right after export).
             .filterNot { recordingExists(context, it) }
+            .filter { isMissingRecordingExpired(it, nowMillis) }
             .map { it.id }
             .toList()
 
@@ -149,14 +152,23 @@ object RecordingRepository {
     private suspend fun pruneMissingLocked(context: Context): Int {
         val dao = RecordingDatabase.getInstance(context).recordingDao()
         val all = dao.listAll()
+        val nowMillis = System.currentTimeMillis()
         val missingIds = all.asSequence()
             .filterNot { recordingExists(context, it) }
+            .filter { isMissingRecordingExpired(it, nowMillis) }
             .map { it.id }
             .toList()
         if (missingIds.isNotEmpty()) {
             dao.deleteByIds(missingIds)
         }
         return missingIds.size
+    }
+
+    private fun isMissingRecordingExpired(
+        recording: RecordingEntity,
+        nowMillis: Long,
+    ): Boolean {
+        return nowMillis - recording.createdAtMillis >= MISSING_RECORDING_TTL_MILLIS
     }
 
     data class MoveResult(

@@ -13,6 +13,9 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.os.Binder
 import android.os.Build
 import android.os.Handler
@@ -33,6 +36,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.PrintWriter
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -1246,23 +1251,23 @@ class TimeTravelService : Service() {
     }
 
     fun startHistoryReencode(): Boolean {
-        if (state == STATE_RECORDING || historyReencoding || !historyReencodePending) {
+        if (historyReencoding || !historyReencodePending) {
             return false
         }
         historyReencoding = true
         historyReencodeProcessedBytes = 0L
-        historyReencodeTotalBytes = currentRawBufferedSampleBytes()
+        historyReencodeTotalBytes = availableBufferedSampleBytes()
         exportHandler.post { performHistoryReencode() }
         return true
     }
 
     private fun maybeStartHistoryReencode() {
-        if (!historyReencodePending || historyReencoding || state == STATE_RECORDING) {
+        if (!historyReencodePending || historyReencoding) {
             return
         }
         historyReencoding = true
         historyReencodeProcessedBytes = 0L
-        historyReencodeTotalBytes = currentRawBufferedSampleBytes()
+        historyReencodeTotalBytes = availableBufferedSampleBytes()
         exportHandler.post { performHistoryReencode() }
     }
 
@@ -1358,72 +1363,19 @@ class TimeTravelService : Service() {
                 throw IOException("Unable to create re-encode workspace: ${directory.absolutePath}")
             }
         }
-        val chunkBytes = reencodeChunkSampleBytes()
-        val startedAtMillis = System.currentTimeMillis() - (retainedBytes * 1000L / maxOf(fillRate, 1))
-        val chunks = ArrayList<ReencodeChunk>()
-        var currentChunkIndex = 0
-        var currentChunkStartMillis = startedAtMillis
-        var currentChunkBytes = 0L
-        var currentChunkFile: File? = null
-        var currentChunkOutput: BufferedOutputStream? = null
-
-        fun closeChunk() {
-            val output = currentChunkOutput ?: return
-            output.close()
-            val file = requireNotNull(currentChunkFile)
-            chunks += ReencodeChunk(file, currentChunkStartMillis, currentChunkBytes)
-            currentChunkOutput = null
-            currentChunkFile = null
-            currentChunkStartMillis += currentChunkBytes * 1000L / maxOf(fillRate, 1)
-            currentChunkBytes = 0L
-        }
-
-        val readSucceeded =
-            try {
-                readBufferedPcm(0L, retainedBytes) { array, offset, count ->
-                    var remaining = count
-                    var readOffset = offset
-                    while (remaining > 0) {
-                        if (currentChunkOutput == null) {
-                            currentChunkFile = File(rootDirectory, "chunk-$currentChunkIndex.pcm")
-                            currentChunkOutput = BufferedOutputStream(FileOutputStream(requireNotNull(currentChunkFile)))
-                            currentChunkIndex++
-                        }
-                        val toWrite = minOf(remaining.toLong(), chunkBytes - currentChunkBytes).toInt()
-                        currentChunkOutput?.write(array, readOffset, toWrite)
-                        currentChunkBytes += toWrite.toLong()
-                        readOffset += toWrite
-                        remaining -= toWrite
-                        if (currentChunkBytes >= chunkBytes) {
-                            closeChunk()
-                        }
-                    }
-                    count
-                }
-            } finally {
-                currentChunkOutput?.close()
-                if (currentChunkBytes > 0L && currentChunkFile != null) {
-                    chunks += ReencodeChunk(requireNotNull(currentChunkFile), currentChunkStartMillis, currentChunkBytes)
-                }
-            }
-        if (!readSucceeded) {
-            liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
-            throw IOException("Requested PCM range not available for history re-encode")
-        }
-
         historyReencodeTotalBytes = retainedBytes
-        return HistoryReencodeSnapshot(rootDirectory, chunks, retainedBytes, historySnapshot.sourcePaths)
+        return HistoryReencodeSnapshot(rootDirectory, historySnapshot.sourceSegments, retainedBytes, historySnapshot.sourcePaths)
     }
 
     private fun encodeHistorySnapshotParallel(
         snapshot: HistoryReencodeSnapshot,
     ): List<LiveExportHistory.ImportedSegment> {
-        val parallelism = minOf(snapshot.chunks.size, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)).coerceAtLeast(1)
+        val parallelism = minOf(snapshot.sourceSegments.size, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)).coerceAtLeast(1)
         val processedBytes = AtomicLong(0L)
         val executor = Executors.newFixedThreadPool(parallelism)
-        val futures = ArrayList<Future<LiveExportHistory.ImportedSegment>>(snapshot.chunks.size)
+        val futures = ArrayList<Future<LiveExportHistory.ImportedSegment>>(snapshot.sourceSegments.size)
         try {
-            snapshot.chunks.forEachIndexed { index, chunk ->
+            snapshot.sourceSegments.forEachIndexed { index, chunk ->
                 futures += executor.submit<LiveExportHistory.ImportedSegment> {
                     val targetFile = File(snapshot.rootDirectory, "encoded-$index.${effectiveOutputFormat.extension}.tmp")
                     val target = RecordingOutputTarget(
@@ -1436,18 +1388,9 @@ class TimeTravelService : Service() {
                         file = targetFile,
                     )
                     createAudioFileWriter(target).use { writer ->
-                        FileInputStream(chunk.file).use { input ->
-                            val buffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read <= 0) {
-                                    break
-                                }
-                                writer.write(buffer, 0, read)
-                                historyReencodeProcessedBytes = processedBytes.addAndGet(read.toLong())
-                            }
-                        }
+                        transcodeHistorySegmentToWriter(chunk, writer)
                     }
+                    historyReencodeProcessedBytes = processedBytes.addAndGet(chunk.sampleBytes)
                     LiveExportHistory.ImportedSegment(
                         file = targetFile,
                         startedAtMillis = chunk.startedAtMillis,
@@ -1458,6 +1401,95 @@ class TimeTravelService : Service() {
             return futures.map { it.get() }.sortedBy { it.startedAtMillis }
         } finally {
             executor.shutdownNow()
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun transcodeHistorySegmentToWriter(
+        chunk: LiveExportHistory.ReencodeSourceSegment,
+        writer: AudioFileWriter,
+    ) {
+        if (chunk.file.extension.equals("wav", ignoreCase = true)) {
+            RandomAccessFile(chunk.file, "r").use { input ->
+                input.seek(WAV_HEADER_BYTES.toLong())
+                val buffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
+                var remaining = chunk.sampleBytes
+                while (remaining > 0L) {
+                    val requested = minOf(buffer.size.toLong(), remaining).toInt()
+                    val read = input.read(buffer, 0, requested)
+                    if (read <= 0) {
+                        throw IOException("Short PCM read while re-encoding ${chunk.file.name}")
+                    }
+                    writer.write(buffer, 0, read)
+                    remaining -= read.toLong()
+                }
+            }
+            return
+        }
+
+        val extractor = MediaExtractor()
+        var decoder: MediaCodec? = null
+        try {
+            extractor.setDataSource(chunk.file.absolutePath)
+            val trackIndex = LiveExportHistory.findAudioTrack(extractor)
+            if (trackIndex < 0) {
+                throw IOException("No audio track in ${chunk.file.name}")
+            }
+            extractor.selectTrack(trackIndex)
+            val inputFormat = extractor.getTrackFormat(trackIndex)
+            val mime = inputFormat.getString(MediaFormat.KEY_MIME) ?: throw IOException("Missing mime for ${chunk.file.name}")
+            decoder = MediaCodec.createDecoderByType(mime).apply {
+                configure(inputFormat, null, null, 0)
+                start()
+            }
+            val bufferInfo = MediaCodec.BufferInfo()
+            val pcmBuffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
+            var extractorDone = false
+            var decoderDone = false
+            while (!decoderDone) {
+                if (!extractorDone) {
+                    val inputIndex = decoder.dequeueInputBuffer(REENCODE_CODEC_TIMEOUT_US)
+                    if (inputIndex >= 0) {
+                        val inputBuffer = decoder.getInputBuffer(inputIndex) ?: throw IOException("Decoder input buffer missing")
+                        inputBuffer.clear()
+                        val sampleSize = extractor.readSampleData(inputBuffer, 0)
+                        if (sampleSize < 0) {
+                            decoder.queueInputBuffer(inputIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            extractorDone = true
+                        } else {
+                            decoder.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime.coerceAtLeast(0L), extractor.sampleFlags)
+                            extractor.advance()
+                        }
+                    }
+                }
+
+                when (val outputIndex = decoder.dequeueOutputBuffer(bufferInfo, REENCODE_CODEC_TIMEOUT_US)) {
+                    MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Unit
+                    else -> if (outputIndex >= 0) {
+                        val outputBuffer = decoder.getOutputBuffer(outputIndex) ?: throw IOException("Decoder output buffer missing")
+                        if (bufferInfo.size > 0) {
+                            outputBuffer.position(bufferInfo.offset)
+                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                            var remaining = bufferInfo.size
+                            while (remaining > 0) {
+                                val count = minOf(remaining, pcmBuffer.size)
+                                outputBuffer.get(pcmBuffer, 0, count)
+                                writer.write(pcmBuffer, 0, count)
+                                remaining -= count
+                            }
+                        }
+                        decoder.releaseOutputBuffer(outputIndex, false)
+                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            decoderDone = true
+                        }
+                    }
+                }
+            }
+        } finally {
+            runCatching { extractor.release() }
+            runCatching { decoder?.stop() }
+            runCatching { decoder?.release() }
         }
     }
 
@@ -1661,6 +1693,34 @@ class TimeTravelService : Service() {
                 }
                 ACTION_DEBUG_EXPORT_FULL -> exportDebug(FULL_BUFFER_SECONDS)
                 ACTION_DEBUG_EXPORT_SECONDS -> exportDebug(seconds)
+                ACTION_DEBUG_MERGE_ALL -> exportHandler.post {
+                    val mergedCount =
+                        try {
+                            if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactAllChunksNow() else 0
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "Debug merge-all failed", t)
+                            0
+                    }
+                    writeDebugReport("merge-all:$mergedCount")
+                }
+                ACTION_DEBUG_REENCODE_ALL -> exportHandler.post {
+                    val started =
+                        try {
+                            if (availableBufferedSampleBytes() > 0L && !historyReencoding) {
+                                historyReencodePending = true
+                                historyReencodeProcessedBytes = 0L
+                                historyReencodeTotalBytes = availableBufferedSampleBytes()
+                                maybeStartHistoryReencode()
+                                true
+                            } else {
+                                false
+                            }
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "Debug reencode-all failed to start", t)
+                            false
+                        }
+                    writeDebugReport("reencode-all-start:$started")
+                }
                 ACTION_DEBUG_CHECKPOINT -> syncPersistentBufferFromMemory()
                 ACTION_DEBUG_LOG_STATE -> logDebugState()
                 ACTION_DEBUG_DUMP_REPORT -> writeDebugReport("manual-dump")
@@ -2008,6 +2068,8 @@ class TimeTravelService : Service() {
         const val ACTION_DEBUG_FORCE_APP_STORAGE_EXPORTS = "${DEBUG_ACTION_PREFIX}FORCE_APP_STORAGE_EXPORTS"
         const val ACTION_DEBUG_EXPORT_FULL = "${DEBUG_ACTION_PREFIX}EXPORT_FULL"
         const val ACTION_DEBUG_EXPORT_SECONDS = "${DEBUG_ACTION_PREFIX}EXPORT_SECONDS"
+        const val ACTION_DEBUG_MERGE_ALL = "${DEBUG_ACTION_PREFIX}MERGE_ALL"
+        const val ACTION_DEBUG_REENCODE_ALL = "${DEBUG_ACTION_PREFIX}REENCODE_ALL"
         const val ACTION_DEBUG_CHECKPOINT = "${DEBUG_ACTION_PREFIX}CHECKPOINT"
         const val ACTION_DEBUG_LOG_STATE = "${DEBUG_ACTION_PREFIX}LOG_STATE"
         const val ACTION_DEBUG_DUMP_REPORT = "${DEBUG_ACTION_PREFIX}DUMP_REPORT"

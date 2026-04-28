@@ -154,6 +154,7 @@ internal class LiveExportHistory(
 
     @Synchronized
     fun snapshotForHistoryReencode(
+        expectedConfig: Config,
         reopenForContinuedCapture: Boolean,
     ): HistoryReencodeSourceSnapshot? {
         val currentConfig = config ?: return null
@@ -169,7 +170,14 @@ internal class LiveExportHistory(
             }
             return null
         }
-        val sourcePaths = segments.map { it.file.absolutePath }
+        val sourceRanges = buildHistoryReencodeRangesLocked(expectedConfig)
+        if (sourceRanges.isEmpty()) {
+            if (reopenForContinuedCapture) {
+                ensureWriterLocked(nextSegmentStartMillis ?: System.currentTimeMillis())
+            }
+            return null
+        }
+        val sourcePaths = sourceRanges.flatMap { it.sourcePaths }
         sourcePaths.forEach { path ->
             pinnedFiles[path] = (pinnedFiles[path] ?: 0) + 1
         }
@@ -177,8 +185,9 @@ internal class LiveExportHistory(
             ensureWriterLocked(nextSegmentStartMillis ?: System.currentTimeMillis())
         }
         return HistoryReencodeSourceSnapshot(
+            sourceRanges = sourceRanges,
             sourcePaths = sourcePaths,
-            totalSampleBytes = segments.sumOf { it.sampleBytes },
+            totalSampleBytes = sourceRanges.sumOf { it.totalSampleBytes },
         )
     }
 
@@ -188,22 +197,51 @@ internal class LiveExportHistory(
         expectedConfig: Config,
         importedSegments: List<ImportedSegment>,
     ): Boolean {
+        return replaceSourceSegmentsWithImportedRanges(
+            replacements = listOf(HistoryReencodeReplacementRange(sourcePaths, importedSegments)),
+            expectedConfig = expectedConfig,
+        )
+    }
+
+    @Synchronized
+    fun replaceSourceSegmentsWithImportedRanges(
+        replacements: List<HistoryReencodeReplacementRange>,
+        expectedConfig: Config,
+    ): Boolean {
+        if (replacements.isEmpty()) {
+            return true
+        }
+        val pinnedSourcePaths = replacements.flatMap { it.sourcePaths }
         if (config != expectedConfig) {
-            releasePinnedSourcePathsLocked(sourcePaths)
+            releasePinnedSourcePathsLocked(pinnedSourcePaths)
             return false
         }
         val currentSegments = segments.toList()
-        val startIndex = findContiguousSegmentRangeStartLocked(currentSegments, sourcePaths)
-        if (startIndex < 0) {
-            releasePinnedSourcePathsLocked(sourcePaths)
+        val indexedReplacements = replacements.map { replacement ->
+            val startIndex = findContiguousSegmentRangeStartLocked(currentSegments, replacement.sourcePaths)
+            if (startIndex < 0) {
+                releasePinnedSourcePathsLocked(pinnedSourcePaths)
+                return false
+            }
+            IndexedHistoryReencodeReplacementRange(
+                startIndex = startIndex,
+                endIndexExclusive = startIndex + replacement.sourcePaths.size,
+                replacement = replacement,
+            )
+        }.sortedBy { it.startIndex }
+        if (indexedReplacements.zipWithNext().any { (left, right) -> left.endIndexExclusive > right.startIndex }) {
+            releasePinnedSourcePathsLocked(pinnedSourcePaths)
             return false
         }
-        val endIndexExclusive = startIndex + sourcePaths.size
-        val replacement = ArrayDeque<Segment>(currentSegments.size - sourcePaths.size + importedSegments.size)
-        currentSegments.subList(0, startIndex).forEach(replacement::addLast)
-        importedSegments
-            .sortedBy { it.startedAtMillis }
-            .forEach { imported ->
+        val replacementSegments = ArrayDeque<Segment>(
+            currentSegments.size - pinnedSourcePaths.size + replacements.sumOf { it.importedSegments.size },
+        )
+        var sourceCursor = 0
+        indexedReplacements.forEach { indexed ->
+            currentSegments.subList(sourceCursor, indexed.startIndex).forEach(replacementSegments::addLast)
+            indexed.replacement.importedSegments
+                .sortedBy { it.startedAtMillis }
+                .forEach { imported ->
                 val segment = Segment(
                     file = imported.file,
                     startedAtMillis = imported.startedAtMillis,
@@ -211,17 +249,19 @@ internal class LiveExportHistory(
                 )
                 finalizeSegmentFileLocked(segment)
                 if (segment.sampleBytes > 0L && segment.file.isFile && segment.file.length() > 0L) {
-                    replacement.addLast(segment)
+                    replacementSegments.addLast(segment)
                 } else {
                     segment.file.delete()
                 }
             }
-        currentSegments.subList(endIndexExclusive, currentSegments.size).forEach(replacement::addLast)
+            sourceCursor = indexed.endIndexExclusive
+        }
+        currentSegments.subList(sourceCursor, currentSegments.size).forEach(replacementSegments::addLast)
         segments.clear()
-        segments.addAll(replacement)
-        releasePinnedSourcePathsLocked(sourcePaths)
+        segments.addAll(replacementSegments)
+        releasePinnedSourcePathsLocked(pinnedSourcePaths)
         val livePaths = segments.mapTo(HashSet()) { it.file.absolutePath }
-        sourcePaths.forEach { path ->
+        pinnedSourcePaths.forEach { path ->
             if (path !in livePaths && !pinnedFiles.containsKey(path)) {
                 File(path).delete()
             }
@@ -236,6 +276,35 @@ internal class LiveExportHistory(
     ) {
         releasePinnedSourcePathsLocked(sourcePaths)
         pruneLocked()
+    }
+
+    @Synchronized
+    fun debugDeleteChunks(
+        filePaths: Collection<String>,
+    ): Int {
+        if (filePaths.isEmpty()) {
+            return 0
+        }
+        val requestedPaths = filePaths.toHashSet()
+        val busyPaths = debugOperations.values.flatMapTo(HashSet()) { it.sourcePaths }
+        val keptSegments = ArrayDeque<Segment>(segments.size)
+        var deletedCount = 0
+        segments.forEach { segment ->
+            val path = segment.file.absolutePath
+            val shouldDelete = path in requestedPaths && path !in busyPaths && !pinnedFiles.containsKey(path)
+            if (shouldDelete && segment.file.delete()) {
+                deletedCount++
+            } else {
+                keptSegments.addLast(segment)
+            }
+        }
+        if (deletedCount <= 0) {
+            return 0
+        }
+        segments.clear()
+        segments.addAll(keptSegments)
+        pruneLocked()
+        return deletedCount
     }
 
     @Synchronized
@@ -1384,7 +1453,34 @@ internal class LiveExportHistory(
                     break
                 }
                 val nextTotal = totalSampleBytes + segment.sampleBytes
-                if (nextTotal > targetSampleBytes) {
+                if (nextTotal > targetSampleBytes && selectedSegments.size >= MIN_COMPACTION_SEGMENTS) {
+                    val slices = selectedSegments.map { selected ->
+                        val key = selected.file.absolutePath
+                        pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
+                        SegmentSlice(selected, 0L, selected.sampleBytes)
+                    }
+                    ensureHistoryRootExists()
+                    val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+                    val outputTarget = RecordingOutputTarget(
+                        id = tempFile.absolutePath,
+                        displayName = tempFile.name,
+                        mimeType = currentConfig.format.outputMimeType,
+                        storageType = RecordingStorageType.FILE,
+                        directoryId = historyRoot.absolutePath,
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        file = tempFile,
+                    )
+                    compactionInFlight = true
+                    return CompactionTask(
+                        operationId = "bg-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
+                        startIndex = startIndex,
+                        sourcePaths = selectedSegments.map { it.file.absolutePath },
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        totalSampleBytes = totalSampleBytes,
+                        snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+                        outputTarget = outputTarget,
+                    )
+                } else if (nextTotal > targetSampleBytes) {
                     break
                 }
                 selectedSegments += segment
@@ -1450,7 +1546,34 @@ internal class LiveExportHistory(
                     break
                 }
                 val nextTotal = totalSampleBytes + segment.sampleBytes
-                if (nextTotal > targetSampleBytes) {
+                if (nextTotal > targetSampleBytes && includesSelected && selectedSegments.size >= MIN_COMPACTION_SEGMENTS) {
+                    val slices = selectedSegments.map { selected ->
+                        val key = selected.file.absolutePath
+                        pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
+                        SegmentSlice(selected, 0L, selected.sampleBytes)
+                    }
+                    ensureHistoryRootExists()
+                    val tempFile = File(historyRoot, "manual-compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+                    val outputTarget = RecordingOutputTarget(
+                        id = tempFile.absolutePath,
+                        displayName = tempFile.name,
+                        mimeType = currentConfig.format.outputMimeType,
+                        storageType = RecordingStorageType.FILE,
+                        directoryId = historyRoot.absolutePath,
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        file = tempFile,
+                    )
+                    compactionInFlight = true
+                    return CompactionTask(
+                        operationId = "manual-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
+                        startIndex = startIndex,
+                        sourcePaths = selectedSegments.map { it.file.absolutePath },
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        totalSampleBytes = totalSampleBytes,
+                        snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+                        outputTarget = outputTarget,
+                    )
+                } else if (nextTotal > targetSampleBytes) {
                     break
                 }
                 selectedSegments += segment
@@ -1600,7 +1723,7 @@ internal class LiveExportHistory(
             return false
         }
         val sampleBytes = segment.sampleBytes
-        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes && sampleBytes % baseSegmentBytes == 0L
+        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes
     }
 
     private fun isExportBlockCandidateLocked(
@@ -1613,7 +1736,7 @@ internal class LiveExportHistory(
             return false
         }
         val sampleBytes = segment.sampleBytes
-        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes && sampleBytes % baseSegmentBytes == 0L
+        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes
     }
 
     private fun shouldCompactSelection(
@@ -2147,8 +2270,15 @@ internal class LiveExportHistory(
     )
 
     data class HistoryReencodeSourceSnapshot(
+        val sourceSegments: List<ReencodeSourceSegment>,
         val sourcePaths: List<String>,
         val totalSampleBytes: Long,
+    )
+
+    data class ReencodeSourceSegment(
+        val file: File,
+        val startedAtMillis: Long,
+        val sampleBytes: Long,
     )
 
     private data class CompactionTask(

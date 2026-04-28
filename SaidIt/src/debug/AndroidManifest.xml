@@ -3,6 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application>
+        <service
+            android:name=".TimeTravelService"
+            android:exported="true"
+            tools:replace="android:exported"
+            tools:node="merge" />
+
         <receiver
             android:name=".DebugCommandReceiver"
             android:exported="true"
@@ -15,6 +21,8 @@
                 <action android:name="app.smallthingz.timetravel.debug.FORCE_APP_STORAGE_EXPORTS" />
                 <action android:name="app.smallthingz.timetravel.debug.EXPORT_FULL" />
                 <action android:name="app.smallthingz.timetravel.debug.EXPORT_SECONDS" />
+                <action android:name="app.smallthingz.timetravel.debug.MERGE_ALL" />
+                <action android:name="app.smallthingz.timetravel.debug.REENCODE_ALL" />
                 <action android:name="app.smallthingz.timetravel.debug.CHECKPOINT" />
                 <action android:name="app.smallthingz.timetravel.debug.LOG_STATE" />
                 <action android:name="app.smallthingz.timetravel.debug.DUMP_REPORT" />
