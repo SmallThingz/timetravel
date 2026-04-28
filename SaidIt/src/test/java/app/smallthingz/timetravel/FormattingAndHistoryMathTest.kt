@@ -59,6 +59,12 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
+    fun sampleRatePreference_prefers44k1_thenNearestHigher() {
+        assertEquals(listOf(44_100, 48_000, 32_000), orderSampleRatesByPreference(listOf(48_000, 32_000, 44_100), 44_100))
+        assertEquals(listOf(48_000, 32_000, 24_000), orderSampleRatesByPreference(listOf(48_000, 24_000, 32_000), 44_100))
+    }
+
+    @Test
     fun estimateExportDuration_scalesWithRequestedSize() {
         val nineHundredMiB = 900L * 1024L * 1024L
         val nineThousandMiB = 9_000L * 1024L * 1024L

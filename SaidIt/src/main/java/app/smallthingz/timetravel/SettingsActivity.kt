@@ -557,9 +557,26 @@ class SettingsActivity : AppCompatActivity() {
         val configuredRoute = getConfiguredInputRouteMode(this)
         val configuredSource = getConfiguredAudioSourceMode(this)
         val configuredChannelMode = getConfiguredChannelMode(this)
-        val configuredRate = prefs.getInt(TimeTravelConfig.SAMPLE_RATE_KEY, standardSampleRates().first())
+        val configuredRate = prefs.getInt(
+            TimeTravelConfig.SAMPLE_RATE_KEY,
+            getPreferredSampleRate(
+                this,
+                configuredSource,
+                configuredRoute,
+                configuredFormat,
+                configuredCodec,
+                configuredChannelMode,
+            ),
+        )
             .takeIf { it > 0 }
-            ?: standardSampleRates().first()
+            ?: getPreferredSampleRate(
+                this,
+                configuredSource,
+                configuredRoute,
+                configuredFormat,
+                configuredCodec,
+                configuredChannelMode,
+            )
         val configuredBitrateKbps = getConfiguredCodecBitrateKbps(this, configuredCodec, configuredRate, configuredChannelMode.channelCount) ?: 0
         val configuredHistoryChunkSeconds = getConfiguredHistoryChunkSeconds(this)
         val configuredAutoMergeMode = getConfiguredAutoMergeMode(this)

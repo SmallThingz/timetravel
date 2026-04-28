@@ -40,6 +40,7 @@ private const val DEFAULT_AUTO_MERGE_CUSTOM_SECONDS = 60
 private const val MIN_AUTO_MERGE_CUSTOM_SECONDS = 10
 private const val MAX_AUTO_MERGE_CUSTOM_SECONDS = 3600
 private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
+private const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
 private val STANDARD_SAMPLE_RATES =
     intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000)
 private val codecSupportCache = ConcurrentHashMap<CodecSupportKey, Boolean>()
@@ -790,16 +791,11 @@ fun getPreferredSampleRate(
 ): Int {
     val supported = supportedSampleRates(context, sourceMode, routeMode, format, codec, channelMode)
     if (supported.isNotEmpty()) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val nativeRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
-        if (nativeRate != null && nativeRate in supported) {
-            return nativeRate
-        }
-        return supported.first()
+        return orderSampleRatesByPreference(supported, PREFERRED_DEFAULT_SAMPLE_RATE).first()
     }
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val nativeRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
-    return nativeRate?.takeIf { it > 0 } ?: STANDARD_SAMPLE_RATES.first()
+    return nativeRate?.takeIf { it > 0 } ?: orderSampleRatesByPreference(standardSampleRates(), PREFERRED_DEFAULT_SAMPLE_RATE).first()
 }
 
 fun resolveOperationalSampleRate(
