@@ -138,6 +138,16 @@
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:text="@string/custom_time" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/reencode_history_button"
+                style="@style/Widget.TimeTravel.ExportButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="2"
+                android:text="@string/reencode_history"
+                android:visibility="gone" />
         </LinearLayout>
     </FrameLayout>
 

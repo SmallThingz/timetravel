@@ -37,6 +37,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.Fragment
@@ -1014,6 +1015,7 @@ class TimeTravelFragment : Fragment() {
         if (
             !this::recordMaxButton.isInitialized ||
             !this::recordCustomButton.isInitialized ||
+            !this::reencodeHistoryButton.isInitialized ||
             !this::settingsButton.isInitialized ||
             !this::recTouchArea.isInitialized
         ) {

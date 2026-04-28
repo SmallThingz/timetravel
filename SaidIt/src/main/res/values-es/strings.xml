@@ -132,6 +132,7 @@
     <string name="battery_optimization_button">Ajustes de batería</string>
     <string name="settings_saved">Guardado.</string>
     <string name="settings_saved_next_start">Guardado. Se iniciará la próxima vez.</string>
+    <string name="settings_saved_reencode_history">Guardado. Vuelve a codificar el historial para poder exportar otra vez.</string>
     <string name="settings_saved_deferred_input">Guardado. Los cambios de entrada se aplicarán la próxima vez.</string>
     <string name="settings_apply_blocked_recording">Detén la grabación primero.</string>
     <string name="unsupported_config_message">No compatible.</string>
@@ -151,6 +152,11 @@
     <string name="recording_delete_failed">No se pudo eliminar la grabación.</string>
     <string name="recording_info">Información</string>
     <string name="open_github">Abrir GitHub</string>
+    <string name="reencode_history">Recodificar historial</string>
+    <string name="reencode_history_progress">Recodificando %1$d%%</string>
+    <string name="reencode_history_disable_listening">Desactiva la escucha primero.</string>
+    <string name="reencode_history_done">Historial recodificado.</string>
+    <string name="reencode_history_failed">No se pudo recodificar el historial.</string>
     <string name="about_version">Versión %1$s</string>
     <string name="recording_details_name">Nombre:</string>
     <string name="recording_details_started">Inicio:</string>

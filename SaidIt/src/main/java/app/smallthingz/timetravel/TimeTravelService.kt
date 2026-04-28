@@ -673,7 +673,6 @@ class TimeTravelService : Service() {
         val newRouteMode = getConfiguredInputRouteMode(this)
         val newFormat = getConfiguredOutputFormat(this)
         val newCodec = getConfiguredOutputCodec(this)
-        val newBitrateKbps = getConfiguredCodecBitrateKbps(this, newCodec, sampleRate, newChannelMode.channelCount)
         val newSampleRate = resolveOperationalSampleRate(
             this,
             getConfiguredSampleRate(this, newSourceMode, newRouteMode, newFormat, newCodec, newChannelMode),
@@ -683,6 +682,7 @@ class TimeTravelService : Service() {
             newCodec,
             newChannelMode,
         )
+        val newBitrateKbps = getConfiguredCodecBitrateKbps(this, newCodec, newSampleRate, newChannelMode.channelCount)
         val captureConfigChanged =
             newSampleRate != sampleRate ||
                 newSourceMode != sourceMode ||
@@ -1066,6 +1066,65 @@ class TimeTravelService : Service() {
             channelMode = channelMode,
             routeMode = inputRouteMode,
         )
+    }
+
+    fun getChunkDebugSnapshot(callback: ChunkDebugCallback) {
+        val listeningEnabled = state == STATE_LISTENING || state == STATE_RECORDING
+        val recording = state == STATE_RECORDING
+        audioHandler.post {
+            val rawHistory = if (::liveExportHistory.isInitialized) liveExportHistory.debugSnapshot() else null
+            val snapshot =
+                ChunkDebugSnapshot(
+                    listeningEnabled = listeningEnabled,
+                    recording = recording,
+                    format = effectiveOutputFormat,
+                    codec = effectiveOutputCodec,
+                    sampleRate = sampleRate,
+                    channelCount = channelMode.channelCount,
+                    history = rawHistory?.let { history ->
+                        ChunkHistorySnapshot(
+                            segmentCount = history.segmentCount,
+                            totalSampleBytes = history.totalSampleBytes,
+                            currentSegmentSampleBytes = history.currentSegmentSampleBytes,
+                            nextSegmentStartMillis = history.nextSegmentStartMillis,
+                            format = history.format,
+                            codec = history.codec,
+                            sampleRate = history.sampleRate,
+                            channelCount = history.channelCount,
+                            chunks = history.chunks.map { chunk ->
+                                ChunkHistoryItem(
+                                    fileName = chunk.fileName,
+                                    filePath = chunk.filePath,
+                                    startedAtMillis = chunk.startedAtMillis,
+                                    endedAtMillis = chunk.endedAtMillis,
+                                    sampleBytes = chunk.sampleBytes,
+                                    format = chunk.format,
+                                    codec = chunk.codec,
+                                    sampleRate = chunk.sampleRate,
+                                    channelCount = chunk.channelCount,
+                                    active = chunk.active,
+                                )
+                            },
+                            operations = history.operations.map { operation ->
+                                ChunkOperationItem(
+                                    id = operation.id,
+                                    kind = operation.kind.name,
+                                    sourcePaths = operation.sourcePaths,
+                                    targetSampleBytes = operation.targetSampleBytes,
+                                    startedAtMillis = operation.startedAtMillis,
+                                )
+                            },
+                        )
+                    },
+                    historyReencodePending = historyReencodePending,
+                    historyReencoding = historyReencoding,
+                    historyReencodeProcessedBytes = historyReencodeProcessedBytes,
+                    historyReencodeTotalBytes = historyReencodeTotalBytes,
+                )
+            mainHandler.post {
+                callback.snapshot(snapshot)
+            }
+        }
     }
 
     fun clearBuffer() {
@@ -1709,6 +1768,58 @@ class TimeTravelService : Service() {
             historyReencodeTotalBytes: Long,
         )
     }
+
+    interface ChunkDebugCallback {
+        fun snapshot(data: ChunkDebugSnapshot)
+    }
+
+    data class ChunkDebugSnapshot(
+        val listeningEnabled: Boolean,
+        val recording: Boolean,
+        val format: ExportFormat,
+        val codec: ExportCodec,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val history: ChunkHistorySnapshot?,
+        val historyReencodePending: Boolean,
+        val historyReencoding: Boolean,
+        val historyReencodeProcessedBytes: Long,
+        val historyReencodeTotalBytes: Long,
+    )
+
+    data class ChunkHistorySnapshot(
+        val segmentCount: Int,
+        val totalSampleBytes: Long,
+        val currentSegmentSampleBytes: Long,
+        val nextSegmentStartMillis: Long?,
+        val format: String?,
+        val codec: String?,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val chunks: List<ChunkHistoryItem>,
+        val operations: List<ChunkOperationItem>,
+    )
+
+    data class ChunkHistoryItem(
+        val fileName: String,
+        val filePath: String,
+        val startedAtMillis: Long,
+        val endedAtMillis: Long,
+        val sampleBytes: Long,
+        val format: String?,
+        val codec: String?,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val active: Boolean,
+    )
+
+    data class ChunkOperationItem(
+        val id: String,
+        val kind: String,
+        val sourcePaths: List<String>,
+        val targetSampleBytes: Long,
+        val startedAtMillis: Long,
+    )
 
     data class RecorderConfigurationSnapshot(
         val format: ExportFormat,

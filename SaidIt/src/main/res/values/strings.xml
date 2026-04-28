@@ -18,6 +18,11 @@
 
     <string name="record_all_memory">Export full</string>
     <string name="custom_time">Export custom</string>
+    <string name="reencode_history">Re-encode history</string>
+    <string name="reencode_history_progress">Re-encoding %1$d%%</string>
+    <string name="reencode_history_disable_listening">Turn off listening first.</string>
+    <string name="reencode_history_done">History re-encoded.</string>
+    <string name="reencode_history_failed">Couldn\'t re-encode history.</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="custom_export_mode_range">Range</string>
@@ -132,11 +137,15 @@
     <string name="aggressive_restart_summary">Reschedule recorder service after task swipe or system kill whenever buffer should survive.</string>
     <string name="wake_lock_label">Keep CPU awake</string>
     <string name="wake_lock_summary">Hold a partial wake lock while live buffering. Highest survival, highest battery cost.</string>
+    <string name="debug_settings_title" translatable="false">Debug</string>
+    <string name="debug_chunks_tab_label" translatable="false">Chunks tab</string>
+    <string name="debug_chunks_tab_summary" translatable="false">Show live chunk and merge inspector in bottom tabs.</string>
     <string name="battery_optimization_status_ok">Battery optimization: unrestricted</string>
     <string name="battery_optimization_status_limited">Battery optimization: restricted</string>
     <string name="battery_optimization_button">Battery settings</string>
     <string name="settings_saved">Saved.</string>
     <string name="settings_saved_next_start">Saved. Starts next time.</string>
+    <string name="settings_saved_reencode_history">Saved. Re-encode history to export again.</string>
     <string name="settings_saved_deferred_input">Saved. Input changes apply next time.</string>
     <string name="settings_apply_blocked_recording">Stop recording first.</string>
     <string name="unsupported_config_message">Not supported.</string>
@@ -155,6 +164,13 @@
     <string name="recording_deleted">Recording deleted.</string>
     <string name="recording_delete_failed">Couldn\'t delete recording.</string>
     <string name="recording_info">Info</string>
+    <string name="chunks_empty" translatable="false">No chunks yet.</string>
+    <string name="chunks_operations_empty" translatable="false">No active operations.</string>
+    <string name="chunks_section_operations" translatable="false">Operations</string>
+    <string name="chunks_section_chunks" translatable="false">Chunks</string>
+    <string name="chunks_active" translatable="false">Active</string>
+    <string name="chunks_operation_background_merge" translatable="false">Background merge</string>
+    <string name="chunks_operation_export_merge" translatable="false">Export merge</string>
     <string name="open_github">Open GitHub</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>

@@ -80,9 +80,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var persistentBufferRow: View
     private lateinit var aggressiveRestartRow: View
     private lateinit var wakeLockRow: View
+    private lateinit var debugDivider: View
+    private lateinit var debugTitle: View
+    private lateinit var debugChunksRow: View
     private lateinit var persistentBufferSwitch: MaterialSwitch
     private lateinit var aggressiveRestartSwitch: MaterialSwitch
     private lateinit var wakeLockSwitch: MaterialSwitch
+    private lateinit var debugChunksSwitch: MaterialSwitch
     private lateinit var undoButton: View
     private lateinit var applyButton: View
 
@@ -136,6 +140,7 @@ class SettingsActivity : AppCompatActivity() {
         var persistentBufferEnabled: Boolean = true,
         var aggressiveRestartEnabled: Boolean = true,
         var wakeLockEnabled: Boolean = false,
+        var debugChunksTabEnabled: Boolean = false,
     ) {
         fun copyFrom(other: SettingsSnapshot) {
             themeMode = other.themeMode
@@ -158,6 +163,7 @@ class SettingsActivity : AppCompatActivity() {
             persistentBufferEnabled = other.persistentBufferEnabled
             aggressiveRestartEnabled = other.aggressiveRestartEnabled
             wakeLockEnabled = other.wakeLockEnabled
+            debugChunksTabEnabled = other.debugChunksTabEnabled
         }
     }
 
@@ -240,9 +246,13 @@ class SettingsActivity : AppCompatActivity() {
         persistentBufferRow = findViewById(R.id.persistent_buffer_row)
         aggressiveRestartRow = findViewById(R.id.aggressive_restart_row)
         wakeLockRow = findViewById(R.id.wake_lock_row)
+        debugDivider = findViewById(R.id.debug_divider)
+        debugTitle = findViewById(R.id.debug_title)
+        debugChunksRow = findViewById(R.id.debug_chunks_row)
         persistentBufferSwitch = findViewById(R.id.persistent_buffer_switch)
         aggressiveRestartSwitch = findViewById(R.id.aggressive_restart_switch)
         wakeLockSwitch = findViewById(R.id.wake_lock_switch)
+        debugChunksSwitch = findViewById(R.id.debug_chunks_switch)
         undoButton = findViewById(R.id.settings_undo_button)
         applyButton = findViewById(R.id.settings_apply_button)
 
@@ -276,6 +286,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         moveRecordingsButton.setOnClickListener { moveExistingRecordings() }
         batteryOptimizationButton.setOnClickListener { openBatteryOptimizationSettings() }
+        val showDebugControls = isDebuggableBuild(this)
+        debugDivider.isVisible = showDebugControls
+        debugTitle.isVisible = showDebugControls
+        debugChunksRow.isVisible = showDebugControls
         setupListeners()
         bindUiFromPreferences()
     }
@@ -335,6 +349,7 @@ class SettingsActivity : AppCompatActivity() {
         bindSwitchRow(persistentBufferRow, persistentBufferSwitch)
         bindSwitchRow(aggressiveRestartRow, aggressiveRestartSwitch)
         bindSwitchRow(wakeLockRow, wakeLockSwitch)
+        bindSwitchRow(debugChunksRow, debugChunksSwitch)
 
         retentionTimeInput.setOnClickListener { activateRetentionMode(RetentionMode.TIME) }
         retentionSizeInput.setOnClickListener { activateRetentionMode(RetentionMode.SIZE) }
@@ -535,6 +550,12 @@ class SettingsActivity : AppCompatActivity() {
                 pushUndoState()
             }
         }
+        debugChunksSwitch.setOnCheckedChangeListener { _, _ ->
+            if (!bindingUi) {
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
     }
 
     private fun bindSwitchRow(
@@ -593,6 +614,7 @@ class SettingsActivity : AppCompatActivity() {
         val configuredPersistentBuffer = isDiskBufferCacheEnabled(this)
         val configuredAggressiveRestart = isAggressiveRestartEnabled(this)
         val configuredWakeLock = isWakeLockEnabled(this)
+        val configuredDebugChunksTab = isDebugChunksTabEnabled(this)
 
         activeRetentionMode = configuredMode
         retentionTimeSecondsValue = configuredTime
@@ -669,6 +691,7 @@ class SettingsActivity : AppCompatActivity() {
         persistentBufferSwitch.isChecked = configuredPersistentBuffer
         aggressiveRestartSwitch.isChecked = configuredAggressiveRestart
         wakeLockSwitch.isChecked = configuredWakeLock
+        debugChunksSwitch.isChecked = configuredDebugChunksTab
 
         bindingUi = false
         refreshRetentionFields()
@@ -751,6 +774,7 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.persistentBufferEnabled = persistentBufferSwitch.isChecked
         snapshot.aggressiveRestartEnabled = aggressiveRestartSwitch.isChecked
         snapshot.wakeLockEnabled = wakeLockSwitch.isChecked
+        snapshot.debugChunksTabEnabled = debugChunksSwitch.isChecked
     }
 
     private fun pushUndoState() {
@@ -775,6 +799,7 @@ class SettingsActivity : AppCompatActivity() {
         persistentBufferSwitch.isChecked = previous.persistentBufferEnabled
         aggressiveRestartSwitch.isChecked = previous.aggressiveRestartEnabled
         wakeLockSwitch.isChecked = previous.wakeLockEnabled
+        debugChunksSwitch.isChecked = previous.debugChunksTabEnabled
 
         setDropdownItems(
             themeDropdown,
@@ -1225,6 +1250,7 @@ class SettingsActivity : AppCompatActivity() {
             .putInt(TimeTravelConfig.AUTO_MERGE_DIVISOR_KEY, autoMergeDivisorValue)
             .putInt(TimeTravelConfig.AUTO_MERGE_CUSTOM_SECONDS_KEY, autoMergeCustomSecondsValue)
             .putString(TimeTravelConfig.AUTO_MERGE_CUSTOM_SIZE_MIB_KEY, formatRetentionSizeMib(autoMergeCustomSizeMibValue))
+            .putBoolean(TimeTravelConfig.DEBUG_CHUNKS_TAB_ENABLED_KEY, debugChunksSwitch.isChecked)
             .putBoolean(TimeTravelConfig.BUFFER_DISK_CACHE_ENABLED_KEY, persistentBufferEnabled)
             .putBoolean(TimeTravelConfig.AGGRESSIVE_RESTART_ENABLED_KEY, aggressiveRestartEnabled)
             .putBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, wakeLockEnabled)

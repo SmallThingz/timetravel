@@ -132,6 +132,7 @@
     <string name="battery_optimization_button">バッテリー設定</string>
     <string name="settings_saved">保存しました。</string>
     <string name="settings_saved_next_start">保存しました。次回起動時に反映されます。</string>
+    <string name="settings_saved_reencode_history">保存しました。再度エクスポートするには履歴を再エンコードしてください。</string>
     <string name="settings_saved_deferred_input">保存しました。入力変更は次回反映されます。</string>
     <string name="settings_apply_blocked_recording">先に録音を停止してください。</string>
     <string name="unsupported_config_message">サポートされていません。</string>
@@ -151,6 +152,11 @@
     <string name="recording_delete_failed">録音を削除できませんでした。</string>
     <string name="recording_info">情報</string>
     <string name="open_github">GitHub を開く</string>
+    <string name="reencode_history">履歴を再エンコード</string>
+    <string name="reencode_history_progress">再エンコード中 %1$d%%</string>
+    <string name="reencode_history_disable_listening">先にリスニングをオフにしてください。</string>
+    <string name="reencode_history_done">履歴を再エンコードしました。</string>
+    <string name="reencode_history_failed">履歴を再エンコードできませんでした。</string>
     <string name="about_version">バージョン %1$s</string>
     <string name="recording_details_name">名前:</string>
     <string name="recording_details_started">開始:</string>

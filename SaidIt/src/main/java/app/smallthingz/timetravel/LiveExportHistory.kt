@@ -25,6 +25,7 @@ internal class LiveExportHistory(
     private val legacyCacheRoot = File(File(context.cacheDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), "live-export-history")
     private val segments = ArrayDeque<Segment>()
     private val pinnedFiles = LinkedHashMap<String, Int>()
+    private val debugOperations = LinkedHashMap<String, DebugOperation>()
 
     private var config: Config? = null
     private var retentionBytes = 0L
@@ -250,6 +251,16 @@ internal class LiveExportHistory(
         val task = synchronized(this) { claimCompactionTaskLocked() } ?: return false
         var mergedFile: File? = null
         return try {
+            synchronized(this) {
+                debugOperations[task.operationId] =
+                    DebugOperation(
+                        id = task.operationId,
+                        kind = DebugOperationKind.BACKGROUND_MERGE,
+                        sourcePaths = task.sourcePaths,
+                        targetSampleBytes = task.totalSampleBytes,
+                        startedAtMillis = task.startedAtMillis,
+                    )
+            }
             exportSnapshot(task.snapshot, task.outputTarget)
             mergedFile = requireNotNull(task.outputTarget.file)
             true
@@ -258,6 +269,7 @@ internal class LiveExportHistory(
             false
         } finally {
             synchronized(this) {
+                debugOperations.remove(task.operationId)
                 finishCompactionLocked(task, mergedFile)
             }
         }
@@ -690,6 +702,7 @@ internal class LiveExportHistory(
                     )
                     compactionInFlight = true
                     return CompactionTask(
+                        operationId = "bg-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
                         startIndex = startIndex,
                         sourcePaths = selectedSegments.map { it.file.absolutePath },
                         startedAtMillis = selectedSegments.first().startedAtMillis,
@@ -748,6 +761,7 @@ internal class LiveExportHistory(
         val startedAtMillis = slices.first().segment.startedAtMillis
         val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
         return RegionalCompactionGroup(
+            operationId = "export-$startedAtMillis-${System.nanoTime()}",
             startSliceIndex = runStartInclusive,
             endSliceIndexExclusive = runEndExclusive,
             sourcePaths = slices.map { it.segment.file.absolutePath },
@@ -819,6 +833,16 @@ internal class LiveExportHistory(
         val futures = ArrayList<Future<CompletedRegionalCompaction?>>(plan.groups.size)
         try {
             plan.groups.forEach { group ->
+                synchronized(this) {
+                    debugOperations[group.operationId] =
+                        DebugOperation(
+                            id = group.operationId,
+                            kind = DebugOperationKind.EXPORT_MERGE,
+                            sourcePaths = group.sourcePaths,
+                            targetSampleBytes = group.totalSampleBytes,
+                            startedAtMillis = group.startedAtMillis,
+                        )
+                }
                 futures +=
                     executor.submit(
                         Callable {
@@ -834,6 +858,10 @@ internal class LiveExportHistory(
                                 Log.w(TAG, "Regional export compaction failed", e)
                                 group.outputTarget.file?.delete()
                                 null
+                            } finally {
+                                synchronized(this@LiveExportHistory) {
+                                    debugOperations.remove(group.operationId)
+                                }
                             }
                         },
                     )
@@ -1301,6 +1329,7 @@ internal class LiveExportHistory(
 
     private data class CompactionTask(
         val startIndex: Int,
+        val operationId: String,
         val sourcePaths: List<String>,
         val startedAtMillis: Long,
         val totalSampleBytes: Long,
@@ -1314,6 +1343,7 @@ internal class LiveExportHistory(
     )
 
     private data class RegionalCompactionGroup(
+        val operationId: String,
         val startSliceIndex: Int,
         val endSliceIndexExclusive: Int,
         val sourcePaths: List<String>,
@@ -1328,22 +1358,91 @@ internal class LiveExportHistory(
         val file: File,
     )
 
+    data class DebugChunk(
+        val fileName: String,
+        val filePath: String,
+        val startedAtMillis: Long,
+        val endedAtMillis: Long,
+        val sampleBytes: Long,
+        val format: String?,
+        val codec: String?,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val active: Boolean,
+    )
+
+    data class DebugOperation(
+        val id: String,
+        val kind: DebugOperationKind,
+        val sourcePaths: List<String>,
+        val targetSampleBytes: Long,
+        val startedAtMillis: Long,
+    )
+
+    enum class DebugOperationKind {
+        BACKGROUND_MERGE,
+        EXPORT_MERGE,
+    }
+
     data class DebugSnapshot(
         val segmentCount: Int,
         val totalSampleBytes: Long,
         val currentSegmentSampleBytes: Long,
         val nextSegmentStartMillis: Long?,
         val segmentFiles: List<String>,
+        val format: String?,
+        val codec: String?,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val chunks: List<DebugChunk>,
+        val operations: List<DebugOperation>,
     )
 
     @Synchronized
     fun debugSnapshot(): DebugSnapshot {
+        val currentConfig = config
+        val activeSampleBytes = currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L
+        val chunks = ArrayList<DebugChunk>(segments.size + if (activeSampleBytes > 0L) 1 else 0)
+        segments.forEach { segment ->
+            chunks += buildDebugChunk(segment, currentConfig, active = false)
+        }
+        currentSegment?.takeIf { activeSampleBytes > 0L }?.let { segment ->
+            segment.sampleBytes = activeSampleBytes
+            chunks += buildDebugChunk(segment, currentConfig, active = true)
+        }
         return DebugSnapshot(
             segmentCount = segments.size,
             totalSampleBytes = countRetainedSampleBytes(),
-            currentSegmentSampleBytes = currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L,
+            currentSegmentSampleBytes = activeSampleBytes,
             nextSegmentStartMillis = nextSegmentStartMillis,
             segmentFiles = segments.map { it.file.name },
+            format = currentConfig?.format?.prefValue,
+            codec = currentConfig?.codec?.prefValue,
+            sampleRate = currentConfig?.sampleRate ?: 0,
+            channelCount = currentConfig?.channelCount ?: 0,
+            chunks = chunks,
+            operations = debugOperations.values.toList(),
+        )
+    }
+
+    @Synchronized
+    private fun buildDebugChunk(
+        segment: Segment,
+        currentConfig: Config?,
+        active: Boolean,
+    ): DebugChunk {
+        val durationMillis = currentConfig?.bytesToDurationMillis(segment.sampleBytes) ?: 0L
+        return DebugChunk(
+            fileName = segment.file.name,
+            filePath = segment.file.absolutePath,
+            startedAtMillis = segment.startedAtMillis,
+            endedAtMillis = segment.startedAtMillis + durationMillis,
+            sampleBytes = segment.sampleBytes,
+            format = currentConfig?.format?.prefValue,
+            codec = currentConfig?.codec?.prefValue,
+            sampleRate = currentConfig?.sampleRate ?: 0,
+            channelCount = currentConfig?.channelCount ?: 0,
+            active = active,
         )
     }
 

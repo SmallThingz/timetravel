@@ -132,6 +132,7 @@
     <string name="battery_optimization_button">Akku-Einstellungen</string>
     <string name="settings_saved">Gespeichert.</string>
     <string name="settings_saved_next_start">Gespeichert. Startet beim nächsten Mal.</string>
+    <string name="settings_saved_reencode_history">Gespeichert. Verlauf neu kodieren, um wieder exportieren zu können.</string>
     <string name="settings_saved_deferred_input">Gespeichert. Eingangsänderungen gelten beim nächsten Start.</string>
     <string name="settings_apply_blocked_recording">Aufnahme zuerst stoppen.</string>
     <string name="unsupported_config_message">Nicht unterstützt.</string>
@@ -151,6 +152,11 @@
     <string name="recording_delete_failed">Aufnahme konnte nicht gelöscht werden.</string>
     <string name="recording_info">Info</string>
     <string name="open_github">GitHub öffnen</string>
+    <string name="reencode_history">Verlauf neu kodieren</string>
+    <string name="reencode_history_progress">Neu kodieren %1$d%%</string>
+    <string name="reencode_history_disable_listening">Abhören zuerst ausschalten.</string>
+    <string name="reencode_history_done">Verlauf neu kodiert.</string>
+    <string name="reencode_history_failed">Verlauf konnte nicht neu kodiert werden.</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
     <string name="recording_details_started">Beginn:</string>

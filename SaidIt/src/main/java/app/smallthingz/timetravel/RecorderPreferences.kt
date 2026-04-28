@@ -4,6 +4,7 @@ package app.smallthingz.timetravel
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -334,6 +335,15 @@ fun isAggressiveRestartEnabled(context: Context): Boolean {
 
 fun isWakeLockEnabled(context: Context): Boolean {
     return getRecorderPreferences(context).getBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, false)
+}
+
+fun isDebugChunksTabEnabled(context: Context): Boolean {
+    return isDebuggableBuild(context) &&
+        getRecorderPreferences(context).getBoolean(TimeTravelConfig.DEBUG_CHUNKS_TAB_ENABLED_KEY, false)
+}
+
+fun isDebuggableBuild(context: Context): Boolean {
+    return (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 }
 
 fun isIgnoringBatteryOptimizations(context: Context): Boolean {

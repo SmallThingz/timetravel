@@ -23,6 +23,18 @@ Forked from `Echo`, now reworked and shipped as `TimeTravel`.
 - Package: `app.smallthingz.timetravel`
 - Module: `SaidIt`
 
+## 📸 Screens
+
+<p>
+  <img src="docs/home.png" alt="Home screen" width="220" />
+  <img src="docs/recordings.png" alt="Recordings screen" width="220" />
+</p>
+
+<p>
+  <img src="docs/settings_1.png" alt="Settings screen 1" width="220" />
+  <img src="docs/settings_2.png" alt="Settings screen 2" width="220" />
+</p>
+
 ## 🛠️ Build
 
 ```bash

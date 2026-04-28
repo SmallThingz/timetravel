@@ -24,6 +24,7 @@ object TimeTravelConfig {
     const val AUTO_MERGE_DIVISOR_KEY = "auto_merge_divisor"
     const val AUTO_MERGE_CUSTOM_SECONDS_KEY = "auto_merge_custom_seconds"
     const val AUTO_MERGE_CUSTOM_SIZE_MIB_KEY = "auto_merge_custom_size_mib"
+    const val DEBUG_CHUNKS_TAB_ENABLED_KEY = "debug_chunks_tab_enabled"
     const val CUSTOM_EXPORT_MODE_KEY = "custom_export_mode"
     const val CUSTOM_EXPORT_UNIT_KEY = "custom_export_unit"
     const val CUSTOM_EXPORT_PAST_SECONDS_KEY = "custom_export_past_seconds"
