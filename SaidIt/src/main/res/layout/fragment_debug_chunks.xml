@@ -23,23 +23,77 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingStart="16dp"
-            android:paddingTop="8dp"
+            android:paddingTop="10dp"
             android:paddingEnd="16dp"
             android:paddingBottom="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_debug_panel"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+            <TextView
+                android:id="@+id/chunks_title"
+                style="?attr/textAppearanceTitleLarge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Chunk ring"
+                android:textColor="?attr/colorOnSurface"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/chunks_summary"
                 style="?attr/textAppearanceBodyMedium"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="ogg / opus · 44.1 kHz · mono" />
+                tools:text="ogg / opus · 44.1 kHz · mono · live" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/chunks_metric_primary"
+                    style="?attr/textAppearanceHeadlineSmall"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="monospace"
+                    android:textColor="?attr/colorPrimary"
+                    tools:text="12 chunks" />
+
+                <TextView
+                    android:id="@+id/chunks_metric_secondary"
+                    style="?attr/textAppearanceBodyMedium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="384.0 MiB" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/chunks_metric_detail"
+                style="?attr/textAppearanceBodySmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="Active 1 · Operations 2 · Reencode pending" />
+            </LinearLayout>
 
             <TextView
                 style="?attr/textAppearanceLabelLarge"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="22dp"
                 android:text="@string/chunks_section_operations" />
 
             <LinearLayout
@@ -53,7 +107,7 @@
                 style="?attr/textAppearanceLabelLarge"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="22dp"
                 android:text="@string/chunks_section_chunks" />
 
             <LinearLayout

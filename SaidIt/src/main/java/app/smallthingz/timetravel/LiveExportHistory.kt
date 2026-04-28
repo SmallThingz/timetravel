@@ -281,8 +281,16 @@ internal class LiveExportHistory(
         outputTarget: RecordingOutputTarget,
         preferredParallelism: Int = DEFAULT_EXPORT_COMPACTION_PARALLELISM,
     ) {
-        val compacted = compactSnapshotRegionForExport(snapshot, preferredParallelism)
-        exportSnapshot(compacted, outputTarget)
+        val preparedSession = prepareSnapshotForStreamingExport(snapshot, preferredParallelism)
+        if (preparedSession == null) {
+            exportSnapshot(snapshot, outputTarget)
+            return
+        }
+        try {
+            exportPreparedSnapshot(snapshot.config, preparedSession.parts, outputTarget)
+        } finally {
+            preparedSession.close()
+        }
     }
 
     @Throws(IOException::class)
@@ -320,6 +328,472 @@ internal class LiveExportHistory(
         }
         return synchronized(this) {
             installRegionalCompactionResultsLocked(snapshot, plan, completedGroups)
+        }
+    }
+
+    private fun prepareSnapshotForStreamingExport(
+        snapshot: Snapshot,
+        preferredParallelism: Int,
+    ): PreparedExportSession? {
+        val plan = synchronized(this) { buildPreparedExportPlanLocked(snapshot) } ?: return null
+        val compactedPartCount = plan.parts.count { it is PreparedExportPlanPart.Compacted }
+        if (compactedPartCount <= 0) {
+            return null
+        }
+        val parallelism = minOf(compactedPartCount, preferredParallelism, MAX_EXPORT_COMPACTION_PARALLELISM).coerceAtLeast(1)
+        val executor = Executors.newFixedThreadPool(parallelism)
+        val preparedParts =
+            plan.parts.map { part ->
+                when (part) {
+                    is PreparedExportPlanPart.Direct -> PreparedExportPart.Direct(part.slice)
+                    is PreparedExportPlanPart.Compacted -> PreparedExportPart.Compacted(
+                        group = part.group,
+                        future = submitPreparedCompactionJob(executor, part.group),
+                    )
+                }
+            }
+        return PreparedExportSession(preparedParts, executor)
+    }
+
+    @Synchronized
+    private fun buildPreparedExportPlanLocked(snapshot: Snapshot): PreparedExportPlan? {
+        val currentConfig = config ?: return null
+        if (currentConfig != snapshot.config) {
+            return null
+        }
+        val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
+        val targetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = true) ?: return null
+        if (targetSampleBytes <= baseSegmentBytes) {
+            return null
+        }
+        ensureHistoryRootExists()
+
+        val parts = ArrayList<PreparedExportPlanPart>(snapshot.slices.size)
+        var bufferedSlices = ArrayList<SegmentSlice>()
+        var bufferedSampleBytes = 0L
+        var bufferedStartIndex = -1
+
+        fun flushBuffered() {
+            if (bufferedSlices.isEmpty()) {
+                return
+            }
+            if (bufferedSlices.size >= MIN_COMPACTION_SEGMENTS) {
+                parts += PreparedExportPlanPart.Compacted(
+                    buildPreparedExportGroupLocked(
+                        startSliceIndex = bufferedStartIndex,
+                        slices = bufferedSlices.toList(),
+                        totalSampleBytes = bufferedSampleBytes,
+                        currentConfig = currentConfig,
+                    ),
+                )
+            } else {
+                bufferedSlices.forEach { parts += PreparedExportPlanPart.Direct(it) }
+            }
+            bufferedSlices = ArrayList()
+            bufferedSampleBytes = 0L
+            bufferedStartIndex = -1
+        }
+
+        snapshot.slices.forEachIndexed { index, slice ->
+            val eligible =
+                slice.skipSampleBytes == 0L &&
+                    slice.takeSampleBytes == slice.segment.sampleBytes &&
+                    isCompactionCandidateLocked(slice.segment, targetSampleBytes, baseSegmentBytes)
+            if (!eligible) {
+                flushBuffered()
+                parts += PreparedExportPlanPart.Direct(slice)
+                return@forEachIndexed
+            }
+
+            if (bufferedSlices.isNotEmpty() && bufferedSampleBytes + slice.takeSampleBytes > targetSampleBytes) {
+                flushBuffered()
+            }
+            if (bufferedSlices.isEmpty()) {
+                bufferedStartIndex = index
+            }
+            bufferedSlices += slice.copy()
+            bufferedSampleBytes += slice.takeSampleBytes
+            if (bufferedSampleBytes == targetSampleBytes) {
+                flushBuffered()
+            }
+        }
+        flushBuffered()
+
+        return if (parts.any { it is PreparedExportPlanPart.Compacted }) {
+            PreparedExportPlan(parts)
+        } else {
+            null
+        }
+    }
+
+    private fun buildPreparedExportGroupLocked(
+        startSliceIndex: Int,
+        slices: List<SegmentSlice>,
+        totalSampleBytes: Long,
+        currentConfig: Config,
+    ): RegionalCompactionGroup {
+        val startedAtMillis = slices.first().segment.startedAtMillis
+        val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+        return RegionalCompactionGroup(
+            operationId = "export-$startedAtMillis-${System.nanoTime()}",
+            startSliceIndex = startSliceIndex,
+            endSliceIndexExclusive = startSliceIndex + slices.size,
+            sourcePaths = slices.map { it.segment.file.absolutePath },
+            startedAtMillis = startedAtMillis,
+            totalSampleBytes = totalSampleBytes,
+            snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+            outputTarget = RecordingOutputTarget(
+                id = tempFile.absolutePath,
+                displayName = tempFile.name,
+                mimeType = currentConfig.format.outputMimeType,
+                storageType = RecordingStorageType.FILE,
+                directoryId = historyRoot.absolutePath,
+                startedAtMillis = startedAtMillis,
+                file = tempFile,
+            ),
+        )
+    }
+
+    private fun submitPreparedCompactionJob(
+        executor: java.util.concurrent.ExecutorService,
+        group: RegionalCompactionGroup,
+    ): Future<CompletedRegionalCompaction?> {
+        synchronized(this) {
+            debugOperations[group.operationId] =
+                DebugOperation(
+                    id = group.operationId,
+                    kind = DebugOperationKind.EXPORT_MERGE,
+                    sourcePaths = group.sourcePaths,
+                    targetSampleBytes = group.totalSampleBytes,
+                    startedAtMillis = group.startedAtMillis,
+                )
+        }
+        return executor.submit(
+            Callable {
+                try {
+                    exportSnapshot(group.snapshot, group.outputTarget)
+                    val file = group.outputTarget.file
+                    if (file == null || !file.isFile || file.length() <= 0L) {
+                        null
+                    } else {
+                        CompletedRegionalCompaction(group, file)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Prepared export compaction failed", e)
+                    group.outputTarget.file?.delete()
+                    null
+                } finally {
+                    synchronized(this@LiveExportHistory) {
+                        debugOperations.remove(group.operationId)
+                    }
+                }
+            },
+        )
+    }
+
+    @Throws(IOException::class)
+    private fun exportPreparedSnapshot(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        when {
+            currentConfig.format.isPcmContainer -> exportPreparedWaveSnapshot(currentConfig, parts, outputTarget)
+            currentConfig.format.usesMuxer -> exportPreparedEncodedSnapshot(currentConfig, parts, outputTarget)
+            currentConfig.format.isRawAacAdts -> exportPreparedAdtsSnapshot(currentConfig, parts, outputTarget)
+            currentConfig.format.isRawAmr -> exportPreparedRawAmrSnapshot(currentConfig, parts, outputTarget)
+            currentConfig.format.isTransportStream -> exportPreparedTransportStreamSnapshot(currentConfig, parts, outputTarget)
+            else -> throw IOException("Unsupported history export format ${currentConfig.format.prefValue}")
+        }
+    }
+
+    private fun exportPreparedWaveSnapshot(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        WavAudioFileWriter(context, outputTarget, currentConfig.sampleRate, currentConfig.channelCount).use { writer ->
+            val buffer = ByteArray(COPY_BUFFER_BYTES)
+            forEachPreparedExportSlice(parts) { prepared ->
+                RandomAccessFile(prepared.slice.segment.file, "r").use { input ->
+                    input.seek(WAV_HEADER_BYTES + prepared.slice.skipSampleBytes)
+                    var remaining = prepared.slice.takeSampleBytes
+                    while (remaining > 0L) {
+                        val requested = minOf(buffer.size.toLong(), remaining).toInt()
+                        val read = input.read(buffer, 0, requested)
+                        if (read <= 0) {
+                            throw IOException("Short read while exporting history")
+                        }
+                        writer.write(buffer, 0, read)
+                        remaining -= read.toLong()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun exportPreparedEncodedSnapshot(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        var muxer: MediaMuxer? = null
+        var trackIndex = -1
+        val bufferInfo = MediaCodec.BufferInfo()
+        val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
+        var outputBaseTimeUs = 0L
+
+        try {
+            muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(currentConfig.format.muxerOutputFormat))
+            forEachPreparedExportSlice(parts) { prepared ->
+                val slice = prepared.slice
+                val extractor = MediaExtractor()
+                try {
+                    extractor.setDataSource(slice.segment.file.absolutePath)
+                    val extractorTrackIndex = findAudioTrack(extractor)
+                    if (extractorTrackIndex < 0) {
+                        return@forEachPreparedExportSlice
+                    }
+                    extractor.selectTrack(extractorTrackIndex)
+                    if (trackIndex < 0) {
+                        trackIndex = muxer.addTrack(extractor.getTrackFormat(extractorTrackIndex))
+                        muxer.start()
+                    }
+
+                    val sliceStartUs = currentConfig.bytesToDurationUs(slice.skipSampleBytes)
+                    val sliceDurationUs = currentConfig.bytesToDurationUs(slice.takeSampleBytes)
+                    val sliceEndUs = sliceStartUs + sliceDurationUs
+                    extractor.seekTo(sliceStartUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+
+                    var firstWrittenSampleTimeUs = Long.MIN_VALUE
+                    while (true) {
+                        val sampleTimeUs = extractor.sampleTime
+                        if (sampleTimeUs < 0L) {
+                            break
+                        }
+                        if (sampleTimeUs < sliceStartUs) {
+                            if (!extractor.advance()) {
+                                break
+                            }
+                            continue
+                        }
+                        if (sampleTimeUs >= sliceEndUs) {
+                            break
+                        }
+
+                        byteBuffer.clear()
+                        val sampleSize = extractor.readSampleData(byteBuffer, 0)
+                        if (sampleSize <= 0) {
+                            break
+                        }
+                        if (firstWrittenSampleTimeUs == Long.MIN_VALUE) {
+                            firstWrittenSampleTimeUs = sampleTimeUs
+                        }
+                        bufferInfo.set(
+                            0,
+                            sampleSize,
+                            outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
+                            extractor.sampleFlags,
+                        )
+                        muxer.writeSampleData(trackIndex, byteBuffer, bufferInfo)
+                        if (!extractor.advance()) {
+                            break
+                        }
+                    }
+                    if (firstWrittenSampleTimeUs != Long.MIN_VALUE) {
+                        outputBaseTimeUs += sliceDurationUs
+                    }
+                } finally {
+                    extractor.release()
+                }
+            }
+        } finally {
+            runCatching { muxer?.stop() }
+            runCatching { muxer?.release() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun exportPreparedAdtsSnapshot(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        require(currentConfig.codec == ExportCodec.AAC_LC) { "ADTS snapshot export supports AAC-LC only" }
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        val adtsHeader = ByteArray(7)
+        try {
+            forEachPreparedEncodedSliceSample(currentConfig, parts) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
+                outputStream.write(adtsHeader, 0, adtsHeader.size)
+                outputStream.write(data, 0, sampleSize)
+            }
+            outputStream.flush()
+        } finally {
+            runCatching { outputStream.close() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun exportPreparedRawAmrSnapshot(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        try {
+            outputStream.write(
+                when (currentConfig.codec) {
+                    ExportCodec.AMR_WB -> "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
+                    ExportCodec.AMR_NB -> "#!AMR\n".toByteArray(Charsets.US_ASCII)
+                    else -> throw IOException("Raw AMR snapshot export requires AMR codec")
+                },
+            )
+            forEachPreparedEncodedSliceSample(currentConfig, parts) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                outputStream.write(data, 0, sampleSize)
+            }
+            outputStream.flush()
+        } finally {
+            runCatching { outputStream.close() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun exportPreparedTransportStreamSnapshot(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        require(currentConfig.codec == ExportCodec.AAC_LC) { "TS snapshot export supports AAC-LC only" }
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        try {
+            val packetizer = MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount)
+            forEachPreparedEncodedSliceSample(currentConfig, parts) { _: SegmentSlice, data: ByteArray, sampleSize: Int, presentationTimeUs: Long ->
+                packetizer.writeAccessUnit(data, 0, sampleSize, presentationTimeUs)
+            }
+            outputStream.flush()
+        } finally {
+            runCatching { outputStream.close() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun forEachPreparedEncodedSliceSample(
+        currentConfig: Config,
+        parts: List<PreparedExportPart>,
+        consumer: (SegmentSlice, ByteArray, Int, Long) -> Unit,
+    ) {
+        val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
+        var payloadBuffer = ByteArray(COPY_BUFFER_BYTES)
+        var outputBaseTimeUs = 0L
+        forEachPreparedExportSlice(parts) { prepared ->
+            val slice = prepared.slice
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(slice.segment.file.absolutePath)
+                val extractorTrackIndex = findAudioTrack(extractor)
+                if (extractorTrackIndex < 0) {
+                    return@forEachPreparedExportSlice
+                }
+                extractor.selectTrack(extractorTrackIndex)
+
+                val sliceStartUs = currentConfig.bytesToDurationUs(slice.skipSampleBytes)
+                val sliceDurationUs = currentConfig.bytesToDurationUs(slice.takeSampleBytes)
+                val sliceEndUs = sliceStartUs + sliceDurationUs
+                extractor.seekTo(sliceStartUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+
+                var firstWrittenSampleTimeUs = Long.MIN_VALUE
+                while (true) {
+                    val sampleTimeUs = extractor.sampleTime
+                    if (sampleTimeUs < 0L) {
+                        break
+                    }
+                    if (sampleTimeUs < sliceStartUs) {
+                        if (!extractor.advance()) {
+                            break
+                        }
+                        continue
+                    }
+                    if (sampleTimeUs >= sliceEndUs) {
+                        break
+                    }
+
+                    byteBuffer.clear()
+                    val sampleSize = extractor.readSampleData(byteBuffer, 0)
+                    if (sampleSize <= 0) {
+                        break
+                    }
+                    if (firstWrittenSampleTimeUs == Long.MIN_VALUE) {
+                        firstWrittenSampleTimeUs = sampleTimeUs
+                    }
+                    if (sampleSize > payloadBuffer.size) {
+                        payloadBuffer = ByteArray(sampleSize)
+                    }
+                    byteBuffer.flip()
+                    byteBuffer.get(payloadBuffer, 0, sampleSize)
+                    consumer(slice, payloadBuffer, sampleSize, outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L))
+                    if (!extractor.advance()) {
+                        break
+                    }
+                }
+                if (firstWrittenSampleTimeUs != Long.MIN_VALUE) {
+                    outputBaseTimeUs += sliceDurationUs
+                }
+            } finally {
+                extractor.release()
+            }
+        }
+    }
+
+    private fun forEachPreparedExportSlice(
+        parts: List<PreparedExportPart>,
+        consumer: (PreparedSegmentSlice) -> Unit,
+    ) {
+        parts.forEach { part ->
+            val resolved =
+                when (part) {
+                    is PreparedExportPart.Direct -> listOf(PreparedSegmentSlice(part.slice, deleteAfterUse = false))
+                    is PreparedExportPart.Compacted -> {
+                        val completed =
+                            try {
+                                part.future.get()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Prepared export compaction wait failed", e)
+                                null
+                            }
+                        if (completed != null) {
+                            listOf(
+                                PreparedSegmentSlice(
+                                    slice = SegmentSlice(
+                                        segment = Segment(
+                                            file = completed.file,
+                                            startedAtMillis = completed.group.startedAtMillis,
+                                            sampleBytes = completed.group.totalSampleBytes,
+                                        ),
+                                        skipSampleBytes = 0L,
+                                        takeSampleBytes = completed.group.totalSampleBytes,
+                                    ),
+                                    deleteAfterUse = true,
+                                ),
+                            )
+                        } else {
+                            part.group.snapshot.slices.map { PreparedSegmentSlice(it, deleteAfterUse = false) }
+                        }
+                    }
+                }
+            resolved.forEach { prepared ->
+                try {
+                    consumer(prepared)
+                } finally {
+                    if (prepared.deleteAfterUse) {
+                        prepared.slice.segment.file.delete()
+                    }
+                }
+            }
         }
     }
 
@@ -1342,6 +1816,50 @@ internal class LiveExportHistory(
         val groups: List<RegionalCompactionGroup>,
     )
 
+    private data class PreparedExportPlan(
+        val parts: List<PreparedExportPlanPart>,
+    )
+
+    private sealed class PreparedExportPlanPart {
+        data class Direct(
+            val slice: SegmentSlice,
+        ) : PreparedExportPlanPart()
+
+        data class Compacted(
+            val group: RegionalCompactionGroup,
+        ) : PreparedExportPlanPart()
+    }
+
+    private data class PreparedExportSession(
+        val parts: List<PreparedExportPart>,
+        val executor: java.util.concurrent.ExecutorService,
+    ) {
+        fun close() {
+            executor.shutdownNow()
+            parts.forEach { part ->
+                if (part is PreparedExportPart.Compacted) {
+                    part.group.outputTarget.file?.delete()
+                }
+            }
+        }
+    }
+
+    private sealed class PreparedExportPart {
+        data class Direct(
+            val slice: SegmentSlice,
+        ) : PreparedExportPart()
+
+        data class Compacted(
+            val group: RegionalCompactionGroup,
+            val future: Future<CompletedRegionalCompaction?>,
+        ) : PreparedExportPart()
+    }
+
+    private data class PreparedSegmentSlice(
+        val slice: SegmentSlice,
+        val deleteAfterUse: Boolean,
+    )
+
     private data class RegionalCompactionGroup(
         val operationId: String,
         val startSliceIndex: Int,
@@ -1364,6 +1882,7 @@ internal class LiveExportHistory(
         val startedAtMillis: Long,
         val endedAtMillis: Long,
         val sampleBytes: Long,
+        val fileSizeBytes: Long,
         val format: String?,
         val codec: String?,
         val sampleRate: Int,
@@ -1438,6 +1957,7 @@ internal class LiveExportHistory(
             startedAtMillis = segment.startedAtMillis,
             endedAtMillis = segment.startedAtMillis + durationMillis,
             sampleBytes = segment.sampleBytes,
+            fileSizeBytes = segment.file.takeIf(File::isFile)?.length() ?: 0L,
             format = currentConfig?.format?.prefValue,
             codec = currentConfig?.codec?.prefValue,
             sampleRate = currentConfig?.sampleRate ?: 0,

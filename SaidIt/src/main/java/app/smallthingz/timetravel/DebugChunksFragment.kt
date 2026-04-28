@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 class DebugChunksFragment : Fragment() {
     private var service: TimeTravelService? = null
@@ -31,7 +32,11 @@ class DebugChunksFragment : Fragment() {
     private var pollJob: Job? = null
 
     private lateinit var content: View
+    private lateinit var title: TextView
     private lateinit var summary: TextView
+    private lateinit var metricPrimary: TextView
+    private lateinit var metricSecondary: TextView
+    private lateinit var metricDetail: TextView
     private lateinit var operationsList: LinearLayout
     private lateinit var chunksList: LinearLayout
     private lateinit var brandLockup: View
@@ -61,7 +66,11 @@ class DebugChunksFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         content = view.findViewById(R.id.chunks_content)
+        title = view.findViewById(R.id.chunks_title)
         summary = view.findViewById(R.id.chunks_summary)
+        metricPrimary = view.findViewById(R.id.chunks_metric_primary)
+        metricSecondary = view.findViewById(R.id.chunks_metric_secondary)
+        metricDetail = view.findViewById(R.id.chunks_metric_detail)
         operationsList = view.findViewById(R.id.operations_list)
         chunksList = view.findViewById(R.id.chunks_list)
         brandLockup = view.findViewById(R.id.brand_lockup)
@@ -127,20 +136,40 @@ class DebugChunksFragment : Fragment() {
     private fun renderSnapshot(snapshot: TimeTravelService.ChunkDebugSnapshot) {
         val history = snapshot.history
         val mode = when {
-            snapshot.recording -> "recording"
-            snapshot.listeningEnabled -> "live"
-            else -> "paused"
+            snapshot.recording -> "Recording"
+            snapshot.listeningEnabled -> "Live"
+            else -> "Paused"
         }
         val reencode = when {
-            snapshot.historyReencoding -> " · reencode ${formatShortFileSize(snapshot.historyReencodeProcessedBytes)} / ${formatShortFileSize(snapshot.historyReencodeTotalBytes)}"
-            snapshot.historyReencodePending -> " · reencode pending"
+            snapshot.historyReencoding -> " · Reencode ${formatShortFileSize(snapshot.historyReencodeProcessedBytes)} / ${formatShortFileSize(snapshot.historyReencodeTotalBytes)}"
+            snapshot.historyReencodePending -> " · Reencode pending"
             else -> ""
         }
+        val operations = history?.operations.orEmpty()
+        val chunks = history?.chunks.orEmpty()
+        val activeChunks = chunks.count { it.active }
+        val totalFileBytes = chunks.sumOf { it.fileSizeBytes }
+        val totalSampleBytes = chunks.sumOf { it.sampleBytes }
+        title.text = if (activeChunks > 0) "Chunk ring · active" else "Chunk ring"
         summary.text =
-            "${snapshot.format.prefValue} / ${snapshot.codec.prefValue} · ${sampleRateLabel(snapshot.sampleRate)} · ${if (snapshot.channelCount >= 2) "stereo" else "mono"} · $mode$reencode"
+            "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)} · ${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)} · ${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)} · ${if ((history?.channelCount ?: snapshot.channelCount) >= 2) "stereo" else "mono"} · $mode$reencode"
+        metricPrimary.text = "${chunks.size} chunks"
+        metricSecondary.text = "${formatShortFileSize(totalFileBytes)} retained"
+        metricDetail.text =
+            buildString {
+                append(formatShortFileSize(totalSampleBytes))
+                append(" samples")
+                append(" · Active ")
+                append(activeChunks)
+                append(" · Merging ")
+                append(operations.size)
+                history?.nextSegmentStartMillis?.let {
+                    append(" · Next ")
+                    append(timeFormatter.format(Date(it)))
+                }
+            }
 
         operationsList.removeAllViews()
-        val operations = history?.operations.orEmpty()
         if (operations.isEmpty()) {
             operationsList.addView(emptyText(requireContext(), getString(R.string.chunks_operations_empty)))
         } else {
@@ -148,16 +177,16 @@ class DebugChunksFragment : Fragment() {
                 val row = layoutInflater.inflate(R.layout.item_debug_operation, operationsList, false)
                 row.findViewById<TextView>(R.id.operation_title).text =
                     getString(operationLabelRes(operation.kind))
+                row.findViewById<TextView>(R.id.operation_target).text = formatShortFileSize(operation.targetSampleBytes)
                 row.findViewById<TextView>(R.id.operation_meta).text =
-                    "${timeFormatter.format(Date(operation.startedAtMillis))} · ${formatShortFileSize(operation.targetSampleBytes)}"
+                    "${timeFormatter.format(Date(operation.startedAtMillis))} · ${operation.sourcePaths.size} source chunks"
                 row.findViewById<TextView>(R.id.operation_sources).text =
-                    operation.sourcePaths.joinToString(separator = "\n") { path -> path.substringAfterLast('/') }
+                    summarizeOperationSources(operation.sourcePaths)
                 operationsList.addView(row)
             }
         }
 
         chunksList.removeAllViews()
-        val chunks = history?.chunks.orEmpty()
         if (chunks.isEmpty()) {
             chunksList.addView(emptyText(requireContext(), getString(R.string.chunks_empty)))
             return
@@ -168,7 +197,11 @@ class DebugChunksFragment : Fragment() {
             row.findViewById<TextView>(R.id.chunk_timing).text =
                 "${timeFormatter.format(Date(chunk.startedAtMillis))} → ${timeFormatter.format(Date(chunk.endedAtMillis))}"
             row.findViewById<TextView>(R.id.chunk_format).text =
-                "${chunk.codec ?: "?"} · ${sampleRateLabel(chunk.sampleRate)} · ${if (chunk.channelCount >= 2) "stereo" else "mono"} · ${formatShortFileSize(chunk.sampleBytes)}"
+                "${(chunk.format ?: "?").uppercase(Locale.US)} · ${(chunk.codec ?: "?").uppercase(Locale.US)} · ${sampleRateLabel(chunk.sampleRate)} · ${if (chunk.channelCount >= 2) "stereo" else "mono"}"
+            row.findViewById<TextView>(R.id.chunk_size).text =
+                "${formatShortFileSize(chunk.fileSizeBytes)} · ${formatShortTimer(((chunk.endedAtMillis - chunk.startedAtMillis).coerceAtLeast(0L) / 1000f))}"
+            row.findViewById<TextView>(R.id.chunk_path).text =
+                "${chunk.filePath.substringAfterLast("/live-export-history/")} · ${formatShortFileSize(chunk.sampleBytes)} samples"
             row.findViewById<TextView>(R.id.chunk_active).visibility = if (chunk.active) View.VISIBLE else View.GONE
             val affectingOperations = operations.filter { chunk.filePath in it.sourcePaths }
             val operationsText = row.findViewById<TextView>(R.id.chunk_operations)
@@ -192,6 +225,21 @@ class DebugChunksFragment : Fragment() {
             TextViewCompat.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
             setTextColor(MaterialColorsCompat.onSurfaceVariant(context))
             this.text = text
+            setBackgroundResource(R.drawable.bg_debug_panel)
+            val horizontal = context.resources.displayMetrics.density.times(14).toInt()
+            val vertical = context.resources.displayMetrics.density.times(12).toInt()
+            setPadding(horizontal, vertical, horizontal, vertical)
+        }
+    }
+
+    private fun summarizeOperationSources(sourcePaths: List<String>): String {
+        if (sourcePaths.isEmpty()) return "—"
+        val visible = sourcePaths.take(4).joinToString(separator = "\n") { it.substringAfterLast('/') }
+        val remaining = max(sourcePaths.size - 4, 0)
+        return if (remaining > 0) {
+            "$visible\n+$remaining more"
+        } else {
+            visible
         }
     }
 
