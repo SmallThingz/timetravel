@@ -97,6 +97,12 @@ class TimeTravelService : Service() {
     @Volatile
     private var historyReencodeTotalBytes = 0L
 
+    @Volatile
+    private var historyReencodeStartedAtMillis = 0L
+
+    @Volatile
+    private var historyReencodeVisibleUntilElapsedRealtime = 0L
+
     private val audioMemory = AudioMemory()
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -726,7 +732,6 @@ class TimeTravelService : Service() {
                     historyReencodeTotalBytes = availableBufferedSampleBytes()
                     updateLiveExportHistoryConfiguration()
                     syncPersistentBufferFromMemory()
-                    maybeStartHistoryReencode()
                     return@post
                 }
                 historyReencodePending = false
@@ -755,9 +760,6 @@ class TimeTravelService : Service() {
             historyReencodeTotalBytes = if (historyReencodePending) availableBufferedSampleBytes() else 0L
             updateLiveExportHistoryConfiguration()
             syncPersistentBufferFromMemory()
-            if (historyReencodePending) {
-                maybeStartHistoryReencode()
-            }
         }
 
         return if (historyEncodingChanged && hasRetainedBuffer) {
@@ -1113,6 +1115,8 @@ class TimeTravelService : Service() {
         val recording = state == STATE_RECORDING
         audioHandler.post {
             val rawHistory = if (::liveExportHistory.isInitialized) liveExportHistory.debugSnapshot() else null
+            val visibleReencodeOperation =
+                buildReencodeDebugOperation(rawHistory)
             val snapshot =
                 ChunkDebugSnapshot(
                     listeningEnabled = listeningEnabled,
@@ -1146,7 +1150,7 @@ class TimeTravelService : Service() {
                                     active = chunk.active,
                                 )
                             },
-                            operations = history.operations.map { operation ->
+                            operations = (history.operations.map { operation ->
                                 ChunkOperationItem(
                                     id = operation.id,
                                     kind = operation.kind.name,
@@ -1154,7 +1158,7 @@ class TimeTravelService : Service() {
                                     targetSampleBytes = operation.targetSampleBytes,
                                     startedAtMillis = operation.startedAtMillis,
                                 )
-                            },
+                            } + listOfNotNull(visibleReencodeOperation)),
                         )
                     },
                     historyReencodePending = historyReencodePending,
@@ -1290,6 +1294,8 @@ class TimeTravelService : Service() {
             return false
         }
         historyReencoding = true
+        historyReencodeStartedAtMillis = System.currentTimeMillis()
+        historyReencodeVisibleUntilElapsedRealtime = 0L
         historyReencodeProcessedBytes = 0L
         historyReencodeTotalBytes = availableBufferedSampleBytes()
         exportHandler.post { performHistoryReencode() }
@@ -1301,6 +1307,8 @@ class TimeTravelService : Service() {
             return
         }
         historyReencoding = true
+        historyReencodeStartedAtMillis = System.currentTimeMillis()
+        historyReencodeVisibleUntilElapsedRealtime = 0L
         historyReencodeProcessedBytes = 0L
         historyReencodeTotalBytes = availableBufferedSampleBytes()
         exportHandler.post { performHistoryReencode() }
@@ -1330,6 +1338,7 @@ class TimeTravelService : Service() {
                 channelCount = channelMode.channelCount,
                 baseChunkSeconds = getConfiguredHistoryChunkSeconds(this),
             ),
+            eagerAutoMergeEnabled = isConfiguredAutoMergeEagerEnabled(this),
         )
     }
 
@@ -1549,6 +1558,7 @@ class TimeTravelService : Service() {
         message: String?,
     ) {
         historyReencoding = false
+        historyReencodeVisibleUntilElapsedRealtime = android.os.SystemClock.elapsedRealtime() + DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS
         if (!success) {
             historyReencodeProcessedBytes = 0L
         } else if (!historyReencodePending) {
@@ -1558,6 +1568,23 @@ class TimeTravelService : Service() {
             writeDebugReport("reencode-complete:$success")
         }
         message?.let(::showToast)
+    }
+
+    private fun buildReencodeDebugOperation(history: LiveExportHistory.DebugSnapshot?): ChunkOperationItem? {
+        val show =
+            historyReencodePending ||
+                historyReencoding ||
+                android.os.SystemClock.elapsedRealtime() < historyReencodeVisibleUntilElapsedRealtime
+        if (!show) {
+            return null
+        }
+        return ChunkOperationItem(
+            id = "history-reencode",
+            kind = "HISTORY_REENCODE",
+            sourcePaths = history?.chunks?.filterNot { it.active }?.map { it.filePath }.orEmpty(),
+            targetSampleBytes = historyReencodeTotalBytes.coerceAtLeast(historyReencodeProcessedBytes),
+            startedAtMillis = historyReencodeStartedAtMillis.takeIf { it > 0L } ?: System.currentTimeMillis(),
+        )
     }
 
     inner class BackgroundRecorderBinder : Binder() {
@@ -1882,6 +1909,13 @@ class TimeTravelService : Service() {
         val stats = audioMemory.getStats(fillRate)
         val persisted = persistentAudioRingStore.peekSnapshot()
         val history = liveExportHistory.debugSnapshot()
+        val debugOperations =
+            buildList {
+                addAll(history.operations.map { it.kind.name })
+                if (buildReencodeDebugOperation(history) != null) {
+                    add("HISTORY_REENCODE")
+                }
+            }
         val status =
             buildString {
                 append("reason=").append(reason)
@@ -1901,6 +1935,7 @@ class TimeTravelService : Service() {
                 append(" historyCurrentSegmentBytes=").append(history.currentSegmentSampleBytes)
                 append(" historyNextSegmentStart=").append(history.nextSegmentStartMillis ?: 0)
                 append(" historyFiles=").append(history.segmentFiles.joinToString(","))
+                append(" debugOperations=").append(debugOperations.joinToString(","))
                 append(" exportDir=").append(describeConfiguredOutputDirectory(this@TimeTravelService))
             }
         reportFile.parentFile?.let { parent ->
@@ -2157,6 +2192,7 @@ class TimeTravelService : Service() {
         const val ACTION_DEBUG_CHECKPOINT = "${DEBUG_ACTION_PREFIX}CHECKPOINT"
         const val ACTION_DEBUG_LOG_STATE = "${DEBUG_ACTION_PREFIX}LOG_STATE"
         const val ACTION_DEBUG_DUMP_REPORT = "${DEBUG_ACTION_PREFIX}DUMP_REPORT"
+        const val DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS = 5_000L
         const val EXTRA_DEBUG_SECONDS = "seconds"
         const val EXTRA_DEBUG_FORMAT = "format"
         const val EXTRA_DEBUG_CODEC = "codec"

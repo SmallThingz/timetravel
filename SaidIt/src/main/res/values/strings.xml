@@ -83,6 +83,8 @@
     <string name="auto_merge_ratio_supporting">Background merge target. About 1/x of kept buffer.</string>
     <string name="auto_merge_custom_time_supporting">Use MM:SS or HH:MM:SS.</string>
     <string name="auto_merge_custom_size_supporting">Use MiB value like 64.0.</string>
+    <string name="auto_merge_eager_label">Eager tail merge</string>
+    <string name="auto_merge_eager_summary">Merge trailing leftover chunks before they reach full target size.</string>
     <string name="auto_merge_divisor_invalid">Use %1$d-%2$d.</string>
     <string name="auto_merge_custom_time_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="auto_merge_custom_time_range_invalid">Use %1$s-%2$s.</string>
@@ -171,6 +173,7 @@
     <string name="chunks_active" translatable="false">Active</string>
     <string name="chunks_operation_background_merge" translatable="false">Background merge</string>
     <string name="chunks_operation_export_merge" translatable="false">Export merge</string>
+    <string name="chunks_operation_history_reencode" translatable="false">History re-encode</string>
     <string name="chunks_action_merge" translatable="false">Merge</string>
     <string name="chunks_action_export" translatable="false">Export</string>
     <string name="chunks_merge_done" translatable="false">Chunk merged.</string>

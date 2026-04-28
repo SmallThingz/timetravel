@@ -373,6 +373,7 @@ class DebugChunksFragment : Fragment() {
         return when (kind) {
             "BACKGROUND_MERGE" -> R.string.chunks_operation_background_merge
             "EXPORT_MERGE" -> R.string.chunks_operation_export_merge
+            "HISTORY_REENCODE" -> R.string.chunks_operation_history_reencode
             else -> R.string.chunks_operation_export_merge
         }
     }

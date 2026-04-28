@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.util.Log
 import java.io.BufferedOutputStream
 import java.io.File
@@ -26,11 +27,13 @@ internal class LiveExportHistory(
     private val segments = ArrayDeque<Segment>()
     private val pinnedFiles = LinkedHashMap<String, Int>()
     private val debugOperations = LinkedHashMap<String, DebugOperation>()
+    private val recentDebugOperations = ArrayDeque<RecentDebugOperation>()
 
     private var config: Config? = null
     private var retentionBytes = 0L
     private var segmentDurationMillis = DEFAULT_SEGMENT_DURATION_MS
     private var compactionTargetSampleBytes: Long? = null
+    private var eagerAutoMergeEnabled = true
     private var currentWriter: AudioFileWriter? = null
     private var currentSegment: Segment? = null
     private var nextSegmentStartMillis: Long? = null
@@ -46,6 +49,7 @@ internal class LiveExportHistory(
         retentionBytes: Long,
         segmentDurationMillis: Long,
         compactionTargetSampleBytes: Long?,
+        eagerAutoMergeEnabled: Boolean,
     ) {
         val updatedConfig = Config(format, codec, sampleRate, channelCount, bitrateKbps)
         val previousConfig = config
@@ -60,6 +64,7 @@ internal class LiveExportHistory(
         this.retentionBytes = retentionBytes
         this.segmentDurationMillis = segmentDurationMillis.coerceIn(MIN_SEGMENT_DURATION_MS, MAX_SEGMENT_DURATION_MS)
         this.compactionTargetSampleBytes = compactionTargetSampleBytes?.coerceAtLeast(1L)
+        this.eagerAutoMergeEnabled = eagerAutoMergeEnabled
         if (previousConfig == null) {
             migrateLegacySegmentsLocked()
             restorePersistedSegmentsLocked(updatedConfig)
@@ -425,7 +430,7 @@ internal class LiveExportHistory(
             false
         } finally {
             synchronized(this) {
-                debugOperations.remove(task.operationId)
+                completeDebugOperationLocked(task.operationId)
                 finishCompactionLocked(task, mergedFile)
             }
         }
@@ -652,7 +657,7 @@ internal class LiveExportHistory(
                     null
                 } finally {
                     synchronized(this@LiveExportHistory) {
-                        debugOperations.remove(group.operationId)
+                        completeDebugOperationLocked(group.operationId)
                     }
                 }
             },
@@ -1442,6 +1447,7 @@ internal class LiveExportHistory(
         if (targetSampleBytes <= baseSegmentBytes) {
             return null
         }
+        val allowTailRemainder = includeExportFallback || eagerAutoMergeEnabled
 
         val currentSegments = segments.toList()
         for (startIndex in currentSegments.indices) {
@@ -1486,7 +1492,7 @@ internal class LiveExportHistory(
                 selectedSegments += segment
                 totalSampleBytes = nextTotal
                 val reachedEnd = index == currentSegments.lastIndex
-                if (shouldCompactSelection(totalSampleBytes, targetSampleBytes, baseSegmentBytes, selectedSegments.size, reachedEnd)) {
+                if (shouldCompactSelection(totalSampleBytes, targetSampleBytes, baseSegmentBytes, selectedSegments.size, reachedEnd, allowTailRemainder)) {
                     val slices = selectedSegments.map { selected ->
                         val key = selected.file.absolutePath
                         pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
@@ -1583,7 +1589,7 @@ internal class LiveExportHistory(
                     continue
                 }
                 val reachedEnd = index == currentSegments.lastIndex
-                if (shouldCompactSelection(totalSampleBytes, targetSampleBytes, baseSegmentBytes, selectedSegments.size, reachedEnd)) {
+                if (shouldCompactSelection(totalSampleBytes, targetSampleBytes, baseSegmentBytes, selectedSegments.size, reachedEnd, allowTailRemainder = true)) {
                     val slices = selectedSegments.map { selected ->
                         val key = selected.file.absolutePath
                         pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
@@ -1723,7 +1729,7 @@ internal class LiveExportHistory(
             return false
         }
         val sampleBytes = segment.sampleBytes
-        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes
+        return sampleBytes > 0L && sampleBytes < targetSampleBytes
     }
 
     private fun isExportBlockCandidateLocked(
@@ -1736,7 +1742,7 @@ internal class LiveExportHistory(
             return false
         }
         val sampleBytes = segment.sampleBytes
-        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes
+        return sampleBytes > 0L && sampleBytes < targetSampleBytes
     }
 
     private fun shouldCompactSelection(
@@ -1745,6 +1751,7 @@ internal class LiveExportHistory(
         baseSegmentBytes: Long,
         segmentCount: Int,
         reachedEnd: Boolean,
+        allowTailRemainder: Boolean,
     ): Boolean {
         if (segmentCount < MIN_COMPACTION_SEGMENTS) {
             return false
@@ -1752,7 +1759,7 @@ internal class LiveExportHistory(
         if (totalSampleBytes == targetSampleBytes) {
             return true
         }
-        return reachedEnd && totalSampleBytes > baseSegmentBytes
+        return allowTailRemainder && reachedEnd && totalSampleBytes > baseSegmentBytes
     }
 
     @Throws(IOException::class)
@@ -1789,7 +1796,7 @@ internal class LiveExportHistory(
                                 null
                             } finally {
                                 synchronized(this@LiveExportHistory) {
-                                    debugOperations.remove(group.operationId)
+                                    completeDebugOperationLocked(group.operationId)
                                 }
                             }
                         },
@@ -2024,6 +2031,24 @@ internal class LiveExportHistory(
             } else {
                 pinnedFiles[path] = count - 1
             }
+        }
+    }
+
+    private fun completeDebugOperationLocked(operationId: String) {
+        val operation = debugOperations.remove(operationId) ?: return
+        pruneRecentDebugOperationsLocked()
+        recentDebugOperations.addLast(
+            RecentDebugOperation(
+                operation = operation,
+                visibleUntilElapsedRealtime = SystemClock.elapsedRealtime() + DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS,
+            ),
+        )
+    }
+
+    private fun pruneRecentDebugOperationsLocked() {
+        val now = SystemClock.elapsedRealtime()
+        while (recentDebugOperations.isNotEmpty() && recentDebugOperations.first().visibleUntilElapsedRealtime <= now) {
+            recentDebugOperations.removeFirst()
         }
     }
 
@@ -2455,6 +2480,11 @@ internal class LiveExportHistory(
         val startedAtMillis: Long,
     )
 
+    private data class RecentDebugOperation(
+        val operation: DebugOperation,
+        val visibleUntilElapsedRealtime: Long,
+    )
+
     enum class DebugOperationKind {
         BACKGROUND_MERGE,
         EXPORT_MERGE,
@@ -2478,6 +2508,7 @@ internal class LiveExportHistory(
     fun debugSnapshot(): DebugSnapshot {
         val currentConfig = config
         val activeSampleBytes = currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L
+        pruneRecentDebugOperationsLocked()
         val chunks = ArrayList<DebugChunk>(segments.size + if (activeSampleBytes > 0L) 1 else 0)
         segments.forEach { segment ->
             chunks += buildDebugChunk(segment, currentConfig, active = false)
@@ -2497,7 +2528,7 @@ internal class LiveExportHistory(
             sampleRate = currentConfig?.sampleRate ?: 0,
             channelCount = currentConfig?.channelCount ?: 0,
             chunks = chunks,
-            operations = debugOperations.values.toList(),
+            operations = debugOperations.values.toList() + recentDebugOperations.map { it.operation },
         )
     }
 
@@ -2542,7 +2573,7 @@ internal class LiveExportHistory(
             false
         } finally {
             synchronized(this) {
-                debugOperations.remove(task.operationId)
+                completeDebugOperationLocked(task.operationId)
                 finishCompactionLocked(task, mergedFile)
             }
         }
@@ -2573,7 +2604,7 @@ internal class LiveExportHistory(
                     false
                 } finally {
                     synchronized(this) {
-                        debugOperations.remove(task.operationId)
+                        completeDebugOperationLocked(task.operationId)
                         finishCompactionLocked(task, mergedFile)
                     }
                 }
@@ -2627,6 +2658,7 @@ internal class LiveExportHistory(
         const val DEFAULT_EXPORT_COMPACTION_DIVISOR = 100L
         const val MAX_EXPORT_COMPACTION_PARALLELISM = 4
         const val DEFAULT_EXPORT_COMPACTION_PARALLELISM = 4
+        const val DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS = 5_000L
         const val TEMP_FILE_SUFFIX = ".tmp"
         val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
         val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")

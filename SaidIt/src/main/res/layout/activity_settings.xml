@@ -69,6 +69,13 @@
         <com.google.android.material.textfield.TextInputLayout android:id="@+id/auto_merge_value_layout" style="@style/TimeTravel.TextInputLayout" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:hint="@string/auto_merge_value_label" android:layout_marginHorizontal="16dp">
           <com.google.android.material.textfield.TextInputEditText android:id="@+id/auto_merge_value_input" style="@style/TimeTravel.TextInputEditText" android:layout_width="match_parent" android:layout_height="wrap_content" android:digits="0123456789:" android:fontFamily="monospace" android:importantForAutofill="no" android:imeOptions="actionDone" android:inputType="textNoSuggestions" android:maxLines="1" tools:text="1:00"/>
         </com.google.android.material.textfield.TextInputLayout>
+        <LinearLayout android:id="@+id/auto_merge_eager_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:orientation="horizontal" android:paddingHorizontal="16dp">
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView style="?attr/textAppearanceBodyLarge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auto_merge_eager_label"/>
+            <TextView style="?attr/textAppearanceBodySmall" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="@string/auto_merge_eager_summary" android:textColor="?attr/colorOnSurfaceVariant"/>
+          </LinearLayout>
+          <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/auto_merge_eager_switch" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        </LinearLayout>
         <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="24dp" app:dividerColor="?attr/colorOutlineVariant"/>
         <TextView style="?attr/textAppearanceLabelLarge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/storage_settings_title" android:paddingHorizontal="16dp"/>
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="vertical" android:paddingHorizontal="16dp">

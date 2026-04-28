@@ -43,6 +43,7 @@ private const val MAX_AUTO_MERGE_CUSTOM_SECONDS = 3600
 private const val DEFAULT_AUTO_MERGE_CUSTOM_SIZE_MIB = 64.0
 private const val MIN_AUTO_MERGE_CUSTOM_SIZE_MIB = 1.0
 private const val MAX_AUTO_MERGE_CUSTOM_SIZE_MIB = 4096.0
+private const val DEFAULT_AUTO_MERGE_EAGER_ENABLED = true
 private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
 private const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
 private val STANDARD_SAMPLE_RATES =
@@ -404,6 +405,13 @@ fun getConfiguredAutoMergeCustomSizeMib(context: Context): Double {
         ?.toDoubleOrNull()
         ?.coerceIn(MIN_AUTO_MERGE_CUSTOM_SIZE_MIB, MAX_AUTO_MERGE_CUSTOM_SIZE_MIB)
         ?: DEFAULT_AUTO_MERGE_CUSTOM_SIZE_MIB
+}
+
+fun isConfiguredAutoMergeEagerEnabled(context: Context): Boolean {
+    return getRecorderPreferences(context).getBoolean(
+        TimeTravelConfig.AUTO_MERGE_EAGER_ENABLED_KEY,
+        DEFAULT_AUTO_MERGE_EAGER_ENABLED,
+    )
 }
 
 fun configuredAutoMergeTargetSampleBytes(
