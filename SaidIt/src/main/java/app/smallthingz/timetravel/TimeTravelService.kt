@@ -104,7 +104,11 @@ class TimeTravelService : Service() {
         override fun run() {
             val compacted =
                 try {
-                    if (::liveExportHistory.isInitialized) liveExportHistory.compactIfNeeded() else false
+                    if (::liveExportHistory.isInitialized && !historyReencodePending && !historyReencoding) {
+                        liveExportHistory.compactIfNeeded()
+                    } else {
+                        false
+                    }
                 } catch (t: Throwable) {
                     Log.w(TAG, "History compaction pass failed", t)
                     false
@@ -692,6 +696,10 @@ class TimeTravelService : Service() {
         val historyEncodingChanged =
             outputConfigChanged || newBitrateKbps != configuredCodecBitrateKbps()
         val hasRetainedBuffer = availableBufferedSampleBytes() > 0L
+        if (historyEncodingChanged && hasRetainedBuffer) {
+            historyReencodePending = true
+            historyReencoding = false
+        }
         updateWakeLockState()
 
         if (state != STATE_LISTENING || !isListeningEnabled()) {
@@ -701,17 +709,17 @@ class TimeTravelService : Service() {
             loadConfiguration()
             audioHandler.post {
                 if (historyEncodingChanged && hasRetainedBuffer) {
-                    historyReencodePending = true
                     historyReencodeProcessedBytes = 0L
                     historyReencodeTotalBytes = currentRawBufferedSampleBytes()
-                    syncPersistentBufferFromMemory()
                     updateLiveExportHistoryConfiguration()
+                    syncPersistentBufferFromMemory()
+                    maybeStartHistoryReencode()
                     return@post
                 }
                 historyReencodePending = false
+                historyReencoding = false
                 historyReencodeProcessedBytes = 0L
                 historyReencodeTotalBytes = 0L
-                syncPersistentBufferFromMemory()
                 restorePersistedBufferIfNeeded()
             }
             return if (historyEncodingChanged && hasRetainedBuffer) {
@@ -728,11 +736,15 @@ class TimeTravelService : Service() {
         loadConfiguration()
         audioHandler.post {
             audioMemory.allocate(configuredWorkingMemorySizeBytes())
-            syncPersistentBufferFromMemory()
             historyReencodePending = historyEncodingChanged && hasRetainedBuffer
+            historyReencoding = false
             historyReencodeProcessedBytes = 0L
             historyReencodeTotalBytes = if (historyReencodePending) currentRawBufferedSampleBytes() else 0L
             updateLiveExportHistoryConfiguration()
+            syncPersistentBufferFromMemory()
+            if (historyReencodePending) {
+                maybeStartHistoryReencode()
+            }
         }
 
         return if (historyEncodingChanged && hasRetainedBuffer) {
@@ -1128,6 +1140,77 @@ class TimeTravelService : Service() {
         }
     }
 
+    fun debugCompactChunk(
+        filePath: String,
+        callback: ChunkActionCallback? = null,
+    ) {
+        if (!isDebuggableBuild()) {
+            return
+        }
+        exportHandler.post {
+            val merged =
+                try {
+                    if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactChunkNow(filePath) else false
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Debug chunk compaction failed", t)
+                    false
+                }
+            val message =
+                if (merged) {
+                    getString(R.string.chunks_merge_done)
+                } else {
+                    getString(R.string.chunks_merge_failed)
+                }
+            mainHandler.post {
+                callback?.completed(merged, message)
+            }
+        }
+    }
+
+    fun debugExportChunk(
+        filePath: String,
+        receiver: AudioFileReceiver?,
+        callback: ChunkActionCallback? = null,
+    ) {
+        if (!isDebuggableBuild()) {
+            return
+        }
+        exportHandler.post {
+            try {
+                if (!::liveExportHistory.isInitialized) {
+                    throw IOException("History unavailable")
+                }
+                val descriptor = liveExportHistory.debugChunkExportDescriptor(filePath)
+                    ?: throw IOException("Chunk unavailable")
+                val displayName = "${buildRecordingBaseName(descriptor.startedAtMillis)}-chunk.${descriptor.extension}"
+                val outTarget = createOutputTarget(this@TimeTravelService, displayName, descriptor.mimeType, descriptor.startedAtMillis)
+                val exported = liveExportHistory.debugExportChunkToTarget(filePath, outTarget)
+                    ?: throw IOException("Chunk export failed")
+                val recording = buildRecordingEntity(
+                    this@TimeTravelService,
+                    outTarget,
+                    exported.durationMillis,
+                    buildCodecSummary(
+                        exported.format,
+                        exported.codec,
+                        exported.sampleRate,
+                        exported.channelCount,
+                        exported.bitrateKbps,
+                    ),
+                )
+                notifyReceiver(receiver, recording)
+                mainHandler.post {
+                    callback?.completed(true, getString(R.string.chunks_export_done))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Debug chunk export failed", e)
+                mainHandler.post {
+                    callback?.completed(false, getString(R.string.chunks_export_failed))
+                }
+            }
+        }
+    }
+
     fun clearBuffer() {
         if (state == STATE_RECORDING) {
             return
@@ -1147,15 +1230,21 @@ class TimeTravelService : Service() {
         if (state == STATE_RECORDING || historyReencoding || !historyReencodePending) {
             return false
         }
-        if (state == STATE_LISTENING || isListeningEnabled()) {
-            showToast(getString(R.string.reencode_history_disable_listening))
-            return false
-        }
         historyReencoding = true
         historyReencodeProcessedBytes = 0L
         historyReencodeTotalBytes = currentRawBufferedSampleBytes()
         exportHandler.post { performHistoryReencode() }
         return true
+    }
+
+    private fun maybeStartHistoryReencode() {
+        if (!historyReencodePending || historyReencoding || state == STATE_RECORDING) {
+            return
+        }
+        historyReencoding = true
+        historyReencodeProcessedBytes = 0L
+        historyReencodeTotalBytes = currentRawBufferedSampleBytes()
+        exportHandler.post { performHistoryReencode() }
     }
 
     private val bytesToSeconds: Float
@@ -1218,7 +1307,7 @@ class TimeTravelService : Service() {
         var importedSegments: List<LiveExportHistory.ImportedSegment> = emptyList()
         try {
             importedSegments = encodeHistorySnapshotParallel(snapshot)
-            val installed = liveExportHistory.replaceWithImportedSegments(expectedConfig, importedSegments)
+            val installed = liveExportHistory.replaceSourceSegmentsWithImported(snapshot.sourcePaths, expectedConfig, importedSegments)
             if (!installed) {
                 throw IOException("Unable to install re-encoded history segments")
             }
@@ -1227,6 +1316,7 @@ class TimeTravelService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "History re-encode failed", e)
             importedSegments.forEach { it.file.delete() }
+            liveExportHistory.releasePinnedSourcePaths(snapshot.sourcePaths)
             completeHistoryReencode(false, getString(R.string.reencode_history_failed))
         } finally {
             snapshot.rootDirectory.deleteRecursively()
@@ -1234,13 +1324,18 @@ class TimeTravelService : Service() {
     }
 
     private fun createHistoryReencodeSnapshot(): HistoryReencodeSnapshot? {
-        val retainedBytes = currentRawBufferedSampleBytes()
+        val historySnapshot = liveExportHistory.snapshotForHistoryReencode(
+            reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
+        ) ?: return null
+        val retainedBytes = historySnapshot.totalSampleBytes
         if (retainedBytes <= 0L) {
+            liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
             return null
         }
 
         val rootDirectory = File(noBackupFilesDir, "${TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME}/history-reencode-${SystemClock.elapsedRealtime()}").also { directory ->
             if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
+                liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
                 throw IOException("Unable to create re-encode workspace: ${directory.absolutePath}")
             }
         }
@@ -1293,11 +1388,12 @@ class TimeTravelService : Service() {
                 }
             }
         if (!readSucceeded) {
+            liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
             throw IOException("Requested PCM range not available for history re-encode")
         }
 
         historyReencodeTotalBytes = retainedBytes
-        return HistoryReencodeSnapshot(rootDirectory, chunks, retainedBytes)
+        return HistoryReencodeSnapshot(rootDirectory, chunks, retainedBytes, historySnapshot.sourcePaths)
     }
 
     private fun encodeHistorySnapshotParallel(
@@ -1774,6 +1870,10 @@ class TimeTravelService : Service() {
         fun snapshot(data: ChunkDebugSnapshot)
     }
 
+    interface ChunkActionCallback {
+        fun completed(success: Boolean, message: String)
+    }
+
     data class ChunkDebugSnapshot(
         val listeningEnabled: Boolean,
         val recording: Boolean,
@@ -1851,6 +1951,7 @@ class TimeTravelService : Service() {
         val rootDirectory: File,
         val chunks: List<ReencodeChunk>,
         val totalSampleBytes: Long,
+        val sourcePaths: List<String>,
     )
 
     enum class ApplySettingsResult {

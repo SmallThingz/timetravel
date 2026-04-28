@@ -205,6 +205,7 @@ class TimeTravelFragment : Fragment() {
         super.onResume()
         if (view != null) {
             refreshConfiguredUi()
+            recorder?.getState(serviceStateCallback)
         }
     }
 
@@ -360,12 +361,12 @@ class TimeTravelFragment : Fragment() {
 
     private fun updateActionButtons() {
         val exportBlocked = isRecording || isSaving || isHistoryReencodePending || isHistoryReencoding
-        clearBufferButton.isEnabled = !isRecording && !isSaving && !isHistoryReencoding
+        clearBufferButton.isEnabled = !isRecording && !isSaving && !isHistoryReencodePending && !isHistoryReencoding
         clearBufferButton.alpha = if (clearBufferButton.isEnabled) 1f else 0.5f
         recordMaxButton.isEnabled = !exportBlocked
         recordCustomButton.isEnabled = !exportBlocked
-        recordMaxButton.isVisible = !isHistoryReencodePending && !isHistoryReencoding
-        recordCustomButton.isVisible = !isHistoryReencodePending && !isHistoryReencoding
+        recordMaxButton.isVisible = true
+        recordCustomButton.isVisible = true
         reencodeHistoryButton.isVisible = isHistoryReencodePending || isHistoryReencoding
         reencodeHistoryButton.isEnabled = !isHistoryReencoding
         reencodeHistoryButton.text =

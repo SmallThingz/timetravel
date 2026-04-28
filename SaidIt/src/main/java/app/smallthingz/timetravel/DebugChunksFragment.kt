@@ -17,6 +17,7 @@ import androidx.core.view.updatePadding
 import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -205,6 +206,8 @@ class DebugChunksFragment : Fragment() {
             row.findViewById<TextView>(R.id.chunk_active).visibility = if (chunk.active) View.VISIBLE else View.GONE
             val affectingOperations = operations.filter { chunk.filePath in it.sourcePaths }
             val operationsText = row.findViewById<TextView>(R.id.chunk_operations)
+            val mergeButton = row.findViewById<View>(R.id.chunk_merge_button)
+            val exportButton = row.findViewById<View>(R.id.chunk_export_button)
             if (affectingOperations.isEmpty()) {
                 operationsText.visibility = View.GONE
             } else {
@@ -215,6 +218,49 @@ class DebugChunksFragment : Fragment() {
                             operationLabelRes(it.kind),
                         )
                     }
+            }
+            val actionEnabled = !chunk.active && affectingOperations.isEmpty()
+            mergeButton.isEnabled = actionEnabled
+            mergeButton.alpha = if (actionEnabled) 1f else 0.45f
+            exportButton.isEnabled = !chunk.active
+            exportButton.alpha = if (!chunk.active) 1f else 0.45f
+            mergeButton.setOnClickListener {
+                service?.debugCompactChunk(
+                    chunk.filePath,
+                    object : TimeTravelService.ChunkActionCallback {
+                        override fun completed(success: Boolean, message: String) {
+                            if (!isAdded) return
+                            showDebugMessage(message)
+                            requestSnapshot()
+                        }
+                    },
+                )
+            }
+            exportButton.setOnClickListener {
+                service?.debugExportChunk(
+                    chunk.filePath,
+                    receiver = object : TimeTravelService.AudioFileReceiver {
+                        override fun fileReady(recording: RecordingEntity) {
+                            viewLifecycleOwner.lifecycleScope.launch {
+                                RecordingRepository.register(requireContext().applicationContext, recording)
+                                if (!isAdded) return@launch
+                                showDebugMessage(getString(R.string.chunks_export_done))
+                            }
+                        }
+
+                        override fun fileFailed(message: String) {
+                            if (!isAdded) return
+                            showDebugMessage(if (message.isBlank()) getString(R.string.chunks_export_failed) else message)
+                        }
+                    },
+                    callback = object : TimeTravelService.ChunkActionCallback {
+                        override fun completed(success: Boolean, message: String) {
+                            if (!success && isAdded) {
+                                showDebugMessage(message)
+                            }
+                        }
+                    },
+                )
             }
             chunksList.addView(row)
         }
@@ -249,6 +295,11 @@ class DebugChunksFragment : Fragment() {
             "EXPORT_MERGE" -> R.string.chunks_operation_export_merge
             else -> R.string.chunks_operation_export_merge
         }
+    }
+
+    private fun showDebugMessage(message: String) {
+        val root = view ?: return
+        Snackbar.make(root, message, Snackbar.LENGTH_SHORT).show()
     }
 }
 

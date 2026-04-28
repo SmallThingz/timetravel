@@ -50,6 +50,9 @@ internal class LiveExportHistory(
         val updatedConfig = Config(format, codec, sampleRate, channelCount, bitrateKbps)
         val previousConfig = config
         val configChanged = previousConfig != updatedConfig
+        if (previousConfig != null && configChanged) {
+            closeCurrentSegmentLocked()
+        }
         val retentionChanged = this.retentionBytes != retentionBytes
         val segmentDurationChanged = this.segmentDurationMillis != segmentDurationMillis
         val compactionChanged = this.compactionTargetSampleBytes != compactionTargetSampleBytes
@@ -61,9 +64,7 @@ internal class LiveExportHistory(
             migrateLegacySegmentsLocked()
             restorePersistedSegmentsLocked(updatedConfig)
             pruneLocked()
-        } else if (configChanged) {
-            resetLocked()
-        } else if (retentionChanged || segmentDurationChanged || compactionChanged) {
+        } else if (configChanged || retentionChanged || segmentDurationChanged || compactionChanged) {
             pruneLocked()
         }
     }
@@ -149,6 +150,92 @@ internal class LiveExportHistory(
         }
         pruneLocked()
         return true
+    }
+
+    @Synchronized
+    fun snapshotForHistoryReencode(
+        reopenForContinuedCapture: Boolean,
+    ): HistoryReencodeSourceSnapshot? {
+        val currentConfig = config ?: return null
+        if (currentWriter != null) {
+            currentSegment?.let { segment ->
+                nextSegmentStartMillis = segment.startedAtMillis + currentConfig.bytesToDurationMillis(segment.sampleBytes)
+            }
+            closeCurrentSegmentLocked()
+        }
+        if (segments.isEmpty()) {
+            if (reopenForContinuedCapture) {
+                ensureWriterLocked(nextSegmentStartMillis ?: System.currentTimeMillis())
+            }
+            return null
+        }
+        val sourcePaths = segments.map { it.file.absolutePath }
+        sourcePaths.forEach { path ->
+            pinnedFiles[path] = (pinnedFiles[path] ?: 0) + 1
+        }
+        if (reopenForContinuedCapture) {
+            ensureWriterLocked(nextSegmentStartMillis ?: System.currentTimeMillis())
+        }
+        return HistoryReencodeSourceSnapshot(
+            sourcePaths = sourcePaths,
+            totalSampleBytes = segments.sumOf { it.sampleBytes },
+        )
+    }
+
+    @Synchronized
+    fun replaceSourceSegmentsWithImported(
+        sourcePaths: List<String>,
+        expectedConfig: Config,
+        importedSegments: List<ImportedSegment>,
+    ): Boolean {
+        if (config != expectedConfig) {
+            releasePinnedSourcePathsLocked(sourcePaths)
+            return false
+        }
+        val currentSegments = segments.toList()
+        val startIndex = findContiguousSegmentRangeStartLocked(currentSegments, sourcePaths)
+        if (startIndex < 0) {
+            releasePinnedSourcePathsLocked(sourcePaths)
+            return false
+        }
+        val endIndexExclusive = startIndex + sourcePaths.size
+        val replacement = ArrayDeque<Segment>(currentSegments.size - sourcePaths.size + importedSegments.size)
+        currentSegments.subList(0, startIndex).forEach(replacement::addLast)
+        importedSegments
+            .sortedBy { it.startedAtMillis }
+            .forEach { imported ->
+                val segment = Segment(
+                    file = imported.file,
+                    startedAtMillis = imported.startedAtMillis,
+                    sampleBytes = imported.sampleBytes,
+                )
+                finalizeSegmentFileLocked(segment)
+                if (segment.sampleBytes > 0L && segment.file.isFile && segment.file.length() > 0L) {
+                    replacement.addLast(segment)
+                } else {
+                    segment.file.delete()
+                }
+            }
+        currentSegments.subList(endIndexExclusive, currentSegments.size).forEach(replacement::addLast)
+        segments.clear()
+        segments.addAll(replacement)
+        releasePinnedSourcePathsLocked(sourcePaths)
+        val livePaths = segments.mapTo(HashSet()) { it.file.absolutePath }
+        sourcePaths.forEach { path ->
+            if (path !in livePaths && !pinnedFiles.containsKey(path)) {
+                File(path).delete()
+            }
+        }
+        pruneLocked()
+        return true
+    }
+
+    @Synchronized
+    fun releasePinnedSourcePaths(
+        sourcePaths: List<String>,
+    ) {
+        releasePinnedSourcePathsLocked(sourcePaths)
+        pruneLocked()
     }
 
     @Synchronized
@@ -300,7 +387,7 @@ internal class LiveExportHistory(
     ) {
         if (snapshot.slices.size == 1) {
             val only = snapshot.slices.single()
-            if (only.skipSampleBytes == 0L && only.takeSampleBytes == only.segment.sampleBytes) {
+            if (only.skipSampleBytes == 0L && only.takeSampleBytes == only.segment.sampleBytes && canCopyWholeSliceDirectly(only.segment, snapshot.config)) {
                 copyWholeFile(only.segment.file, outputTarget)
                 return
             }
@@ -362,7 +449,15 @@ internal class LiveExportHistory(
             return null
         }
         val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
-        val targetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = true) ?: return null
+        val configuredTargetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = true) ?: return null
+        val observedBlockSampleBytes =
+            snapshot.slices
+                .asSequence()
+                .filter { slice -> slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes }
+                .map { it.segment.sampleBytes }
+                .maxOrNull()
+                ?: 0L
+        val targetSampleBytes = maxOf(configuredTargetSampleBytes, observedBlockSampleBytes)
         if (targetSampleBytes <= baseSegmentBytes) {
             return null
         }
@@ -398,7 +493,8 @@ internal class LiveExportHistory(
             val eligible =
                 slice.skipSampleBytes == 0L &&
                     slice.takeSampleBytes == slice.segment.sampleBytes &&
-                    isCompactionCandidateLocked(slice.segment, targetSampleBytes, baseSegmentBytes)
+                    canCopyWholeSliceDirectly(slice.segment, currentConfig) &&
+                    isExportBlockCandidateLocked(slice.segment, targetSampleBytes, baseSegmentBytes)
             if (!eligible) {
                 flushBuffered()
                 parts += PreparedExportPlanPart.Direct(slice)
@@ -627,7 +723,7 @@ internal class LiveExportHistory(
         try {
             forEachPreparedExportSlice(parts) { prepared ->
                 val slice = prepared.slice
-                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
                     copyWholeFileToStream(slice.segment.file, outputStream)
                 } else {
                     exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
@@ -656,7 +752,7 @@ internal class LiveExportHistory(
             outputStream.write(header)
             forEachPreparedExportSlice(parts) { prepared ->
                 val slice = prepared.slice
-                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
                     copyWholeFileToStream(slice.segment.file, outputStream, skipBytes = header.size.toLong())
                 } else {
                     exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
@@ -680,9 +776,20 @@ internal class LiveExportHistory(
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         try {
-            val packetizer = MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount)
-            forEachPreparedEncodedSliceSample(currentConfig, parts) { _: SegmentSlice, data: ByteArray, sampleSize: Int, presentationTimeUs: Long ->
-                packetizer.writeAccessUnit(data, 0, sampleSize, presentationTimeUs)
+            var packetizer: MpegTsAacPacketizer? = null
+            forEachPreparedExportSlice(parts) { prepared ->
+                val slice = prepared.slice
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
+                    copyWholeFileToStream(slice.segment.file, outputStream)
+                } else {
+                    val activePacketizer =
+                        packetizer ?: MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount).also {
+                            packetizer = it
+                        }
+                    exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, presentationTimeUs: Long ->
+                        activePacketizer.writeAccessUnit(data, 0, sampleSize, presentationTimeUs)
+                    }
+                }
             }
             outputStream.flush()
         } finally {
@@ -923,7 +1030,7 @@ internal class LiveExportHistory(
         val adtsHeader = ByteArray(7)
         try {
             snapshot.slices.forEach { slice ->
-                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
                     copyWholeFileToStream(slice.segment.file, outputStream)
                 } else {
                     exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
@@ -951,7 +1058,7 @@ internal class LiveExportHistory(
         try {
             outputStream.write(header)
             snapshot.slices.forEach { slice ->
-                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
                     copyWholeFileToStream(slice.segment.file, outputStream, skipBytes = header.size.toLong())
                 } else {
                     exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
@@ -1159,6 +1266,13 @@ internal class LiveExportHistory(
         }
     }
 
+    private fun canCopyWholeSliceDirectly(
+        segment: Segment,
+        currentConfig: Config,
+    ): Boolean {
+        return inspectPersistedSegment(segment.file, currentConfig) != null
+    }
+
     private fun ensureWriterLocked(startedAtMillis: Long) {
         if (currentWriter != null) {
             return
@@ -1294,6 +1408,75 @@ internal class LiveExportHistory(
         return null
     }
 
+    private fun claimCompactionTaskAroundChunkLocked(filePath: String): CompactionTask? {
+        if (compactionInFlight) {
+            return null
+        }
+        val currentConfig = config ?: return null
+        val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
+        val targetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = true) ?: return null
+        if (targetSampleBytes <= baseSegmentBytes) {
+            return null
+        }
+
+        val currentSegments = segments.toList()
+        val selectedIndex = currentSegments.indexOfFirst { it.file.absolutePath == filePath }
+        if (selectedIndex < 0) {
+            return null
+        }
+
+        for (startIndex in 0..selectedIndex) {
+            val selectedSegments = ArrayList<Segment>()
+            var totalSampleBytes = 0L
+            var includesSelected = false
+            for (index in startIndex until currentSegments.size) {
+                val segment = currentSegments[index]
+                if (!isCompactionCandidateLocked(segment, targetSampleBytes, baseSegmentBytes)) {
+                    break
+                }
+                val nextTotal = totalSampleBytes + segment.sampleBytes
+                if (nextTotal > targetSampleBytes) {
+                    break
+                }
+                selectedSegments += segment
+                totalSampleBytes = nextTotal
+                includesSelected = includesSelected || index == selectedIndex
+                if (!includesSelected) {
+                    continue
+                }
+                if (totalSampleBytes == targetSampleBytes && selectedSegments.size >= MIN_COMPACTION_SEGMENTS) {
+                    val slices = selectedSegments.map { selected ->
+                        val key = selected.file.absolutePath
+                        pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
+                        SegmentSlice(selected, 0L, selected.sampleBytes)
+                    }
+                    ensureHistoryRootExists()
+                    val tempFile = File(historyRoot, "manual-compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+                    val outputTarget = RecordingOutputTarget(
+                        id = tempFile.absolutePath,
+                        displayName = tempFile.name,
+                        mimeType = currentConfig.format.outputMimeType,
+                        storageType = RecordingStorageType.FILE,
+                        directoryId = historyRoot.absolutePath,
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        file = tempFile,
+                    )
+                    compactionInFlight = true
+                    return CompactionTask(
+                        operationId = "manual-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
+                        startIndex = startIndex,
+                        sourcePaths = selectedSegments.map { it.file.absolutePath },
+                        startedAtMillis = selectedSegments.first().startedAtMillis,
+                        totalSampleBytes = totalSampleBytes,
+                        snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+                        outputTarget = outputTarget,
+                    )
+                }
+            }
+        }
+        return null
+    }
+
     private fun buildRegionalCompactionPlanLocked(
         snapshot: Snapshot,
         preferredParallelism: Int,
@@ -1392,6 +1575,19 @@ internal class LiveExportHistory(
     }
 
     private fun isCompactionCandidateLocked(
+        segment: Segment,
+        targetSampleBytes: Long,
+        baseSegmentBytes: Long,
+    ): Boolean {
+        val key = segment.file.absolutePath
+        if (pinnedFiles.containsKey(key)) {
+            return false
+        }
+        val sampleBytes = segment.sampleBytes
+        return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes && sampleBytes % baseSegmentBytes == 0L
+    }
+
+    private fun isExportBlockCandidateLocked(
         segment: Segment,
         targetSampleBytes: Long,
         baseSegmentBytes: Long,
@@ -1615,6 +1811,19 @@ internal class LiveExportHistory(
             }
         }
         return -1
+    }
+
+    private fun releasePinnedSourcePathsLocked(
+        sourcePaths: List<String>,
+    ) {
+        sourcePaths.forEach { path ->
+            val count = pinnedFiles[path] ?: return@forEach
+            if (count <= 1) {
+                pinnedFiles.remove(path)
+            } else {
+                pinnedFiles[path] = count - 1
+            }
+        }
     }
 
     private fun resetLocked() {
@@ -1905,6 +2114,11 @@ internal class LiveExportHistory(
         val sampleBytes: Long,
     )
 
+    data class HistoryReencodeSourceSnapshot(
+        val sourcePaths: List<String>,
+        val totalSampleBytes: Long,
+    )
+
     private data class CompactionTask(
         val startIndex: Int,
         val operationId: String,
@@ -1994,6 +2208,20 @@ internal class LiveExportHistory(
         val active: Boolean,
     )
 
+    data class DebugChunkExportDescriptor(
+        val file: File,
+        val startedAtMillis: Long,
+        val durationMillis: Long,
+        val format: ExportFormat,
+        val codec: ExportCodec,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val bitrateKbps: Int?,
+    ) {
+        val mimeType: String get() = format.outputMimeType
+        val extension: String get() = format.extension
+    }
+
     data class DebugOperation(
         val id: String,
         val kind: DebugOperationKind,
@@ -2046,6 +2274,62 @@ internal class LiveExportHistory(
             chunks = chunks,
             operations = debugOperations.values.toList(),
         )
+    }
+
+    @Synchronized
+    fun debugChunkExportDescriptor(filePath: String): DebugChunkExportDescriptor? {
+        val currentConfig = config ?: return null
+        if (currentSegment?.file?.absolutePath == filePath && currentWriter != null) {
+            return null
+        }
+        val segment = segments.firstOrNull { it.file.absolutePath == filePath } ?: return null
+        return DebugChunkExportDescriptor(
+            file = segment.file,
+            startedAtMillis = segment.startedAtMillis,
+            durationMillis = currentConfig.bytesToDurationMillis(segment.sampleBytes),
+            format = currentConfig.format,
+            codec = currentConfig.codec,
+            sampleRate = currentConfig.sampleRate,
+            channelCount = currentConfig.channelCount,
+            bitrateKbps = currentConfig.bitrateKbps,
+        )
+    }
+
+    fun debugCompactChunkNow(filePath: String): Boolean {
+        val task = synchronized(this) { claimCompactionTaskAroundChunkLocked(filePath) } ?: return false
+        var mergedFile: File? = null
+        return try {
+            synchronized(this) {
+                debugOperations[task.operationId] =
+                    DebugOperation(
+                        id = task.operationId,
+                        kind = DebugOperationKind.BACKGROUND_MERGE,
+                        sourcePaths = task.sourcePaths,
+                        targetSampleBytes = task.totalSampleBytes,
+                        startedAtMillis = task.startedAtMillis,
+                    )
+            }
+            exportSnapshot(task.snapshot, task.outputTarget)
+            mergedFile = requireNotNull(task.outputTarget.file)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Manual chunk compaction failed", e)
+            false
+        } finally {
+            synchronized(this) {
+                debugOperations.remove(task.operationId)
+                finishCompactionLocked(task, mergedFile)
+            }
+        }
+    }
+
+    fun debugExportChunkToTarget(
+        filePath: String,
+        outputTarget: RecordingOutputTarget,
+    ): DebugChunkExportDescriptor? {
+        val descriptor = synchronized(this) { debugChunkExportDescriptor(filePath) } ?: return null
+        copyWholeFile(descriptor.file, outputTarget)
+        return descriptor
     }
 
     @Synchronized

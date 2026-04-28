@@ -171,6 +171,12 @@
     <string name="chunks_active" translatable="false">Active</string>
     <string name="chunks_operation_background_merge" translatable="false">Background merge</string>
     <string name="chunks_operation_export_merge" translatable="false">Export merge</string>
+    <string name="chunks_action_merge" translatable="false">Merge</string>
+    <string name="chunks_action_export" translatable="false">Export</string>
+    <string name="chunks_merge_done" translatable="false">Chunk merged.</string>
+    <string name="chunks_merge_failed" translatable="false">Couldn\'t merge chunk.</string>
+    <string name="chunks_export_done" translatable="false">Chunk exported.</string>
+    <string name="chunks_export_failed" translatable="false">Couldn\'t export chunk.</string>
     <string name="open_github">Open GitHub</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>

@@ -95,4 +95,28 @@
         android:paddingHorizontal="14dp"
         android:textColor="?attr/colorPrimary"
         android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/chunk_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chunk_merge_button"
+            style="@style/Widget.TimeTravel.DebugActionButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/chunks_action_merge" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chunk_export_button"
+            style="@style/Widget.TimeTravel.DebugActionButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/chunks_action_export" />
+    </LinearLayout>
 </LinearLayout>
