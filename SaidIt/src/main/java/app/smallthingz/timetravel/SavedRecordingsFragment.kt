@@ -340,6 +340,7 @@ class SavedRecordingsFragment : Fragment() {
         val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_rename_recording, null, false)
         val nameLayout = content.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.rename_recording_layout)
         val nameInput = content.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.rename_recording_input)
+        val confirmButton = content.findViewById<View>(R.id.rename_recording_confirm_button)
         nameInput.setText(recording.displayName.substringBeforeLast('.', recording.displayName))
         nameInput.setSelection(nameInput.text?.length ?: 0)
 
@@ -347,14 +348,14 @@ class SavedRecordingsFragment : Fragment() {
             context = requireContext(),
             title = getString(R.string.rename_recording),
             content = content,
-            positiveText = getString(R.string.save),
+            positiveText = null,
             negativeText = null,
         )
-        handle.positiveButton.setOnClickListener {
+        fun submitRename() {
             val requestedName = nameInput.text?.toString().orEmpty().trim()
             if (requestedName.isBlank()) {
                 nameLayout.error = getString(R.string.rename_recording_invalid)
-                return@setOnClickListener
+                return
             }
             nameLayout.error = null
             viewLifecycleOwner.lifecycleScope.launch {
@@ -368,6 +369,7 @@ class SavedRecordingsFragment : Fragment() {
                 handle.dialog.dismiss()
             }
         }
+        confirmButton.setOnClickListener { submitRename() }
         handle.dialog.show()
     }
 

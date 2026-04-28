@@ -668,6 +668,10 @@ class TimeTravelFragment : Fragment() {
             val pastTimeField = content.findViewById<TextInputEditText>(R.id.custom_past_time_value)
             val pastSizeLayout = content.findViewById<TextInputLayout>(R.id.custom_past_size_layout)
             val pastSizeField = content.findViewById<TextInputEditText>(R.id.custom_past_size_value)
+            val rangeTimeConfirmButton = content.findViewById<View>(R.id.custom_range_time_confirm_button)
+            val rangeSizeConfirmButton = content.findViewById<View>(R.id.custom_range_size_confirm_button)
+            val pastTimeConfirmButton = content.findViewById<View>(R.id.custom_past_time_confirm_button)
+            val pastSizeConfirmButton = content.findViewById<View>(R.id.custom_past_size_confirm_button)
 
             listOf(startTimeField, endTimeField, startSizeField, endSizeField, pastTimeField, pastSizeField).forEach {
                 it.setSelectAllOnFocus(true)
@@ -734,7 +738,7 @@ class TimeTravelFragment : Fragment() {
                 context = requireContext(),
                 title = getString(R.string.export),
                 content = content,
-                positiveText = getString(R.string.export),
+                positiveText = null,
                 negativeText = null,
             )
 
@@ -817,7 +821,14 @@ class TimeTravelFragment : Fragment() {
                 val pastSizeSeconds = sizeBytesToExportSeconds(pastSizeBytes)
                 return startExport(clampExportRange((currentSeconds - pastSizeSeconds).coerceAtLeast(0f), currentSeconds))
             }
-            handle.positiveButton.setOnClickListener { submit() }
+            listOf(
+                rangeTimeConfirmButton,
+                rangeSizeConfirmButton,
+                pastTimeConfirmButton,
+                pastSizeConfirmButton,
+            ).forEach { button ->
+                button.setOnClickListener { submit() }
+            }
             val submitListener = TextView.OnEditorActionListener { _, actionId, event ->
                 if (
                     actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||

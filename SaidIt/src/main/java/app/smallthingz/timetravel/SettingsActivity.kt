@@ -1458,7 +1458,7 @@ class SettingsActivity : AppCompatActivity() {
         undoButton.alpha = if (enabled) 1f else 0.38f
         val applyImageButton = applyButton as? ImageButton ?: return
         applyImageButton.setImageResource(if (enabled) R.drawable.ic_check else R.drawable.ic_close)
-        applyImageButton.contentDescription = getString(if (enabled) R.string.save else R.string.close)
+        applyImageButton.contentDescription = getString(if (enabled) R.string.done else R.string.close)
     }
 }
 

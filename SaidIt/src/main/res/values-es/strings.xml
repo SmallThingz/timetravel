@@ -31,7 +31,7 @@
     <string name="open">Abrir</string>
     <string name="allow">Permitir</string>
     <string name="exit">Salir</string>
-    <string name="save">Guardar</string>
+    <string name="done">Listo</string>
     <string name="export">Exportar</string>
     <string name="no_app_available">No hay una app compatible disponible.</string>
 

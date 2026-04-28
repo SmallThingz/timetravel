@@ -88,6 +88,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:baselineAligned="false"
+                android:gravity="top"
                 android:orientation="horizontal">
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -136,6 +137,22 @@
                         android:maxLines="1"
                         android:selectAllOnFocus="true" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <ImageButton
+                    android:id="@+id/custom_range_time_confirm_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_circle_outlined"
+                    android:contentDescription="@string/export"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_check"
+                    app:tint="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
         </LinearLayout>
 
@@ -151,6 +168,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:baselineAligned="false"
+                android:gravity="top"
                 android:orientation="horizontal">
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -197,6 +215,22 @@
                         android:maxLines="1"
                         android:selectAllOnFocus="true" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <ImageButton
+                    android:id="@+id/custom_range_size_confirm_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_circle_outlined"
+                    android:contentDescription="@string/export"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_check"
+                    app:tint="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
         </LinearLayout>
 
@@ -205,14 +239,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:orientation="vertical"
+            android:baselineAligned="false"
+            android:gravity="top"
+            android:orientation="horizontal"
             android:visibility="gone">
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/custom_past_time_layout"
                 style="@style/TimeTravel.TextInputLayout"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:hint="@string/custom_export_past_label">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -229,6 +266,22 @@
                     android:maxLines="1"
                     android:selectAllOnFocus="true" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <ImageButton
+                android:id="@+id/custom_past_time_confirm_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_circle_outlined"
+                android:contentDescription="@string/export"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_check"
+                app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
         <LinearLayout
@@ -236,14 +289,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:orientation="vertical"
+            android:baselineAligned="false"
+            android:gravity="top"
+            android:orientation="horizontal"
             android:visibility="gone">
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/custom_past_size_layout"
                 style="@style/TimeTravel.TextInputLayout"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:hint="@string/custom_export_past_label">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -259,6 +315,22 @@
                     android:maxLines="1"
                     android:selectAllOnFocus="true" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <ImageButton
+                android:id="@+id/custom_past_size_confirm_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_circle_outlined"
+                android:contentDescription="@string/export"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="0dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_check"
+                app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>
