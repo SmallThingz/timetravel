@@ -14,7 +14,7 @@ object RecordingRepository {
             mutex.withLock {
                 syncConfiguredDirectory(context)
                 pruneMissingLocked(context)
-                dao(context).listAll()
+                RecordingDatabase.getInstance(context).recordingDao().listAll()
             }
         }
     }
@@ -22,7 +22,7 @@ object RecordingRepository {
     suspend fun register(context: Context, recording: RecordingEntity): RecordingEntity {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
-                dao(context).upsert(recording)
+                RecordingDatabase.getInstance(context).recordingDao().upsert(recording)
                 recording
             }
         }
@@ -33,7 +33,7 @@ object RecordingRepository {
             mutex.withLock {
                 val deleted = deleteRecordingAsset(context, recording)
                 if (deleted) {
-                    dao(context).deleteById(recording.id)
+                    RecordingDatabase.getInstance(context).recordingDao().deleteById(recording.id)
                 }
                 deleted
             }
@@ -48,8 +48,8 @@ object RecordingRepository {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
                 val renamed = renameRecordingAsset(context, recording, requestedBaseName) ?: return@withLock null
-                dao(context).deleteById(recording.id)
-                dao(context).upsert(renamed)
+                RecordingDatabase.getInstance(context).recordingDao().deleteById(recording.id)
+                RecordingDatabase.getInstance(context).recordingDao().upsert(renamed)
                 renamed
             }
         }
@@ -71,7 +71,7 @@ object RecordingRepository {
             mutex.withLock {
                 syncConfiguredDirectory(context)
                 pruneMissingLocked(context)
-                dao(context).listAll().any { it.directoryId != targetDirectoryId }
+                RecordingDatabase.getInstance(context).recordingDao().listAll().any { it.directoryId != targetDirectoryId }
             }
         }
     }
@@ -79,7 +79,8 @@ object RecordingRepository {
     suspend fun moveAllToConfiguredDirectory(context: Context): MoveResult {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
-                val current = dao(context).listAll()
+                val dao = RecordingDatabase.getInstance(context).recordingDao()
+                val current = dao.listAll()
                 if (current.isEmpty()) {
                     return@withLock MoveResult()
                 }
@@ -111,10 +112,10 @@ object RecordingRepository {
                 }
 
                 if (deletes.isNotEmpty()) {
-                    dao(context).deleteByIds(deletes)
+                    dao.deleteByIds(deletes)
                 }
                 if (updates.isNotEmpty()) {
-                    dao(context).upsertAll(updates)
+                    dao.upsertAll(updates)
                 }
 
                 MoveResult(moved = moved, skipped = skipped, removedMissing = deletes.size - moved)
@@ -123,9 +124,10 @@ object RecordingRepository {
     }
 
     private suspend fun syncConfiguredDirectory(context: Context) {
+        val dao = RecordingDatabase.getInstance(context).recordingDao()
         val currentDirectoryId = getConfiguredOutputDirectoryId(context)
         val imported = listCurrentOutputDirectoryRecordings(context)
-        val existing = dao(context).listByDirectory(currentDirectoryId)
+        val existing = dao.listByDirectory(currentDirectoryId)
         val importedIds = imported.mapTo(mutableSetOf()) { it.id }
         val staleIds = existing.asSequence()
             .map { it.id }
@@ -133,27 +135,24 @@ object RecordingRepository {
             .toList()
 
         if (imported.isNotEmpty()) {
-            dao(context).upsertAll(imported)
+            dao.upsertAll(imported)
         }
         if (staleIds.isNotEmpty()) {
-            dao(context).deleteByIds(staleIds)
+            dao.deleteByIds(staleIds)
         }
     }
 
     private suspend fun pruneMissingLocked(context: Context): Int {
-        val all = dao(context).listAll()
+        val dao = RecordingDatabase.getInstance(context).recordingDao()
+        val all = dao.listAll()
         val missingIds = all.asSequence()
             .filterNot { recordingExists(context, it) }
             .map { it.id }
             .toList()
         if (missingIds.isNotEmpty()) {
-            dao(context).deleteByIds(missingIds)
+            dao.deleteByIds(missingIds)
         }
         return missingIds.size
-    }
-
-    private fun dao(context: Context): RecordingDao {
-        return RecordingDatabase.getInstance(context).recordingDao()
     }
 
     data class MoveResult(

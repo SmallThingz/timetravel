@@ -16,7 +16,8 @@ import java.nio.ByteBuffer
 internal class LiveExportHistory(
     private val context: Context,
 ) {
-    private val cacheRoot = File(File(context.cacheDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), "live-export-history")
+    private val historyRoot = File(File(context.noBackupFilesDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), "live-export-history")
+    private val legacyCacheRoot = File(File(context.cacheDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), "live-export-history")
     private val segments = ArrayDeque<Segment>()
     private val pinnedFiles = LinkedHashMap<String, Int>()
 
@@ -43,6 +44,7 @@ internal class LiveExportHistory(
         this.retentionBytes = retentionBytes
         segmentDurationMillis = updatedConfig.suggestedSegmentDurationMillis(retentionBytes)
         if (previousConfig == null) {
+            migrateLegacySegmentsLocked()
             restorePersistedSegmentsLocked(updatedConfig)
             pruneLocked()
         } else if (configChanged) {
@@ -84,6 +86,13 @@ internal class LiveExportHistory(
     @Synchronized
     fun checkpoint() {
         closeCurrentSegmentLocked()
+    }
+
+    @Synchronized
+    fun closePreservingHistory() {
+        closeCurrentSegmentLocked()
+        currentWriter = null
+        currentSegment = null
     }
 
     @Synchronized
@@ -324,16 +333,16 @@ internal class LiveExportHistory(
             return
         }
         val currentConfig = config ?: return
-        if (!cacheRoot.exists()) {
-            cacheRoot.mkdirs()
+        if (!historyRoot.exists()) {
+            historyRoot.mkdirs()
         }
-        val file = File(cacheRoot, "history-${startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}")
+        val file = File(historyRoot, "history-${startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}")
         val target = RecordingOutputTarget(
             id = file.absolutePath,
             displayName = file.name,
             mimeType = currentConfig.codec.outputMimeType,
             storageType = RecordingStorageType.FILE,
-            directoryId = cacheRoot.absolutePath,
+            directoryId = historyRoot.absolutePath,
             startedAtMillis = startedAtMillis,
             file = file,
         )
@@ -382,13 +391,8 @@ internal class LiveExportHistory(
             }
         }
         segments.clear()
-        if (cacheRoot.exists() && cacheRoot.isDirectory) {
-            cacheRoot.listFiles()?.forEach { file ->
-                if (!pinnedFiles.containsKey(file.absolutePath)) {
-                    file.delete()
-                }
-            }
-        }
+        deleteUnpinnedFilesIn(historyRoot)
+        deleteUnpinnedFilesIn(legacyCacheRoot)
     }
 
     private fun pruneLocked() {
@@ -414,10 +418,10 @@ internal class LiveExportHistory(
     }
 
     private fun restorePersistedSegmentsLocked(currentConfig: Config) {
-        if (!cacheRoot.exists()) {
+        if (!historyRoot.exists()) {
             return
         }
-        val restoredSegments = cacheRoot.listFiles()
+        val restoredSegments = historyRoot.listFiles()
             ?.asSequence()
             ?.filter { it.isFile }
             ?.mapNotNull { file -> inspectPersistedSegment(file, currentConfig) }
@@ -432,7 +436,7 @@ internal class LiveExportHistory(
         }
 
         val keep = restoredSegments.mapTo(HashSet()) { it.file.absolutePath }
-        cacheRoot.listFiles()?.forEach { file ->
+        historyRoot.listFiles()?.forEach { file ->
             if (file.isFile && file.absolutePath !in keep) {
                 file.delete()
             }
@@ -520,12 +524,54 @@ internal class LiveExportHistory(
         if (segment.file.name == targetName) {
             return
         }
-        val renamed = File(cacheRoot, targetName)
+        val renamed = File(historyRoot, targetName)
         if (renamed.exists()) {
             renamed.delete()
         }
         if (segment.file.renameTo(renamed)) {
             segment.file = renamed
+        }
+    }
+
+    private fun migrateLegacySegmentsLocked() {
+        if (!legacyCacheRoot.exists() || !legacyCacheRoot.isDirectory) {
+            return
+        }
+        if (!historyRoot.exists()) {
+            historyRoot.mkdirs()
+        }
+        legacyCacheRoot.listFiles()?.forEach { file ->
+            if (!file.isFile) {
+                return@forEach
+            }
+            val migrated = File(historyRoot, file.name)
+            if (migrated.exists()) {
+                file.delete()
+                return@forEach
+            }
+            if (!file.renameTo(migrated)) {
+                runCatching {
+                    file.inputStream().use { input ->
+                        migrated.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    file.delete()
+                }.onFailure {
+                    migrated.delete()
+                }
+            }
+        }
+    }
+
+    private fun deleteUnpinnedFilesIn(directory: File) {
+        if (!directory.exists() || !directory.isDirectory) {
+            return
+        }
+        directory.listFiles()?.forEach { file ->
+            if (!pinnedFiles.containsKey(file.absolutePath)) {
+                file.delete()
+            }
         }
     }
 

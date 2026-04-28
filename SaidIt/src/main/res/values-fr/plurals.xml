@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="recordings_selected">
+        <item quantity="one">%d sélectionné</item>
+        <item quantity="many">%d sélectionnés</item>
+        <item quantity="other">%d sélectionnés</item>
+    </plurals>
+    <plurals name="recordings_deleted">
+        <item quantity="one">%d enregistrement supprimé.</item>
+        <item quantity="many">%d enregistrements supprimés.</item>
+        <item quantity="other">%d enregistrements supprimés.</item>
+    </plurals>
+</resources>

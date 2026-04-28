@@ -27,7 +27,11 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.io.FileDescriptor
 import java.io.IOException
+import java.io.PrintWriter
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelService : Service() {
@@ -97,15 +101,12 @@ class TimeTravelService : Service() {
     }
 
     override fun onDestroy() {
-        audioHandler.post { syncPersistentBufferFromMemory() }
-        stopRecording(null)
-        audioHandler.removeCallbacks(audioReader)
-        releaseAudioRecord()
+        flushAndPersistBeforeShutdown()
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
 
+        liveExportHistory.closePreservingHistory()
         persistentAudioRingStore.close()
-        liveExportHistory.clear()
         audioThread.quitSafely()
         exportThread.quitSafely()
         scheduleRestartIfNeeded()
@@ -125,6 +126,42 @@ class TimeTravelService : Service() {
     override fun onBind(intent: Intent): IBinder = BackgroundRecorderBinder()
 
     override fun onUnbind(intent: Intent): Boolean = true
+
+    override fun dump(
+        fd: FileDescriptor,
+        writer: PrintWriter,
+        args: Array<out String>,
+    ) {
+        if (!isDebuggableBuild()) {
+            super.dump(fd, writer, args)
+            return
+        }
+        val stats = audioMemory.getStats(fillRate)
+        val persisted = if (::persistentAudioRingStore.isInitialized) persistentAudioRingStore.peekSnapshot() else null
+        val history = if (::liveExportHistory.isInitialized) liveExportHistory.debugSnapshot() else null
+        writer.println("TimeTravelService")
+        writer.println("  state=$state")
+        writer.println("  listeningEnabled=${isListeningEnabled()}")
+        writer.println("  sampleRate=$sampleRate")
+        writer.println("  channelCount=${channelMode.channelCount}")
+        writer.println("  codec=${effectiveOutputCodec.prefValue}")
+        writer.println("  fillRate=$fillRate")
+        writer.println("  exportDir=${describeConfiguredOutputDirectory(this)}")
+        writer.println("  buffer filled=${stats.filled} total=${stats.total} overwriting=${stats.overwriting}")
+        writer.println(
+            "  persisted filled=${persisted?.filledBytes ?: 0} capacity=${persisted?.capacityBytes ?: 0} " +
+                "sampleRate=${persisted?.sampleRate ?: 0} channelCount=${persisted?.channelCount ?: 0} " +
+                "lastWrite=${persisted?.lastWriteAtMillis ?: 0}",
+        )
+        writer.println(
+            "  history segments=${history?.segmentCount ?: 0} totalSampleBytes=${history?.totalSampleBytes ?: 0} " +
+                "currentSegmentSampleBytes=${history?.currentSegmentSampleBytes ?: 0} " +
+                "nextSegmentStart=${history?.nextSegmentStartMillis ?: 0}",
+        )
+        history?.segmentFiles?.forEach { fileName ->
+            writer.println("    historyFile=$fileName")
+        }
+    }
 
     fun enableListening() {
         getRecorderPreferences(this).edit()
@@ -905,6 +942,51 @@ class TimeTravelService : Service() {
         persistentAudioRingStore.replaceWith(audioMemory, sampleRate, channelMode.channelCount)
     }
 
+    private fun flushAndPersistBeforeShutdown() {
+        if (!::audioHandler.isInitialized) {
+            return
+        }
+        runOnAudioThreadAndWait {
+            if (::audioHandler.isInitialized) {
+                audioHandler.removeCallbacks(audioReader)
+            }
+            if (state == STATE_RECORDING) {
+                flushAudioRecord()
+                val writer = audioFileWriter
+                audioFileWriter = null
+                recordingTarget = null
+                runCatching { writer?.close() }
+                    .onFailure { Log.e(TAG, "Error while closing recording file during shutdown", it) }
+            }
+            syncPersistentBufferFromMemory()
+            liveExportHistory.pause()
+            releaseAudioRecord()
+        }
+    }
+
+    private fun runOnAudioThreadAndWait(block: () -> Unit) {
+        if (!::audioHandler.isInitialized) {
+            block()
+            return
+        }
+        if (Looper.myLooper() == audioHandler.looper) {
+            block()
+            return
+        }
+
+        val latch = CountDownLatch(1)
+        audioHandler.post {
+            try {
+                block()
+            } finally {
+                latch.countDown()
+            }
+        }
+        if (!latch.await(3, TimeUnit.SECONDS)) {
+            Log.w(TAG, "Timed out waiting for audio-thread shutdown work")
+        }
+    }
+
     private fun handleDebugCommand(intent: Intent?) {
         if (!isDebuggableBuild()) {
             return
@@ -923,6 +1005,10 @@ class TimeTravelService : Service() {
                     audioMemory.clear()
                     liveExportHistory.clear()
                     persistentAudioRingStore.clear()
+                }
+                ACTION_DEBUG_FORCE_APP_STORAGE_EXPORTS -> {
+                    setConfiguredExportTreeUri(this@TimeTravelService, null)
+                    writeDebugReport("force-app-storage-exports")
                 }
                 ACTION_DEBUG_EXPORT_FULL -> exportDebug(FULL_BUFFER_SECONDS)
                 ACTION_DEBUG_EXPORT_SECONDS -> exportDebug(seconds)
@@ -1127,6 +1213,7 @@ class TimeTravelService : Service() {
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
         const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
         const val ACTION_DEBUG_CLEAR_BUFFER = "${DEBUG_ACTION_PREFIX}CLEAR_BUFFER"
+        const val ACTION_DEBUG_FORCE_APP_STORAGE_EXPORTS = "${DEBUG_ACTION_PREFIX}FORCE_APP_STORAGE_EXPORTS"
         const val ACTION_DEBUG_EXPORT_FULL = "${DEBUG_ACTION_PREFIX}EXPORT_FULL"
         const val ACTION_DEBUG_EXPORT_SECONDS = "${DEBUG_ACTION_PREFIX}EXPORT_SECONDS"
         const val ACTION_DEBUG_CHECKPOINT = "${DEBUG_ACTION_PREFIX}CHECKPOINT"

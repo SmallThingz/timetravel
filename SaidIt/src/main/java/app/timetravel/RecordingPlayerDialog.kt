@@ -90,7 +90,19 @@ internal class RecordingPlayerDialog(
                 scheduleProgressUpdate()
             }
         })
-        toggleButton.setOnClickListener { togglePlayback() }
+        toggleButton.setOnClickListener {
+            val player = mediaPlayer ?: return@setOnClickListener
+            if (!prepared) return@setOnClickListener
+            if (player.isPlaying) {
+                player.pause()
+                updateToggleButton(false)
+                handler.removeCallbacks(progressUpdater)
+            } else {
+                player.start()
+                updateToggleButton(true)
+                scheduleProgressUpdate()
+            }
+        }
         handle.negativeButton.visibility = android.view.View.GONE
         handle.positiveButton.setOnClickListener { dismiss() }
         handle.dialog.setOnDismissListener { release() }
@@ -98,14 +110,6 @@ internal class RecordingPlayerDialog(
 
     fun show() {
         handle.dialog.show()
-        preparePlayer()
-    }
-
-    fun dismiss() {
-        handle.dialog.dismiss()
-    }
-
-    private fun preparePlayer() {
         if (released) return
         val player = MediaPlayer()
         mediaPlayer = player
@@ -150,18 +154,8 @@ internal class RecordingPlayerDialog(
         }
     }
 
-    private fun togglePlayback() {
-        val player = mediaPlayer ?: return
-        if (!prepared) return
-        if (player.isPlaying) {
-            player.pause()
-            updateToggleButton(false)
-            handler.removeCallbacks(progressUpdater)
-        } else {
-            player.start()
-            updateToggleButton(true)
-            scheduleProgressUpdate()
-        }
+    fun dismiss() {
+        handle.dialog.dismiss()
     }
 
     private fun scheduleProgressUpdate() {

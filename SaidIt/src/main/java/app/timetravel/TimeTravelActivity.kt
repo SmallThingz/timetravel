@@ -27,7 +27,34 @@ class TimeTravelActivity : AppCompatActivity() {
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             if (grants.isNotEmpty() && grants.values.all { it }) {
-                showFragment()
+                val existingCapture = supportFragmentManager.findFragmentByTag(CAPTURE_FRAGMENT_TAG)
+                val existingFiles = supportFragmentManager.findFragmentByTag(FILES_FRAGMENT_TAG)
+                if (existingCapture == null || existingFiles == null) {
+                    val captureFragment = existingCapture ?: TimeTravelFragment()
+                    val filesFragment = existingFiles ?: SavedRecordingsFragment()
+                    supportFragmentManager.commitNow {
+                        setReorderingAllowed(true)
+                        if (!captureFragment.isAdded) {
+                            add(R.id.container, captureFragment, CAPTURE_FRAGMENT_TAG)
+                        }
+                        if (!filesFragment.isAdded) {
+                            add(R.id.container, filesFragment, FILES_FRAGMENT_TAG)
+                        }
+                        if (selectedTabId == R.id.navigation_capture) {
+                            hide(filesFragment)
+                        } else {
+                            hide(captureFragment)
+                        }
+                    }
+                }
+                container.isVisible = true
+                bottomDivider.isVisible = true
+                bottomNavigation.isVisible = true
+                if (bottomNavigation.selectedItemId != selectedTabId) {
+                    bottomNavigation.selectedItemId = selectedTabId
+                } else {
+                    selectTab(selectedTabId)
+                }
             } else {
                 showPermissionDeniedDialog()
             }
@@ -47,81 +74,40 @@ class TimeTravelActivity : AppCompatActivity() {
             selectTab(item.itemId)
             true
         }
-        bottomNavigation.post { clearBottomNavigationTooltips() }
+        bottomNavigation.post {
+            val menuView = bottomNavigation.getChildAt(0) as? ViewGroup ?: return@post
+            for (index in 0 until menuView.childCount) {
+                menuView.getChildAt(index).apply {
+                    tooltipText = null
+                    setOnLongClickListener { true }
+                }
+            }
+        }
         scheduleRecorderCapabilityCacheWarm(applicationContext)
     }
 
     override fun onStart() {
         super.onStart()
         dismissDialogs()
-        requestPermissions()
-    }
-
-    override fun onRestart() {
-        super.onRestart()
-        dismissDialogs()
-        requestPermissions()
+        permissionLauncher.launch(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                arrayOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.FOREGROUND_SERVICE,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                )
+            } else {
+                arrayOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.FOREGROUND_SERVICE,
+                )
+            },
+        )
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putInt(KEY_SELECTED_TAB, selectedTabId)
-    }
-
-    private fun requestPermissions() {
-        permissionLauncher.launch(requiredPermissions())
-    }
-
-    private fun requiredPermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.FOREGROUND_SERVICE,
-                Manifest.permission.POST_NOTIFICATIONS,
-            )
-        } else {
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.FOREGROUND_SERVICE,
-            )
-        }
-    }
-
-    private fun showFragment() {
-        ensureTabsCreated()
-        container.isVisible = true
-        bottomDivider.isVisible = true
-        bottomNavigation.isVisible = true
-        if (bottomNavigation.selectedItemId != selectedTabId) {
-            bottomNavigation.selectedItemId = selectedTabId
-        } else {
-            selectTab(selectedTabId)
-        }
-    }
-
-    private fun ensureTabsCreated() {
-        val existingCapture = supportFragmentManager.findFragmentByTag(CAPTURE_FRAGMENT_TAG)
-        val existingFiles = supportFragmentManager.findFragmentByTag(FILES_FRAGMENT_TAG)
-        if (existingCapture != null && existingFiles != null) {
-            return
-        }
-
-        val captureFragment = existingCapture ?: TimeTravelFragment()
-        val filesFragment = existingFiles ?: SavedRecordingsFragment()
-        supportFragmentManager.commitNow {
-            setReorderingAllowed(true)
-            if (!captureFragment.isAdded) {
-                add(R.id.container, captureFragment, CAPTURE_FRAGMENT_TAG)
-            }
-            if (!filesFragment.isAdded) {
-                add(R.id.container, filesFragment, FILES_FRAGMENT_TAG)
-            }
-            if (selectedTabId == R.id.navigation_capture) {
-                hide(filesFragment)
-            } else {
-                hide(captureFragment)
-            }
-        }
     }
 
     private fun selectTab(itemId: Int) {
@@ -166,16 +152,6 @@ class TimeTravelActivity : AppCompatActivity() {
 
     private fun dismissDialogs() {
         permissionDeniedDialog?.dismiss()
-    }
-
-    private fun clearBottomNavigationTooltips() {
-        val menuView = bottomNavigation.getChildAt(0) as? ViewGroup ?: return
-        for (index in 0 until menuView.childCount) {
-            menuView.getChildAt(index).apply {
-                tooltipText = null
-                setOnLongClickListener { true }
-            }
-        }
     }
 
     private companion object {

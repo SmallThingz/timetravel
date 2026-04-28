@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="recordings_selected">
+        <item quantity="other">%d 件を選択</item>
+    </plurals>
+    <plurals name="recordings_deleted">
+        <item quantity="other">%d 件の録音を削除しました。</item>
+    </plurals>
+</resources>

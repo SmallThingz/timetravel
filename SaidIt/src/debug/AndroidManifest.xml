@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application>
         <receiver
             android:name=".DebugCommandReceiver"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="app.timetravel.debug.ENABLE_LISTENING" />
                 <action android:name="app.timetravel.debug.DISABLE_LISTENING" />
                 <action android:name="app.timetravel.debug.CLEAR_BUFFER" />
+                <action android:name="app.timetravel.debug.FORCE_APP_STORAGE_EXPORTS" />
                 <action android:name="app.timetravel.debug.EXPORT_FULL" />
                 <action android:name="app.timetravel.debug.EXPORT_SECONDS" />
                 <action android:name="app.timetravel.debug.CHECKPOINT" />
@@ -19,7 +22,8 @@
 
         <receiver
             android:name=".DebugQueryReceiver"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="app.timetravel.debug.QUERY_STATUS" />
             </intent-filter>

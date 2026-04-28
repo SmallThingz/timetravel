@@ -103,15 +103,19 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
 
         override suspend fun upsertAll(recordings: List<RecordingEntity>) {
             if (recordings.isEmpty()) return
-            writableDatabase.runInTransaction {
+            writableDatabase.beginTransaction()
+            try {
                 recordings.forEach { recording ->
-                    insertWithOnConflict(
+                    writableDatabase.insertWithOnConflict(
                         TABLE_RECORDINGS,
                         null,
                         recording.toContentValues(),
                         SQLiteDatabase.CONFLICT_REPLACE,
                     )
                 }
+                writableDatabase.setTransactionSuccessful()
+            } finally {
+                writableDatabase.endTransaction()
             }
         }
 
@@ -129,17 +133,17 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
     companion object {
         private const val DATABASE_NAME = "timetravel-recordings.db"
         private const val DATABASE_VERSION = 1
-        private const val TABLE_RECORDINGS = "recordings"
-        private const val COLUMN_ID = "id"
-        private const val COLUMN_DISPLAY_NAME = "displayName"
-        private const val COLUMN_MIME_TYPE = "mimeType"
-        private const val COLUMN_STARTED_AT_MILLIS = "startedAtMillis"
-        private const val COLUMN_DURATION_MILLIS = "durationMillis"
-        private const val COLUMN_SIZE_BYTES = "sizeBytes"
-        private const val COLUMN_CODEC_SUMMARY = "codecSummary"
-        private const val COLUMN_STORAGE_TYPE = "storageType"
-        private const val COLUMN_DIRECTORY_ID = "directoryId"
-        private const val COLUMN_CREATED_AT_MILLIS = "createdAtMillis"
+        internal const val TABLE_RECORDINGS = "recordings"
+        internal const val COLUMN_ID = "id"
+        internal const val COLUMN_DISPLAY_NAME = "displayName"
+        internal const val COLUMN_MIME_TYPE = "mimeType"
+        internal const val COLUMN_STARTED_AT_MILLIS = "startedAtMillis"
+        internal const val COLUMN_DURATION_MILLIS = "durationMillis"
+        internal const val COLUMN_SIZE_BYTES = "sizeBytes"
+        internal const val COLUMN_CODEC_SUMMARY = "codecSummary"
+        internal const val COLUMN_STORAGE_TYPE = "storageType"
+        internal const val COLUMN_DIRECTORY_ID = "directoryId"
+        internal const val COLUMN_CREATED_AT_MILLIS = "createdAtMillis"
 
         @Volatile
         private var instance: RecordingDatabase? = null
@@ -154,40 +158,30 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
 
 private fun RecordingEntity.toContentValues(): ContentValues {
     return ContentValues().apply {
-        put("id", id)
-        put("displayName", displayName)
-        put("mimeType", mimeType)
-        put("startedAtMillis", startedAtMillis)
-        put("durationMillis", durationMillis)
-        put("sizeBytes", sizeBytes)
-        put("codecSummary", codecSummary)
-        put("storageType", storageType)
-        put("directoryId", directoryId)
-        put("createdAtMillis", createdAtMillis)
-    }
-}
-
-private fun SQLiteDatabase.runInTransaction(block: SQLiteDatabase.() -> Unit) {
-    beginTransaction()
-    try {
-        block()
-        setTransactionSuccessful()
-    } finally {
-        endTransaction()
+        put(RecordingDatabase.COLUMN_ID, id)
+        put(RecordingDatabase.COLUMN_DISPLAY_NAME, displayName)
+        put(RecordingDatabase.COLUMN_MIME_TYPE, mimeType)
+        put(RecordingDatabase.COLUMN_STARTED_AT_MILLIS, startedAtMillis)
+        put(RecordingDatabase.COLUMN_DURATION_MILLIS, durationMillis)
+        put(RecordingDatabase.COLUMN_SIZE_BYTES, sizeBytes)
+        put(RecordingDatabase.COLUMN_CODEC_SUMMARY, codecSummary)
+        put(RecordingDatabase.COLUMN_STORAGE_TYPE, storageType)
+        put(RecordingDatabase.COLUMN_DIRECTORY_ID, directoryId)
+        put(RecordingDatabase.COLUMN_CREATED_AT_MILLIS, createdAtMillis)
     }
 }
 
 private fun readRecordings(cursor: android.database.Cursor): List<RecordingEntity> {
-    val idIndex = cursor.getColumnIndexOrThrow("id")
-    val displayNameIndex = cursor.getColumnIndexOrThrow("displayName")
-    val mimeTypeIndex = cursor.getColumnIndexOrThrow("mimeType")
-    val startedAtMillisIndex = cursor.getColumnIndexOrThrow("startedAtMillis")
-    val durationMillisIndex = cursor.getColumnIndexOrThrow("durationMillis")
-    val sizeBytesIndex = cursor.getColumnIndexOrThrow("sizeBytes")
-    val codecSummaryIndex = cursor.getColumnIndexOrThrow("codecSummary")
-    val storageTypeIndex = cursor.getColumnIndexOrThrow("storageType")
-    val directoryIdIndex = cursor.getColumnIndexOrThrow("directoryId")
-    val createdAtMillisIndex = cursor.getColumnIndexOrThrow("createdAtMillis")
+    val idIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_ID)
+    val displayNameIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_DISPLAY_NAME)
+    val mimeTypeIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_MIME_TYPE)
+    val startedAtMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_STARTED_AT_MILLIS)
+    val durationMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_DURATION_MILLIS)
+    val sizeBytesIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_SIZE_BYTES)
+    val codecSummaryIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_CODEC_SUMMARY)
+    val storageTypeIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_STORAGE_TYPE)
+    val directoryIdIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_DIRECTORY_ID)
+    val createdAtMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_CREATED_AT_MILLIS)
     return buildList {
         while (cursor.moveToNext()) {
             add(
