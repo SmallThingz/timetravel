@@ -625,10 +625,17 @@ internal class LiveExportHistory(
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         val adtsHeader = ByteArray(7)
         try {
-            forEachPreparedEncodedSliceSample(currentConfig, parts) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
-                fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
-                outputStream.write(adtsHeader, 0, adtsHeader.size)
-                outputStream.write(data, 0, sampleSize)
+            forEachPreparedExportSlice(parts) { prepared ->
+                val slice = prepared.slice
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                    copyWholeFileToStream(slice.segment.file, outputStream)
+                } else {
+                    exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                        fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
+                        outputStream.write(adtsHeader, 0, adtsHeader.size)
+                        outputStream.write(data, 0, sampleSize)
+                    }
+                }
             }
             outputStream.flush()
         } finally {
@@ -644,16 +651,18 @@ internal class LiveExportHistory(
     ) {
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        val header = rawAmrMagicHeader(currentConfig.codec)
         try {
-            outputStream.write(
-                when (currentConfig.codec) {
-                    ExportCodec.AMR_WB -> "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
-                    ExportCodec.AMR_NB -> "#!AMR\n".toByteArray(Charsets.US_ASCII)
-                    else -> throw IOException("Raw AMR snapshot export requires AMR codec")
-                },
-            )
-            forEachPreparedEncodedSliceSample(currentConfig, parts) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
-                outputStream.write(data, 0, sampleSize)
+            outputStream.write(header)
+            forEachPreparedExportSlice(parts) { prepared ->
+                val slice = prepared.slice
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                    copyWholeFileToStream(slice.segment.file, outputStream, skipBytes = header.size.toLong())
+                } else {
+                    exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                        outputStream.write(data, 0, sampleSize)
+                    }
+                }
             }
             outputStream.flush()
         } finally {
@@ -913,10 +922,16 @@ internal class LiveExportHistory(
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         val adtsHeader = ByteArray(7)
         try {
-            forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
-                fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
-                outputStream.write(adtsHeader, 0, adtsHeader.size)
-                outputStream.write(data, 0, sampleSize)
+            snapshot.slices.forEach { slice ->
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                    copyWholeFileToStream(slice.segment.file, outputStream)
+                } else {
+                    exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                        fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
+                        outputStream.write(adtsHeader, 0, adtsHeader.size)
+                        outputStream.write(data, 0, sampleSize)
+                    }
+                }
             }
             outputStream.flush()
         } finally {
@@ -932,16 +947,17 @@ internal class LiveExportHistory(
         val currentConfig = snapshot.config
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        val header = rawAmrMagicHeader(currentConfig.codec)
         try {
-            outputStream.write(
-                when (currentConfig.codec) {
-                    ExportCodec.AMR_WB -> "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
-                    ExportCodec.AMR_NB -> "#!AMR\n".toByteArray(Charsets.US_ASCII)
-                    else -> throw IOException("Raw AMR snapshot export requires AMR codec")
-                },
-            )
-            forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
-                outputStream.write(data, 0, sampleSize)
+            outputStream.write(header)
+            snapshot.slices.forEach { slice ->
+                if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                    copyWholeFileToStream(slice.segment.file, outputStream, skipBytes = header.size.toLong())
+                } else {
+                    exportEncodedSliceSamples(currentConfig, slice) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                        outputStream.write(data, 0, sampleSize)
+                    }
+                }
             }
             outputStream.flush()
         } finally {
@@ -1036,6 +1052,66 @@ internal class LiveExportHistory(
         }
     }
 
+    private fun exportEncodedSliceSamples(
+        currentConfig: Config,
+        slice: SegmentSlice,
+        consumer: (SegmentSlice, ByteArray, Int, Long) -> Unit,
+    ) {
+        val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
+        var payloadBuffer = ByteArray(COPY_BUFFER_BYTES)
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(slice.segment.file.absolutePath)
+            val extractorTrackIndex = findAudioTrack(extractor)
+            if (extractorTrackIndex < 0) {
+                return
+            }
+            extractor.selectTrack(extractorTrackIndex)
+
+            val sliceStartUs = currentConfig.bytesToDurationUs(slice.skipSampleBytes)
+            val sliceDurationUs = currentConfig.bytesToDurationUs(slice.takeSampleBytes)
+            val sliceEndUs = sliceStartUs + sliceDurationUs
+            extractor.seekTo(sliceStartUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+
+            var firstWrittenSampleTimeUs = Long.MIN_VALUE
+            while (true) {
+                val sampleTimeUs = extractor.sampleTime
+                if (sampleTimeUs < 0L) {
+                    break
+                }
+                if (sampleTimeUs < sliceStartUs) {
+                    if (!extractor.advance()) {
+                        break
+                    }
+                    continue
+                }
+                if (sampleTimeUs >= sliceEndUs) {
+                    break
+                }
+
+                byteBuffer.clear()
+                val sampleSize = extractor.readSampleData(byteBuffer, 0)
+                if (sampleSize <= 0) {
+                    break
+                }
+                if (firstWrittenSampleTimeUs == Long.MIN_VALUE) {
+                    firstWrittenSampleTimeUs = sampleTimeUs
+                }
+                if (sampleSize > payloadBuffer.size) {
+                    payloadBuffer = ByteArray(sampleSize)
+                }
+                byteBuffer.flip()
+                byteBuffer.get(payloadBuffer, 0, sampleSize)
+                consumer(slice, payloadBuffer, sampleSize, (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L))
+                if (!extractor.advance()) {
+                    break
+                }
+            }
+        } finally {
+            extractor.release()
+        }
+    }
+
     private fun copyWholeFile(
         source: File,
         outputTarget: RecordingOutputTarget,
@@ -1052,6 +1128,34 @@ internal class LiveExportHistory(
                     source.inputStream().use { input -> input.copyTo(output, COPY_BUFFER_BYTES) }
                 } ?: throw IOException("Unable to open export output stream")
             }
+        }
+    }
+
+    private fun copyWholeFileToStream(
+        source: File,
+        outputStream: BufferedOutputStream,
+        skipBytes: Long = 0L,
+    ) {
+        RandomAccessFile(source, "r").use { input ->
+            if (skipBytes > 0L) {
+                input.seek(skipBytes)
+            }
+            val buffer = ByteArray(COPY_BUFFER_BYTES)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) {
+                    break
+                }
+                outputStream.write(buffer, 0, read)
+            }
+        }
+    }
+
+    private fun rawAmrMagicHeader(codec: ExportCodec): ByteArray {
+        return when (codec) {
+            ExportCodec.AMR_WB -> "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
+            ExportCodec.AMR_NB -> "#!AMR\n".toByteArray(Charsets.US_ASCII)
+            else -> throw IOException("Raw AMR export requires AMR codec")
         }
     }
 

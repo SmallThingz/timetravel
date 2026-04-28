@@ -14,8 +14,8 @@ Forked from `Echo`, now reworked and shipped as `TimeTravel`.
 ## 📸 Screenshots
 
 <p>
-  <img src="docs/home.png" alt="Home screen" width="420" />
-  <img src="docs/recordings.png" alt="Recordings screen" width="420" />
+  <img src="docs/home.png" alt="Home screen" width="400" />
+  <img src="docs/recordings.png" alt="Recordings screen" width="400" />
 </p>
 
 ## ✨ Highlights
