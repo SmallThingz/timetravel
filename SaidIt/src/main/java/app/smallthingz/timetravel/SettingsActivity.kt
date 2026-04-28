@@ -1253,6 +1253,11 @@ class SettingsActivity : AppCompatActivity() {
                     Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show()
                 }
             }
+            TimeTravelService.ApplySettingsResult.REENCODE_REQUIRED -> {
+                if (showFeedback) {
+                    Toast.makeText(this, R.string.settings_saved_reencode_history, Toast.LENGTH_SHORT).show()
+                }
+            }
             TimeTravelService.ApplySettingsResult.DEFERRED_UNTIL_RESTART -> {
                 if (showFeedback) {
                     Toast.makeText(this, R.string.settings_saved_deferred_input, Toast.LENGTH_SHORT).show()

@@ -119,6 +119,38 @@ internal class LiveExportHistory(
     }
 
     @Synchronized
+    fun replaceWithImportedSegments(
+        expectedConfig: Config,
+        importedSegments: List<ImportedSegment>,
+    ): Boolean {
+        if (config != expectedConfig || currentWriter != null || currentSegment != null) {
+            return false
+        }
+
+        resetLocked()
+        importedSegments
+            .sortedBy { it.startedAtMillis }
+            .forEach { imported ->
+                val segment = Segment(
+                    file = imported.file,
+                    startedAtMillis = imported.startedAtMillis,
+                    sampleBytes = imported.sampleBytes,
+                )
+                finalizeSegmentFileLocked(segment)
+                if (segment.sampleBytes > 0L && segment.file.isFile && segment.file.length() > 0L) {
+                    segments.addLast(segment)
+                } else {
+                    segment.file.delete()
+                }
+            }
+        nextSegmentStartMillis = segments.lastOrNull()?.let { segment ->
+            expectedConfig.bytesToDurationMillis(segment.sampleBytes) + segment.startedAtMillis
+        }
+        pruneLocked()
+        return true
+    }
+
+    @Synchronized
     fun snapshotForExport(
         requestedSampleBytes: Long,
         reopenForContinuedCapture: Boolean,
@@ -393,9 +425,11 @@ internal class LiveExportHistory(
         require(currentConfig.codec == ExportCodec.AAC_LC) { "ADTS snapshot export supports AAC-LC only" }
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        val adtsHeader = ByteArray(7)
         try {
             forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
-                outputStream.write(buildAdtsHeader(currentConfig.sampleRate, currentConfig.channelCount, sampleSize))
+                fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
+                outputStream.write(adtsHeader, 0, adtsHeader.size)
                 outputStream.write(data, 0, sampleSize)
             }
             outputStream.flush()
@@ -441,7 +475,7 @@ internal class LiveExportHistory(
         try {
             val packetizer = MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount)
             forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, presentationTimeUs: Long ->
-                packetizer.writeAccessUnit(data.copyOf(sampleSize), presentationTimeUs)
+                packetizer.writeAccessUnit(data, 0, sampleSize, presentationTimeUs)
             }
             outputStream.flush()
         } finally {
@@ -456,6 +490,7 @@ internal class LiveExportHistory(
     ) {
         val currentConfig = snapshot.config
         val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
+        var payloadBuffer = ByteArray(COPY_BUFFER_BYTES)
         var outputBaseTimeUs = 0L
         snapshot.slices.forEach { slice ->
             val extractor = MediaExtractor()
@@ -496,10 +531,12 @@ internal class LiveExportHistory(
                     if (firstWrittenSampleTimeUs == Long.MIN_VALUE) {
                         firstWrittenSampleTimeUs = sampleTimeUs
                     }
-                    val payload = ByteArray(sampleSize)
+                    if (sampleSize > payloadBuffer.size) {
+                        payloadBuffer = ByteArray(sampleSize)
+                    }
                     byteBuffer.flip()
-                    byteBuffer.get(payload, 0, sampleSize)
-                    consumer(slice, payload, sampleSize, outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L))
+                    byteBuffer.get(payloadBuffer, 0, sampleSize)
+                    consumer(slice, payloadBuffer, sampleSize, outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L))
                     if (!extractor.advance()) {
                         break
                     }
@@ -1254,6 +1291,12 @@ internal class LiveExportHistory(
         val config: Config,
         val slices: List<SegmentSlice>,
         val requestedSampleBytes: Long,
+    )
+
+    data class ImportedSegment(
+        val file: File,
+        val startedAtMillis: Long,
+        val sampleBytes: Long,
     )
 
     private data class CompactionTask(

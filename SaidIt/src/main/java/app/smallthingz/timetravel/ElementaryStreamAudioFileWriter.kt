@@ -266,18 +266,28 @@ internal fun buildAdtsHeader(
     channelCount: Int,
     payloadSize: Int,
 ): ByteArray {
+    return ByteArray(ADTS_HEADER_SIZE).also { header ->
+        fillAdtsHeader(header, sampleRate, channelCount, payloadSize)
+    }
+}
+
+internal fun fillAdtsHeader(
+    target: ByteArray,
+    sampleRate: Int,
+    channelCount: Int,
+    payloadSize: Int,
+) {
+    require(target.size >= ADTS_HEADER_SIZE) { "ADTS header target too small" }
     val sampleRateIndex = AAC_SAMPLE_RATE_INDICES[sampleRate]
         ?: throw IOException("Unsupported ADTS sample rate: $sampleRate")
     val frameLength = payloadSize + ADTS_HEADER_SIZE
-    return ByteArray(ADTS_HEADER_SIZE).apply {
-        this[0] = 0xFF.toByte()
-        this[1] = 0xF1.toByte()
-        this[2] = (((AAC_LC_PROFILE - 1) shl 6) or (sampleRateIndex shl 2) or ((channelCount shr 2) and 0x1)).toByte()
-        this[3] = ((((channelCount and 0x3) shl 6) or ((frameLength shr 11) and 0x3)).toByte())
-        this[4] = ((frameLength shr 3) and 0xFF).toByte()
-        this[5] = ((((frameLength and 0x7) shl 5) or 0x1F).toByte())
-        this[6] = 0xFC.toByte()
-    }
+    target[0] = 0xFF.toByte()
+    target[1] = 0xF1.toByte()
+    target[2] = (((AAC_LC_PROFILE - 1) shl 6) or (sampleRateIndex shl 2) or ((channelCount shr 2) and 0x1)).toByte()
+    target[3] = (((channelCount and 0x3) shl 6) or ((frameLength shr 11) and 0x3)).toByte()
+    target[4] = ((frameLength shr 3) and 0xFF).toByte()
+    target[5] = (((frameLength and 0x7) shl 5) or 0x1F).toByte()
+    target[6] = 0xFC.toByte()
 }
 
 internal class MpegTsAacPacketizer(
@@ -289,9 +299,12 @@ internal class MpegTsAacPacketizer(
     private var pmtCounter = 0
     private var audioCounter = 0
     private var tablesWritten = false
+    private val adtsHeaderScratch = ByteArray(ADTS_HEADER_SIZE)
 
     fun writeAccessUnit(
         bytes: ByteArray,
+        offset: Int,
+        size: Int,
         presentationTimeUs: Long,
     ) {
         if (!tablesWritten) {
@@ -300,14 +313,14 @@ internal class MpegTsAacPacketizer(
             tablesWritten = true
         }
 
-        val adtsFrame = buildAdtsHeader(sampleRate, channelCount, bytes.size) + bytes
+        fillAdtsHeader(adtsHeaderScratch, sampleRate, channelCount, size)
         val pts = encodePts(presentationTimeUs.coerceAtLeast(0L))
         val pesHeader = ByteArray(14).apply {
             this[0] = 0x00
             this[1] = 0x00
             this[2] = 0x01
             this[3] = 0xC0.toByte()
-            val pesPacketLength = (adtsFrame.size + 8).coerceAtMost(0xFFFF)
+            val pesPacketLength = (ADTS_HEADER_SIZE + size + 8).coerceAtMost(0xFFFF)
             this[4] = ((pesPacketLength shr 8) and 0xFF).toByte()
             this[5] = (pesPacketLength and 0xFF).toByte()
             this[6] = 0x80.toByte()
@@ -315,7 +328,16 @@ internal class MpegTsAacPacketizer(
             this[8] = 0x05
             System.arraycopy(pts, 0, this, 9, pts.size)
         }
-        packetizePayload(AUDIO_PID, pesHeader + adtsFrame)
+        packetizePayload(AUDIO_PID, pesHeader, 0, pesHeader.size)
+        packetizePayload(AUDIO_PID, adtsHeaderScratch, 0, adtsHeaderScratch.size)
+        packetizePayload(AUDIO_PID, bytes, offset, size)
+    }
+
+    fun writeAccessUnit(
+        bytes: ByteArray,
+        presentationTimeUs: Long,
+    ) {
+        writeAccessUnit(bytes, 0, bytes.size, presentationTimeUs)
     }
 
     private fun writePsiPacket(
@@ -337,11 +359,14 @@ internal class MpegTsAacPacketizer(
     private fun packetizePayload(
         pid: Int,
         payload: ByteArray,
+        payloadOffsetStart: Int = 0,
+        payloadSize: Int = payload.size,
     ) {
-        var offset = 0
+        var offset = payloadOffsetStart
+        val endOffset = payloadOffsetStart + payloadSize
         var firstPacket = true
-        while (offset < payload.size) {
-            val remaining = payload.size - offset
+        while (offset < endOffset) {
+            val remaining = endOffset - offset
             val packet = ByteArray(TS_PACKET_SIZE) { 0xFF.toByte() }
             packet[0] = 0x47
             packet[1] = ((((if (firstPacket) 0x40 else 0x00) or ((pid shr 8) and 0x1F))) and 0xFF).toByte()

@@ -62,6 +62,7 @@ class TimeTravelFragment : Fragment() {
     private lateinit var brandLockup: View
     private lateinit var recordMaxButton: MaterialButton
     private lateinit var recordCustomButton: MaterialButton
+    private lateinit var reencodeHistoryButton: MaterialButton
     private lateinit var contentScroll: View
     private lateinit var historySize: TextView
     private lateinit var recTime: TextView
@@ -80,6 +81,10 @@ class TimeTravelFragment : Fragment() {
     private var isListening = true
     private var isRecording = false
     private var isSaving = false
+    private var isHistoryReencodePending = false
+    private var isHistoryReencoding = false
+    private var historyReencodeProcessedBytes = 0L
+    private var historyReencodeTotalBytes = 0L
     private var recorder: TimeTravelService? = null
     private var serviceBound = false
     private var currentPulseMode = PULSE_OFF
@@ -126,6 +131,10 @@ class TimeTravelFragment : Fragment() {
             memorized: Float,
             totalMemory: Float,
             recorded: Float,
+            historyReencodePending: Boolean,
+            historyReencoding: Boolean,
+            historyReencodeProcessedBytes: Long,
+            historyReencodeTotalBytes: Long,
         ) {
             activity ?: return
             var surfaceStateChanged = false
@@ -138,6 +147,18 @@ class TimeTravelFragment : Fragment() {
 
             if (listeningEnabled != isListening) {
                 isListening = listeningEnabled
+                surfaceStateChanged = true
+            }
+            if (
+                historyReencodePending != isHistoryReencodePending ||
+                historyReencoding != isHistoryReencoding ||
+                historyReencodeProcessedBytes != this@TimeTravelFragment.historyReencodeProcessedBytes ||
+                historyReencodeTotalBytes != this@TimeTravelFragment.historyReencodeTotalBytes
+            ) {
+                isHistoryReencodePending = historyReencodePending
+                isHistoryReencoding = historyReencoding
+                this@TimeTravelFragment.historyReencodeProcessedBytes = historyReencodeProcessedBytes
+                this@TimeTravelFragment.historyReencodeTotalBytes = historyReencodeTotalBytes
                 surfaceStateChanged = true
             }
             if (surfaceStateChanged) {
@@ -221,6 +242,7 @@ class TimeTravelFragment : Fragment() {
         clearBufferButton = view.findViewById(R.id.clear_buffer_button)
         recordMaxButton = view.findViewById(R.id.record_last_max)
         recordCustomButton = view.findViewById(R.id.record_last_custom)
+        reencodeHistoryButton = view.findViewById(R.id.reencode_history_button)
         recTime = view.findViewById(R.id.rec_button_circle)
         recTouchArea = view.findViewById(R.id.rec_touch_area)
         recButtonCircle = recTime
@@ -240,6 +262,7 @@ class TimeTravelFragment : Fragment() {
         installPressAnimation(listenSurface, 0.965f)
         installPressAnimation(recordMaxButton, 0.98f)
         installPressAnimation(recordCustomButton, 0.98f)
+        installPressAnimation(reencodeHistoryButton, 0.98f)
 
         brandLockup.setOnClickListener {
             AboutInfoDialog.show(requireContext())
@@ -268,10 +291,15 @@ class TimeTravelFragment : Fragment() {
         val exportClickListener = ExportButtonClickListener()
         recordMaxButton.setOnClickListener(exportClickListener)
         recordCustomButton.setOnClickListener(exportClickListener)
+        reencodeHistoryButton.setOnClickListener {
+            if (!isHistoryReencoding) {
+                recorder?.startHistoryReencode()
+            }
+        }
 
         refreshConfiguredUi()
         updateListenSurfaceAppearance()
-        serviceStateCallback.state(isListening, isRecording, 0f, 0f, 0f)
+        serviceStateCallback.state(isListening, isRecording, 0f, 0f, 0f, false, false, 0L, 0L)
     }
 
     private fun applyWindowInsets(root: View) {
@@ -326,8 +354,32 @@ class TimeTravelFragment : Fragment() {
 
     private fun refreshConfiguredUi() {
         updateBufferSummary()
-        clearBufferButton.isEnabled = !isRecording && !isSaving
-        clearBufferButton.alpha = if (isRecording || isSaving) 0.5f else 1f
+        updateActionButtons()
+    }
+
+    private fun updateActionButtons() {
+        val exportBlocked = isRecording || isSaving || isHistoryReencodePending || isHistoryReencoding
+        clearBufferButton.isEnabled = !isRecording && !isSaving && !isHistoryReencoding
+        clearBufferButton.alpha = if (clearBufferButton.isEnabled) 1f else 0.5f
+        recordMaxButton.isEnabled = !exportBlocked
+        recordCustomButton.isEnabled = !exportBlocked
+        recordMaxButton.isVisible = !isHistoryReencodePending && !isHistoryReencoding
+        recordCustomButton.isVisible = !isHistoryReencodePending && !isHistoryReencoding
+        reencodeHistoryButton.isVisible = isHistoryReencodePending || isHistoryReencoding
+        reencodeHistoryButton.isEnabled = !isHistoryReencoding
+        reencodeHistoryButton.text =
+            if (isHistoryReencoding) {
+                getString(
+                    R.string.reencode_history_progress,
+                    if (historyReencodeTotalBytes <= 0L) {
+                        0
+                    } else {
+                        ((historyReencodeProcessedBytes * 100L) / historyReencodeTotalBytes).toInt().coerceIn(0, 100)
+                    },
+                )
+            } else {
+                getString(R.string.reencode_history)
+            }
     }
 
     private fun updateBufferSummary() {
@@ -476,7 +528,7 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun clearPressAnimations() {
-        listOf(brandLockup, settingsButton, clearBufferButton, listenSurface, recordMaxButton, recordCustomButton).forEach { target ->
+        listOf(brandLockup, settingsButton, clearBufferButton, listenSurface, recordMaxButton, recordCustomButton, reencodeHistoryButton).forEach { target ->
             target.animate().cancel()
             target.scaleX = 1f
             target.scaleY = 1f
@@ -512,9 +564,9 @@ class TimeTravelFragment : Fragment() {
         val active = isListening || isRecording
         listenTitle.setText(if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary)
 
-        listenSurface.isEnabled = !isRecording && !isSaving
-        clearBufferButton.isEnabled = !isRecording && !isSaving
-        clearBufferButton.alpha = if (isRecording || isSaving) 0.5f else 1f
+        listenSurface.isEnabled = !isRecording && !isSaving && !isHistoryReencoding
+        listenSurface.alpha = if (listenSurface.isEnabled) 1f else 0.72f
+        updateActionButtons()
 
         val fillColor = MaterialColors.getColor(
             listenSurface,
@@ -968,8 +1020,9 @@ class TimeTravelFragment : Fragment() {
             return
         }
         val enabled = !inProgress
-        recordMaxButton.isEnabled = enabled
-        recordCustomButton.isEnabled = enabled
+        recordMaxButton.isEnabled = enabled && !isHistoryReencodePending && !isHistoryReencoding
+        recordCustomButton.isEnabled = enabled && !isHistoryReencodePending && !isHistoryReencoding
+        reencodeHistoryButton.isEnabled = enabled && !isHistoryReencoding
         settingsButton.isEnabled = enabled
         recTouchArea.isEnabled = enabled
         if (inProgress) {
@@ -979,6 +1032,7 @@ class TimeTravelFragment : Fragment() {
             savingSnackbar = null
         }
         updateListenSurfaceAppearance()
+        updateActionButtons()
     }
 
     private fun showSavingSnackbar() {
