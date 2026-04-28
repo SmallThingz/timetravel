@@ -60,7 +60,7 @@
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
     <style name="TimeTravel.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
-        <item name="boxBackgroundColor">?attr/colorSurfaceContainerHigh</item>
+        <item name="boxBackgroundColor">?attr/colorSurfaceContainerHighest</item>
         <item name="boxStrokeColor">?attr/colorOutline</item>
         <item name="boxStrokeErrorColor">?attr/colorError</item>
         <item name="hintTextColor">?attr/colorOnSurfaceVariant</item>
@@ -68,6 +68,7 @@
         <item name="prefixTextColor">?attr/colorOnSurfaceVariant</item>
         <item name="endIconTint">?attr/colorOnSurfaceVariant</item>
         <item name="errorTextColor">?attr/colorError</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
         <item name="boxCornerRadiusTopStart">16dp</item>
         <item name="boxCornerRadiusTopEnd">16dp</item>
         <item name="boxCornerRadiusBottomStart">16dp</item>
@@ -81,6 +82,8 @@
 
     <style name="TimeTravel.DropdownMenu" parent="Widget.Material3.AutoCompleteTextView.OutlinedBox">
         <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
         <item name="simpleItemSelectedColor">?attr/colorSurfaceVariant</item>
     </style>
 

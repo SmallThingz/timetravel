@@ -83,10 +83,6 @@ internal object ThemedDialog {
                             background = androidx.core.content.ContextCompat.getDrawable(dialogContext, R.drawable.bg_circle_outlined)
                             contentDescription = dialogContext.getString(R.string.close)
                             setImageResource(R.drawable.ic_close)
-                            foreground = androidx.core.content.ContextCompat.getDrawable(
-                                dialogContext,
-                                resolveSelectableBorderless(dialogContext),
-                            )
                             imageTintList = ColorStateList.valueOf(
                                 MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant),
                             )
@@ -147,10 +143,4 @@ internal object ThemedDialog {
         context: Context,
         value: Int,
     ): Int = (context.resources.displayMetrics.density * value).toInt()
-
-    private fun resolveSelectableBorderless(context: Context): Int {
-        val typedValue = android.util.TypedValue()
-        context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
-        return typedValue.resourceId
-    }
 }

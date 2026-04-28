@@ -1,17 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:paddingVertical="2dp">
 
-    <TextView
-        android:id="@android:id/text1"
+    <LinearLayout
+        android:id="@+id/dropdown_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:paddingHorizontal="24dp"
-        android:paddingVertical="16dp"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface" />
+        android:background="@drawable/dropdown_menu_item_selector"
+        android:duplicateParentState="true"
+        android:gravity="center_vertical"
+        android:minHeight="52dp"
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@android:id/text1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:duplicateParentState="true"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorOnSurface" />
+
+        <ImageView
+            android:id="@+id/dropdown_check"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginStart="12dp"
+            android:duplicateParentState="true"
+            android:src="@drawable/ic_check"
+            android:visibility="gone" />
+    </LinearLayout>
 </FrameLayout>

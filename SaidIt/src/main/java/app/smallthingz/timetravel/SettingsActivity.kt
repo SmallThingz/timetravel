@@ -18,6 +18,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1499,14 +1500,21 @@ private class DropdownHighlightAdapter(
         value: String,
     ) {
         val label = view.findViewById<TextView>(android.R.id.text1)
+        val row = view.findViewById<View>(R.id.dropdown_row)
+        val check = view.findViewById<ImageView>(R.id.dropdown_check)
         val active = value == selectedValue
         val topPadding = if (positionOf(value) == 0) edgePaddingPx else 0
         val bottomPadding = if (positionOf(value) == count - 1) edgePaddingPx else 0
         view.setPaddingRelative(0, topPadding, 0, bottomPadding)
         view.isActivated = active
         view.isSelected = active
+        row.isActivated = active
+        row.isSelected = active
         label.isActivated = active
         label.isSelected = active
+        check.isActivated = active
+        check.isSelected = active
+        check.visibility = if (active) View.VISIBLE else View.GONE
     }
 
     private fun positionOf(value: String): Int = (0 until count).firstOrNull { getItem(it) == value } ?: -1

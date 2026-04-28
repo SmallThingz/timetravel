@@ -490,7 +490,7 @@ class TimeTravelFragment : Fragment() {
             content = content,
             positiveText = getString(R.string.clear_buffer),
         )
-        handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
+        handle.negativeButton.visibility = View.GONE
         handle.positiveButton.setOnClickListener {
             handle.dialog.dismiss()
             recorder?.clearBuffer()
@@ -724,7 +724,7 @@ class TimeTravelFragment : Fragment() {
                 handle.dialog.dismiss()
                 return startExport(clampExportRange((currentSeconds - pastSeconds).coerceAtLeast(0f), currentSeconds))
             }
-            handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
+            handle.negativeButton.visibility = View.GONE
             handle.positiveButton.setOnClickListener { submit() }
             val submitListener = TextView.OnEditorActionListener { _, actionId, event ->
                 if (
