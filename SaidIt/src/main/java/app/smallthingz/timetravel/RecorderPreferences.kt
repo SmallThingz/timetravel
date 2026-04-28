@@ -339,8 +339,7 @@ fun isWakeLockEnabled(context: Context): Boolean {
 }
 
 fun isDebugChunksTabEnabled(context: Context): Boolean {
-    return isDebuggableBuild(context) &&
-        getRecorderPreferences(context).getBoolean(TimeTravelConfig.DEBUG_CHUNKS_TAB_ENABLED_KEY, false)
+    return getRecorderPreferences(context).getBoolean(TimeTravelConfig.DEBUG_CHUNKS_TAB_ENABLED_KEY, false)
 }
 
 fun isDebuggableBuild(context: Context): Boolean {
@@ -371,6 +370,11 @@ fun applyConfiguredThemeMode(context: Context) {
 
 fun getConfiguredRetentionSeconds(context: Context): Long {
     return max(60L, getRecorderPreferences(context).getLong(TimeTravelConfig.RETENTION_SECONDS_KEY, 30L * 60))
+}
+
+fun getConfiguredRetentionSizeBytes(context: Context): Long {
+    return getRecorderPreferences(context).getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, 512L * 1024L * 1024L)
+        .coerceAtLeast(1L)
 }
 
 fun getConfiguredHistoryChunkSeconds(context: Context): Int {
@@ -588,7 +592,7 @@ fun getConfiguredMemorySizeBytes(
     val prefs = getRecorderPreferences(context)
     return when (getConfiguredRetentionMode(context)) {
         RetentionMode.SIZE -> {
-            val configuredSizeBytes = prefs.getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, 512L * 1024L * 1024L)
+            val configuredSizeBytes = getConfiguredRetentionSizeBytes(context)
             val retentionSeconds = estimateExportDurationSeconds(
                 format = format,
                 codec = codec,

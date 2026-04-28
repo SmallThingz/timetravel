@@ -293,10 +293,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         moveRecordingsButton.setOnClickListener { moveExistingRecordings() }
         batteryOptimizationButton.setOnClickListener { openBatteryOptimizationSettings() }
-        val showDebugControls = isDebuggableBuild(this)
-        debugDivider.isVisible = showDebugControls
-        debugTitle.isVisible = showDebugControls
-        debugChunksRow.isVisible = showDebugControls
+        debugDivider.isVisible = true
+        debugTitle.isVisible = true
+        debugChunksRow.isVisible = true
         setupListeners()
         bindUiFromPreferences()
     }

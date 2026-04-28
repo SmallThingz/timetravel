@@ -73,6 +73,8 @@
     <string name="auto_merge_ratio_supporting">バックグラウンドマージの目標。保持バッファの約 1/x。</string>
     <string name="auto_merge_custom_time_supporting">MM:SS または HH:MM:SS を使用してください。</string>
     <string name="auto_merge_custom_size_supporting">64.0 のような MiB 値を使用してください。</string>
+    <string name="auto_merge_eager_label">末尾チャンクを早期結合</string>
+    <string name="auto_merge_eager_summary">末尾の残りチャンクが目標サイズに達する前に結合します。</string>
     <string name="auto_merge_divisor_invalid">%1$d-%2$d を使用してください。</string>
     <string name="auto_merge_custom_time_invalid">MM:SS または HH:MM:SS を使用してください。</string>
     <string name="auto_merge_custom_time_range_invalid">%1$s-%2$s を使用してください。</string>

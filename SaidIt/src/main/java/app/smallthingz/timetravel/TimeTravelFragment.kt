@@ -387,8 +387,13 @@ class TimeTravelFragment : Fragment() {
     private fun updateBufferSummary() {
         val context = context ?: return
         val exportConfig = currentExportConfig(context)
+        val retentionMode = getConfiguredRetentionMode(context)
         val displayedCurrentSeconds = lastMemorizedSeconds.coerceAtLeast(0f).toInt()
-        val displayedLimitSeconds = lastTotalMemorySeconds.coerceAtLeast(0f).toInt()
+        val displayedLimitSeconds =
+            when (retentionMode) {
+                RetentionMode.TIME -> getConfiguredRetentionSeconds(context).coerceAtLeast(0L).toInt()
+                RetentionMode.SIZE -> lastTotalMemorySeconds.coerceAtLeast(0f).toInt()
+            }
         val currentBytes = estimateExportSizeBytes(
             exportConfig.format,
             exportConfig.codec,
@@ -405,9 +410,14 @@ class TimeTravelFragment : Fragment() {
             displayedLimitSeconds.toLong(),
             exportConfig.bitrateKbps,
         )
+        val configuredLimitBytes =
+            when (retentionMode) {
+                RetentionMode.TIME -> limitBytes
+                RetentionMode.SIZE -> getConfiguredRetentionSizeBytes(context)
+            }
         val exportLimitBytes = exportFileSizeLimitBytes(exportConfig.format)
         val overExportLimit = currentBytes > exportLimitBytes
-        when (getConfiguredRetentionMode(context)) {
+        when (retentionMode) {
             RetentionMode.TIME -> {
                 historySize.text = "${formatShortTimer(displayedCurrentSeconds.toFloat())} / ${formatShortTimer(displayedLimitSeconds.toFloat())}"
                 formatSummary.text =
@@ -419,7 +429,7 @@ class TimeTravelFragment : Fragment() {
             }
 
             RetentionMode.SIZE -> {
-                historySize.text = "${formatShortFileSize(currentBytes)} / ${formatShortFileSize(limitBytes)}"
+                historySize.text = "${formatShortFileSize(currentBytes)} / ${formatShortFileSize(configuredLimitBytes)}"
                 formatSummary.text =
                     if (overExportLimit) {
                         getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
@@ -431,7 +441,7 @@ class TimeTravelFragment : Fragment() {
         formatSummary.setTextColor(
             MaterialColors.getColor(
                 formatSummary,
-                if (overExportLimit) R.attr.colorError else com.google.android.material.R.attr.colorOnSurfaceVariant,
+                if (overExportLimit) androidx.appcompat.R.attr.colorError else com.google.android.material.R.attr.colorOnSurfaceVariant,
             ),
         )
     }
@@ -542,7 +552,7 @@ class TimeTravelFragment : Fragment() {
             context = requireContext(),
             iconResId = R.drawable.ic_check,
             contentDescription = getString(R.string.clear_buffer),
-            tintAttr = R.attr.colorError,
+            tintAttr = androidx.appcompat.R.attr.colorError,
         )
         val handle = ThemedDialog.create(
             context = requireContext(),
@@ -572,7 +582,7 @@ class TimeTravelFragment : Fragment() {
 
         val fillColor = MaterialColors.getColor(
             listenSurface,
-            if (active) R.attr.colorPrimary
+            if (active) androidx.appcompat.R.attr.colorPrimary
             else com.google.android.material.R.attr.colorSurfaceContainerHigh,
         )
         val contentColor = MaterialColors.getColor(
@@ -587,7 +597,7 @@ class TimeTravelFragment : Fragment() {
         )
         val ringBaseColor = MaterialColors.getColor(
             listenSurface,
-            if (active) R.attr.colorPrimary
+            if (active) androidx.appcompat.R.attr.colorPrimary
             else com.google.android.material.R.attr.colorOutlineVariant,
         )
         val ringFillColor = if (active) ColorUtils.setAlphaComponent(ringBaseColor, if (isRecording) 56 else 40) else Color.TRANSPARENT

@@ -73,6 +73,8 @@
     <string name="auto_merge_ratio_supporting">Objetivo de mezcla en segundo plano. Aproximadamente 1/x del búfer conservado.</string>
     <string name="auto_merge_custom_time_supporting">Usa MM:SS o HH:MM:SS.</string>
     <string name="auto_merge_custom_size_supporting">Usa un valor MiB como 64.0.</string>
+    <string name="auto_merge_eager_label">Fusión temprana de cola</string>
+    <string name="auto_merge_eager_summary">Fusiona los fragmentos finales sobrantes antes de que alcancen el tamaño objetivo completo.</string>
     <string name="auto_merge_divisor_invalid">Usa %1$d-%2$d.</string>
     <string name="auto_merge_custom_time_invalid">Usa MM:SS o HH:MM:SS.</string>
     <string name="auto_merge_custom_time_range_invalid">Usa %1$s-%2$s.</string>

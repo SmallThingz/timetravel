@@ -73,6 +73,8 @@
     <string name="auto_merge_ratio_supporting">Ziel für die Hintergrund-Zusammenführung. Etwa 1/x des behaltenen Puffers.</string>
     <string name="auto_merge_custom_time_supporting">MM:SS oder HH:MM:SS verwenden.</string>
     <string name="auto_merge_custom_size_supporting">MiB-Wert wie 64.0 verwenden.</string>
+    <string name="auto_merge_eager_label">Frühe Rest-Merges</string>
+    <string name="auto_merge_eager_summary">Verbleibende End-Chunks zusammenführen, bevor sie die volle Zielgröße erreichen.</string>
     <string name="auto_merge_divisor_invalid">%1$d-%2$d verwenden.</string>
     <string name="auto_merge_custom_time_invalid">MM:SS oder HH:MM:SS verwenden.</string>
     <string name="auto_merge_custom_time_range_invalid">%1$s-%2$s verwenden.</string>

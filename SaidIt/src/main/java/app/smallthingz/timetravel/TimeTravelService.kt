@@ -707,13 +707,14 @@ class TimeTravelService : Service() {
         val newBitrateKbps = getConfiguredCodecBitrateKbps(this, newCodec, newSampleRate, newChannelMode.channelCount)
         val currentBitrateKbps = outputBitrateKbps
         val captureConfigChanged =
-            newSampleRate != sampleRate ||
-                newSourceMode != sourceMode ||
+            newSourceMode != sourceMode ||
                 newChannelMode != channelMode ||
                 newRouteMode != inputRouteMode
         val outputConfigChanged = newFormat != outputFormat || newCodec != outputCodec
         val historyEncodingChanged =
-            outputConfigChanged || newBitrateKbps != currentBitrateKbps
+            outputConfigChanged ||
+                newSampleRate != sampleRate ||
+                newBitrateKbps != currentBitrateKbps
         val hasRetainedBuffer = availableBufferedSampleBytes() > 0L
         if (historyEncodingChanged && hasRetainedBuffer) {
             historyReencodePending = true

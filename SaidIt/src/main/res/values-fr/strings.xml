@@ -73,6 +73,8 @@
     <string name="auto_merge_ratio_supporting">Cible de fusion en arrière-plan. Environ 1/x du tampon conservé.</string>
     <string name="auto_merge_custom_time_supporting">Utilisez MM:SS ou HH:MM:SS.</string>
     <string name="auto_merge_custom_size_supporting">Utilisez une valeur MiB comme 64.0.</string>
+    <string name="auto_merge_eager_label">Fusion anticipée de fin</string>
+    <string name="auto_merge_eager_summary">Fusionne les segments restants en fin de tampon avant qu’ils n’atteignent la taille cible complète.</string>
     <string name="auto_merge_divisor_invalid">Utilisez %1$d-%2$d.</string>
     <string name="auto_merge_custom_time_invalid">Utilisez MM:SS ou HH:MM:SS.</string>
     <string name="auto_merge_custom_time_range_invalid">Utilisez %1$s-%2$s.</string>
