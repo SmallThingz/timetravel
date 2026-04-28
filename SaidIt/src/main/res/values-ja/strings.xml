@@ -15,10 +15,15 @@
 
     <string name="record_all_memory">全体をエクスポート</string>
     <string name="custom_time">カスタムでエクスポート</string>
-    <string name="custom_export_duration_label">時間</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="custom_export_duration_supporting">MM:SS または HH:MM:SS を使用</string>
     <string name="custom_export_duration_invalid">MM:SS または HH:MM:SS を使用してください。</string>
+    <string name="custom_export_range_supporting">現在のバッファ内の位置を使います。開始は最も古い位置、終了は最も新しい位置です。</string>
+    <string name="custom_export_start_label">開始</string>
+    <string name="custom_export_end_label">終了</string>
+    <string name="custom_export_range_invalid">終了は開始より後である必要があります。</string>
+    <string name="export_limit_summary">最大エクスポート: %1$s</string>
+    <string name="export_limit_dialog_title">エクスポート制限</string>
+    <string name="export_limit_dialog_message">現在の長さが大きすぎます。最後の %1$s のみを書き出します。</string>
     <string name="saving">保存中…</string>
     <string name="saved_snackbar">保存しました</string>
     <string name="save_failed">録音を保存できませんでした。</string>

@@ -48,6 +48,7 @@ import com.google.android.material.shape.ShapeAppearanceModel
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
@@ -319,32 +320,45 @@ class TimeTravelFragment : Fragment() {
         val context = context ?: return
         if (!isListening && !isRecording) {
             formatSummary.text = getString(R.string.buffer_status_paused)
+            formatSummary.setTextColor(MaterialColors.getColor(formatSummary, com.google.android.material.R.attr.colorOnSurfaceVariant))
             return
         }
 
-        val activeConfig = recorder?.getConfigurationSnapshot()
-        val format = activeConfig?.format ?: getConfiguredOutputFormat(context)
-        val codec = activeConfig?.codec ?: getConfiguredOutputCodec(context)
-        val sourceMode = activeConfig?.sourceMode ?: getConfiguredAudioSourceMode(context)
-        val channelMode = activeConfig?.channelMode ?: getConfiguredChannelMode(context)
-        val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
-        val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
-        val bytesPerSecond = (sampleRate * channelMode.channelCount * 2L).coerceAtLeast(1L)
+        val exportConfig = currentExportConfig(context)
+        val bytesPerSecond = exportConfig.bytesPerSecond
         val displayedCurrentSeconds = lastMemorizedSeconds.coerceAtLeast(0f).toInt()
         val displayedLimitSeconds = lastTotalMemorySeconds.coerceAtLeast(0f).toInt()
         val currentBytes = displayedCurrentSeconds.toLong() * bytesPerSecond
         val limitBytes = displayedLimitSeconds.toLong() * bytesPerSecond
+        val exportLimitBytes = exportFileSizeLimitBytes(exportConfig.format)
+        val overExportLimit = currentBytes > exportLimitBytes
         when (getConfiguredRetentionMode(context)) {
             RetentionMode.TIME -> {
                 historySize.text = "${formatShortTimer(displayedCurrentSeconds.toFloat())} / ${formatShortTimer(displayedLimitSeconds.toFloat())}"
-                formatSummary.text = formatShortFileSize(currentBytes)
+                formatSummary.text =
+                    if (overExportLimit) {
+                        getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
+                    } else {
+                        formatShortFileSize(currentBytes)
+                    }
             }
 
             RetentionMode.SIZE -> {
                 historySize.text = "${formatShortFileSize(currentBytes)} / ${formatShortFileSize(limitBytes)}"
-                formatSummary.text = formatShortTimer(displayedCurrentSeconds.toFloat())
+                formatSummary.text =
+                    if (overExportLimit) {
+                        getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
+                    } else {
+                        formatShortTimer(displayedCurrentSeconds.toFloat())
+                    }
             }
         }
+        formatSummary.setTextColor(
+            MaterialColors.getColor(
+                formatSummary,
+                if (overExportLimit) R.attr.colorError else com.google.android.material.R.attr.colorOnSurfaceVariant,
+            ),
+        )
     }
 
     private fun configureListenSurface() {
@@ -570,26 +584,28 @@ class TimeTravelFragment : Fragment() {
             if (isSaving) return
             button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             if (button.id == R.id.record_last_custom) {
-                promptForCustomDuration()
+                promptForCustomRange()
                 return
             }
 
-            val seconds = getPrependedSeconds(button)
-            if (seconds <= 0f) {
+            val currentSeconds = lastMemorizedSeconds.coerceAtLeast(0f)
+            if (currentSeconds <= 0f) {
                 Toast.makeText(requireContext(), R.string.custom_export_duration_invalid, Toast.LENGTH_SHORT).show()
                 return
             }
-
-            val service = recorder ?: return
-            setSavingInProgress(true)
-            service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
+            startExport(clampExportRange(0f, currentSeconds))
         }
 
-        private fun promptForCustomDuration() {
+        private fun promptForCustomRange() {
             val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null, false)
-            val durationLayout = content.findViewById<TextInputLayout>(R.id.custom_duration_layout)
-            val durationField = content.findViewById<TextInputEditText>(R.id.custom_duration_value)
-            durationField.setSelectAllOnFocus(true)
+            val startLayout = content.findViewById<TextInputLayout>(R.id.custom_start_layout)
+            val endLayout = content.findViewById<TextInputLayout>(R.id.custom_end_layout)
+            val startField = content.findViewById<TextInputEditText>(R.id.custom_start_value)
+            val endField = content.findViewById<TextInputEditText>(R.id.custom_end_value)
+            startField.setSelectAllOnFocus(true)
+            endField.setSelectAllOnFocus(true)
+            startField.setText("0:00")
+            endField.setText(formatDurationInput(lastMemorizedSeconds.coerceAtLeast(0f).roundToInt()))
 
             val handle = ThemedDialog.create(
                 context = requireContext(),
@@ -599,22 +615,33 @@ class TimeTravelFragment : Fragment() {
             )
 
             fun submit(): Boolean {
-                val seconds = parseDurationInput(durationField.text?.toString().orEmpty())?.toFloat()
-                if (seconds == null || seconds <= 0f) {
-                    durationLayout.error = getString(R.string.custom_export_duration_invalid)
+                val currentSeconds = lastMemorizedSeconds.coerceAtLeast(0f)
+                val startSeconds = parseDurationInput(startField.text?.toString().orEmpty())?.toFloat()
+                val endSeconds = parseDurationInput(endField.text?.toString().orEmpty())?.toFloat()
+                startLayout.error = null
+                endLayout.error = null
+                if (startSeconds == null || startSeconds < 0f) {
+                    startLayout.error = getString(R.string.custom_export_duration_invalid)
                     return false
                 }
-
-                durationLayout.error = null
-                val service = recorder ?: return false
-                setSavingInProgress(true)
-                service.dumpRecording(seconds, SaveResultReceiver(requireActivity()), "")
+                if (endSeconds == null || endSeconds <= 0f) {
+                    endLayout.error = getString(R.string.custom_export_duration_invalid)
+                    return false
+                }
+                if (endSeconds <= startSeconds) {
+                    endLayout.error = getString(R.string.custom_export_range_invalid)
+                    return false
+                }
+                if (startSeconds > currentSeconds || endSeconds > currentSeconds) {
+                    endLayout.error = getString(R.string.custom_export_range_invalid)
+                    return false
+                }
                 handle.dialog.dismiss()
-                return true
+                return startExport(clampExportRange(startSeconds, endSeconds))
             }
             handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
             handle.positiveButton.setOnClickListener { submit() }
-            durationField.setOnEditorActionListener { _, actionId, event ->
+            endField.setOnEditorActionListener { _, actionId, event ->
                 if (
                     actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
                     event?.keyCode == KeyEvent.KEYCODE_ENTER
@@ -626,20 +653,76 @@ class TimeTravelFragment : Fragment() {
             }
 
             handle.dialog.show()
-            durationField.post {
-                durationField.requestFocus()
-                durationField.selectAll()
+            startField.post {
+                startField.requestFocus()
+                startField.selectAll()
                 val imm =
                     context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-                imm?.showSoftInput(durationField, 0)
+                imm?.showSoftInput(startField, 0)
             }
         }
 
-        private fun getPrependedSeconds(button: View): Float {
-            return when (button.id) {
-                R.id.record_last_max -> FULL_BUFFER_SECONDS
-                else -> 0f
+        private fun startExport(range: ExportRange): Boolean {
+            val service = recorder ?: return false
+            if (range.warningDurationSeconds != null) {
+                showExportClampDialog(range.warningDurationSeconds) {
+                    setSavingInProgress(true)
+                    service.dumpRecordingRange(range.startSeconds, range.endSeconds, SaveResultReceiver(requireActivity()), "")
+                }
+                return true
             }
+            setSavingInProgress(true)
+            service.dumpRecordingRange(range.startSeconds, range.endSeconds, SaveResultReceiver(requireActivity()), "")
+            return true
+        }
+
+        private fun clampExportRange(
+            startSeconds: Float,
+            endSeconds: Float,
+        ): ExportRange {
+            val context = requireContext()
+            val exportConfig = currentExportConfig(context)
+            val maxDurationSeconds = exportDurationLimitSeconds(
+                exportConfig.format,
+                exportConfig.codec,
+                exportConfig.sampleRate,
+                exportConfig.channelCount,
+                exportConfig.bitrateKbps,
+            ).toFloat().coerceAtLeast(1f)
+            val boundedEnd = endSeconds.coerceAtLeast(startSeconds)
+            val requestedDuration = boundedEnd - startSeconds
+            if (requestedDuration <= maxDurationSeconds) {
+                return ExportRange(startSeconds, boundedEnd, null)
+            }
+            return ExportRange(
+                startSeconds = (boundedEnd - maxDurationSeconds).coerceAtLeast(0f),
+                endSeconds = boundedEnd,
+                warningDurationSeconds = maxDurationSeconds,
+            )
+        }
+
+        private fun showExportClampDialog(
+            clampedDurationSeconds: Float,
+            onProceed: () -> Unit,
+        ) {
+            val content = TextView(requireContext()).apply {
+                setPadding(dp(24), dp(16), dp(24), 0)
+                text = getString(R.string.export_limit_dialog_message, formatShortTimer(clampedDurationSeconds))
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+            }
+            val handle = ThemedDialog.create(
+                context = requireContext(),
+                title = getString(R.string.export_limit_dialog_title),
+                content = content,
+                positiveText = getString(R.string.export),
+            )
+            handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
+            handle.positiveButton.setOnClickListener {
+                handle.dialog.dismiss()
+                onProceed()
+            }
+            handle.dialog.show()
         }
     }
 
@@ -692,6 +775,23 @@ class TimeTravelFragment : Fragment() {
             .show()
     }
 
+    private fun currentExportConfig(context: Context): ExportUiConfig {
+        val activeConfig = recorder?.getConfigurationSnapshot()
+        val format = activeConfig?.format ?: getConfiguredOutputFormat(context)
+        val codec = activeConfig?.codec ?: getConfiguredOutputCodec(context)
+        val sourceMode = activeConfig?.sourceMode ?: getConfiguredAudioSourceMode(context)
+        val channelMode = activeConfig?.channelMode ?: getConfiguredChannelMode(context)
+        val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
+        val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
+        return ExportUiConfig(
+            format = format,
+            codec = codec,
+            sampleRate = sampleRate,
+            channelCount = channelMode.channelCount,
+            bitrateKbps = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
+        )
+    }
+
     companion object {
         private const val TAG = "TimeTravelFragment"
         private const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
@@ -720,6 +820,25 @@ class TimeTravelFragment : Fragment() {
                 .build()
         }
     }
+
+    private data class ExportRange(
+        val startSeconds: Float,
+        val endSeconds: Float,
+        val warningDurationSeconds: Float?,
+    )
+
+    private data class ExportUiConfig(
+        val format: ExportFormat,
+        val codec: ExportCodec,
+        val sampleRate: Int,
+        val channelCount: Int,
+        val bitrateKbps: Int?,
+    ) {
+        val bytesPerSecond: Long
+            get() = (sampleRate.toLong() * channelCount.toLong() * 2L).coerceAtLeast(1L)
+    }
+
+    private fun dp(value: Int): Int = (resources.displayMetrics.density * value).toInt()
 
     class NotifyFileReceiver(private val context: Context) : TimeTravelService.AudioFileReceiver {
         override fun fileReady(recording: RecordingEntity) {

@@ -114,6 +114,17 @@ internal class LiveExportHistory(
         requestedSampleBytes: Long,
         reopenForContinuedCapture: Boolean,
     ): Snapshot? {
+        val totalSampleBytes = segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
+        val skipBytes = (totalSampleBytes - requestedSampleBytes.coerceAtLeast(0L)).coerceAtLeast(0L)
+        return snapshotForRange(skipBytes, requestedSampleBytes.coerceAtLeast(0L), reopenForContinuedCapture)
+    }
+
+    @Synchronized
+    fun snapshotForRange(
+        skipSampleBytes: Long,
+        requestedSampleBytes: Long,
+        reopenForContinuedCapture: Boolean,
+    ): Snapshot? {
         val currentConfig = config ?: return null
         if (currentWriter != null) {
             currentSegment?.let { segment ->
@@ -137,9 +148,8 @@ internal class LiveExportHistory(
             return null
         }
 
-        val remainingSkip = (totalSampleBytes - requestedSampleBytes.coerceAtLeast(0L)).coerceAtLeast(0L)
-        var skip = remainingSkip
-        var take = totalSampleBytes - skip
+        var skip = skipSampleBytes.coerceIn(0L, totalSampleBytes)
+        var take = minOf(requestedSampleBytes.coerceAtLeast(0L), totalSampleBytes - skip)
         val slices = ArrayList<SegmentSlice>(segments.size)
         for (segment in segments) {
             if (take <= 0L) {

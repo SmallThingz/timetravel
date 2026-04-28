@@ -412,48 +412,106 @@ class TimeTravelService : Service() {
         audioHandler.post {
             flushAudioRecord()
 
-            val prependBytes = (memorySeconds * fillRate).toLong()
             val bytesAvailable = audioMemory.countFilled()
+            val prependBytes = (memorySeconds * fillRate).toLong()
             val skipBytes = maxOf(0L, bytesAvailable - prependBytes)
             val useBytes = bytesAvailable - skipBytes
-            val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
-            val exportFormat = effectiveOutputFormat
-            val exportCodec = effectiveOutputCodec
-            val exportConfig = LiveExportHistory.Config(
-                format = exportFormat,
-                codec = exportCodec,
-                sampleRate = sampleRate,
-                channelCount = channelMode.channelCount,
-                bitrateKbps = getConfiguredCodecBitrateKbps(this@TimeTravelService, exportCodec, sampleRate, channelMode.channelCount),
-            )
+            exportBufferedRange(skipBytes, useBytes, receiver, newFileName)
+        }
+    }
 
-            val outTarget = try {
-                createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
-            } catch (e: IOException) {
-                Log.e(TAG, "Unable to prepare export file", e)
-                val message = getString(R.string.cant_create_file_generic)
-                showToast(message)
-                notifyReceiverFailure(receiver, message)
-                return@post
-            }
-            val historySnapshot = liveExportHistory.snapshotForExport(
-                requestedSampleBytes = useBytes.toLong(),
-                reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
-            )
-            exportHandler.post {
+    fun dumpRecordingRange(
+        startOffsetSeconds: Float,
+        endOffsetSeconds: Float,
+        receiver: AudioFileReceiver,
+        newFileName: String,
+    ) {
+        check(state == STATE_LISTENING || state == STATE_PAUSED) { "Buffer unavailable" }
+
+        audioHandler.post {
+            flushAudioRecord()
+
+            val bytesAvailable = audioMemory.countFilled()
+            val boundedStart = startOffsetSeconds.coerceAtLeast(0f)
+            val boundedEnd = endOffsetSeconds.coerceAtLeast(boundedStart)
+            val skipBytes = (boundedStart * fillRate).toLong().coerceAtMost(bytesAvailable)
+            val endBytes = (boundedEnd * fillRate).toLong().coerceAtMost(bytesAvailable)
+            val useBytes = (endBytes - skipBytes).coerceAtLeast(0L)
+            exportBufferedRange(skipBytes, useBytes, receiver, newFileName)
+        }
+    }
+
+    private fun exportBufferedRange(
+        skipBytes: Long,
+        useBytes: Long,
+        receiver: AudioFileReceiver,
+        newFileName: String,
+    ) {
+        if (useBytes <= 0L) {
+            notifyReceiverFailure(receiver, getString(R.string.custom_export_duration_invalid))
+            return
+        }
+        val bytesAvailable = audioMemory.countFilled()
+        val startedAtMillis = System.currentTimeMillis() - 1000L * (bytesAvailable - skipBytes) / maxOf(fillRate, 1)
+        val exportFormat = effectiveOutputFormat
+        val exportCodec = effectiveOutputCodec
+        val exportConfig = LiveExportHistory.Config(
+            format = exportFormat,
+            codec = exportCodec,
+            sampleRate = sampleRate,
+            channelCount = channelMode.channelCount,
+            bitrateKbps = getConfiguredCodecBitrateKbps(this@TimeTravelService, exportCodec, sampleRate, channelMode.channelCount),
+        )
+
+        val outTarget = try {
+            createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
+        } catch (e: IOException) {
+            Log.e(TAG, "Unable to prepare export file", e)
+            val message = getString(R.string.cant_create_file_generic)
+            showToast(message)
+            notifyReceiverFailure(receiver, message)
+            return
+        }
+        val historySnapshot = liveExportHistory.snapshotForRange(
+            skipSampleBytes = skipBytes,
+            requestedSampleBytes = useBytes,
+            reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
+        )
+        exportHandler.post {
+            try {
+                var durationMillis = 0L
+                if (historySnapshot != null && historySnapshot.config == exportConfig) {
+                    liveExportHistory.exportSnapshot(historySnapshot, outTarget)
+                    durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
+                } else {
+                    createAudioFileWriter(outTarget).use { writer ->
+                        audioMemory.read(skipBytes, useBytes) { array, offset, count ->
+                            writer.write(array, offset, count)
+                            0
+                        }
+                        durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                    }
+                }
+                notifyReceiver(
+                    receiver,
+                    buildRecordingEntity(
+                        this@TimeTravelService,
+                        outTarget,
+                        durationMillis,
+                        currentCodecSummary(),
+                    ),
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
+                deleteIfEmpty(outTarget)
                 try {
                     var durationMillis = 0L
-                    if (historySnapshot != null && historySnapshot.config == exportConfig) {
-                        liveExportHistory.exportSnapshot(historySnapshot, outTarget)
-                        durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
-                    } else {
-                        createAudioFileWriter(outTarget).use { writer ->
-                            audioMemory.read(skipBytes) { array, offset, count ->
-                                writer.write(array, offset, count)
-                                0
-                            }
-                            durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                    createAudioFileWriter(outTarget).use { writer ->
+                        audioMemory.read(skipBytes, useBytes) { array, offset, count ->
+                            writer.write(array, offset, count)
+                            0
                         }
+                        durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
                     }
                     notifyReceiver(
                         receiver,
@@ -464,37 +522,15 @@ class TimeTravelService : Service() {
                             currentCodecSummary(),
                         ),
                     )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
+                } catch (fallbackError: Exception) {
+                    Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
+                    val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
+                    showToast(message)
+                    notifyReceiverFailure(receiver, message)
                     deleteIfEmpty(outTarget)
-                    try {
-                        var durationMillis = 0L
-                        createAudioFileWriter(outTarget).use { writer ->
-                            audioMemory.read(skipBytes) { array, offset, count ->
-                                writer.write(array, offset, count)
-                                0
-                            }
-                            durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                        }
-                        notifyReceiver(
-                            receiver,
-                            buildRecordingEntity(
-                                this@TimeTravelService,
-                                outTarget,
-                                durationMillis,
-                                currentCodecSummary(),
-                            ),
-                        )
-                    } catch (fallbackError: Exception) {
-                        Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
-                        val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
-                        showToast(message)
-                        notifyReceiverFailure(receiver, message)
-                        deleteIfEmpty(outTarget)
-                    }
-                } finally {
-                    historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
                 }
+            } finally {
+                historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
             }
         }
     }

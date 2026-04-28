@@ -15,10 +15,15 @@
 
     <string name="record_all_memory">Exportar todo</string>
     <string name="custom_time">Exportar personalizado</string>
-    <string name="custom_export_duration_label">Tiempo</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="custom_export_duration_supporting">Usa MM:SS o HH:MM:SS</string>
     <string name="custom_export_duration_invalid">Usa MM:SS o HH:MM:SS.</string>
+    <string name="custom_export_range_supporting">Usa posiciones dentro del búfer actual. Inicio = punto más antiguo. Fin = punto más reciente.</string>
+    <string name="custom_export_start_label">Inicio</string>
+    <string name="custom_export_end_label">Fin</string>
+    <string name="custom_export_range_invalid">El final debe ser posterior al inicio.</string>
+    <string name="export_limit_summary">Máx. exportación: %1$s</string>
+    <string name="export_limit_dialog_title">Límite de exportación</string>
+    <string name="export_limit_dialog_message">La longitud actual es demasiado grande. Solo se exportarán los últimos %1$s.</string>
     <string name="saving">Guardando…</string>
     <string name="saved_snackbar">Guardado</string>
     <string name="save_failed">No se pudo guardar la grabación.</string>

@@ -28,6 +28,8 @@ private const val WAV_HEADER_BYTES = 44L
 private const val MP4_CONTAINER_BASE_OVERHEAD_BYTES = 1536L
 private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
 private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
+private const val WAV_MAX_EXPORT_BYTES = 0xFFFF_FFFFL - WAV_HEADER_BYTES
+private const val MUXED_MAX_EXPORT_BYTES = (2L * 1024L * 1024L * 1024L) - (8L * 1024L * 1024L)
 private const val DEFAULT_HISTORY_CHUNK_SECONDS = 10
 private const val MIN_HISTORY_CHUNK_SECONDS = 2
 private const val MAX_HISTORY_CHUNK_SECONDS = 300
@@ -381,7 +383,11 @@ fun getConfiguredOutputFormat(context: Context): ExportFormat {
         return ExportFormat.fromPrefValue(storedFormat)
     }
     val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.OUTPUT_CODEC_WAV))
-    return preferredOutputFormatForCodec(legacyCodec)
+    return if (legacyCodec != ExportCodec.PCM_16 || prefs.contains(TimeTravelConfig.OUTPUT_CODEC_KEY)) {
+        preferredOutputFormatForCodec(legacyCodec)
+    } else {
+        preferredDefaultOutputFormat()
+    }
 }
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {
@@ -393,6 +399,17 @@ fun getConfiguredOutputCodec(context: Context): ExportCodec {
 }
 
 fun preferredOutputFormatForCodec(codec: ExportCodec): ExportFormat = codec.supportedFormats.first()
+
+fun preferredDefaultOutputFormat(): ExportFormat {
+    val formats = supportedFormats()
+    return when {
+        ExportFormat.OGG in formats && ExportCodec.OPUS in supportedCodecs(ExportFormat.OGG) -> ExportFormat.OGG
+        ExportFormat.WEBM in formats && ExportCodec.OPUS in supportedCodecs(ExportFormat.WEBM) -> ExportFormat.WEBM
+        ExportFormat.M4A in formats && ExportCodec.AAC_LC in supportedCodecs(ExportFormat.M4A) -> ExportFormat.M4A
+        ExportFormat.WAV in formats -> ExportFormat.WAV
+        else -> formats.firstOrNull() ?: ExportFormat.WAV
+    }
+}
 
 fun isCodecCompatibleWithFormat(
     format: ExportFormat,
@@ -539,8 +556,15 @@ fun formatDurationInput(seconds: Long): String {
     }
 }
 
-fun getPreferredOutputCodec(format: ExportFormat = supportedFormats().firstOrNull() ?: ExportFormat.WAV): ExportCodec {
-    return supportedCodecs(format).firstOrNull() ?: ExportCodec.PCM_16
+fun getPreferredOutputCodec(format: ExportFormat = preferredDefaultOutputFormat()): ExportCodec {
+    val supported = supportedCodecs(format)
+    return when {
+        ExportCodec.OPUS in supported -> ExportCodec.OPUS
+        ExportCodec.AAC_LC in supported -> ExportCodec.AAC_LC
+        ExportCodec.VORBIS in supported -> ExportCodec.VORBIS
+        ExportCodec.PCM_16 in supported -> ExportCodec.PCM_16
+        else -> supported.firstOrNull() ?: ExportCodec.PCM_16
+    }
 }
 
 fun aacBitrateForSampleRate(
@@ -623,6 +647,30 @@ fun estimateExportDurationSeconds(
             }
         }
     }
+}
+
+fun exportFileSizeLimitBytes(format: ExportFormat): Long {
+    return when (format) {
+        ExportFormat.WAV -> WAV_MAX_EXPORT_BYTES
+        else -> MUXED_MAX_EXPORT_BYTES
+    }
+}
+
+fun exportDurationLimitSeconds(
+    format: ExportFormat,
+    codec: ExportCodec,
+    sampleRate: Int,
+    channelCount: Int,
+    bitrateKbps: Int? = null,
+): Long {
+    return estimateExportDurationSeconds(
+        format = format,
+        codec = codec,
+        sampleRate = sampleRate,
+        channelCount = channelCount,
+        sizeBytes = exportFileSizeLimitBytes(format),
+        bitrateKbps = bitrateKbps,
+    )
 }
 
 fun supportedSampleRates(
