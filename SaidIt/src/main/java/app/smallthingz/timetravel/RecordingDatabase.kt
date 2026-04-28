@@ -41,29 +41,24 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
     private val dao = DaoImpl()
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS $TABLE_RECORDINGS (
-                $COLUMN_ID TEXT PRIMARY KEY NOT NULL,
-                $COLUMN_DISPLAY_NAME TEXT NOT NULL,
-                $COLUMN_MIME_TYPE TEXT NOT NULL,
-                $COLUMN_STARTED_AT_MILLIS INTEGER NOT NULL,
-                $COLUMN_DURATION_MILLIS INTEGER NOT NULL,
-                $COLUMN_SIZE_BYTES INTEGER NOT NULL,
-                $COLUMN_CODEC_SUMMARY TEXT NOT NULL,
-                $COLUMN_STORAGE_TYPE TEXT NOT NULL,
-                $COLUMN_DIRECTORY_ID TEXT NOT NULL,
-                $COLUMN_CREATED_AT_MILLIS INTEGER NOT NULL
-            )
-            """.trimIndent(),
-        )
+        db.createSchema()
     }
 
     override fun onUpgrade(
         db: SQLiteDatabase,
         oldVersion: Int,
         newVersion: Int,
-    ) = Unit
+    ) {
+        db.recreateSchema()
+    }
+
+    override fun onDowngrade(
+        db: SQLiteDatabase,
+        oldVersion: Int,
+        newVersion: Int,
+    ) {
+        db.recreateSchema()
+    }
 
     fun recordingDao(): RecordingDao = dao
 
@@ -154,6 +149,30 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
             }
         }
     }
+}
+
+private fun SQLiteDatabase.createSchema() {
+    execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS ${RecordingDatabase.TABLE_RECORDINGS} (
+            ${RecordingDatabase.COLUMN_ID} TEXT PRIMARY KEY NOT NULL,
+            ${RecordingDatabase.COLUMN_DISPLAY_NAME} TEXT NOT NULL,
+            ${RecordingDatabase.COLUMN_MIME_TYPE} TEXT NOT NULL,
+            ${RecordingDatabase.COLUMN_STARTED_AT_MILLIS} INTEGER NOT NULL,
+            ${RecordingDatabase.COLUMN_DURATION_MILLIS} INTEGER NOT NULL,
+            ${RecordingDatabase.COLUMN_SIZE_BYTES} INTEGER NOT NULL,
+            ${RecordingDatabase.COLUMN_CODEC_SUMMARY} TEXT NOT NULL,
+            ${RecordingDatabase.COLUMN_STORAGE_TYPE} TEXT NOT NULL,
+            ${RecordingDatabase.COLUMN_DIRECTORY_ID} TEXT NOT NULL,
+            ${RecordingDatabase.COLUMN_CREATED_AT_MILLIS} INTEGER NOT NULL
+        )
+        """.trimIndent(),
+    )
+}
+
+private fun SQLiteDatabase.recreateSchema() {
+    execSQL("DROP TABLE IF EXISTS ${RecordingDatabase.TABLE_RECORDINGS}")
+    createSchema()
 }
 
 private fun RecordingEntity.toContentValues(): ContentValues {

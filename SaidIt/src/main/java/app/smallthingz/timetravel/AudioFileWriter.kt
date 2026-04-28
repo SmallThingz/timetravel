@@ -3,7 +3,7 @@ package app.smallthingz.timetravel
 import java.io.Closeable
 
 internal interface AudioFileWriter : Closeable {
-    val totalSampleBytesWritten: Int
+    val totalSampleBytesWritten: Long
     val target: RecordingOutputTarget
 
     fun write(

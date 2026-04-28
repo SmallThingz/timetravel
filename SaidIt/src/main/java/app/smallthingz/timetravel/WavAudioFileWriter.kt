@@ -17,7 +17,7 @@ internal class WavAudioFileWriter(
     private val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
     private val channel: FileChannel = outputStream.channel
 
-    override var totalSampleBytesWritten: Int = 0
+    override var totalSampleBytesWritten: Long = 0
         private set
 
     init {
@@ -33,23 +33,23 @@ internal class WavAudioFileWriter(
         while (buffer.hasRemaining()) {
             channel.write(buffer)
         }
-        totalSampleBytesWritten += count
+        totalSampleBytesWritten += count.toLong()
     }
 
     override fun close() {
         writeHeader(totalSampleBytesWritten)
-        channel.truncate(HEADER_SIZE + totalSampleBytesWritten.toLong())
+        channel.truncate(HEADER_SIZE + totalSampleBytesWritten)
         outputStream.close()
         parcelFileDescriptor.close()
     }
 
-    private fun writeHeader(dataSize: Int) {
-        val chunkSize = 36 + dataSize
+    private fun writeHeader(dataSize: Long) {
+        val chunkSize = 36L + dataSize
         val byteRate = sampleRate * channelCount * BITS_PER_SAMPLE / 8
         val blockAlign = channelCount * BITS_PER_SAMPLE / 8
         val header = ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("RIFF".toByteArray(Charsets.US_ASCII))
-            putInt(chunkSize)
+            putInt(chunkSize.toInt())
             put("WAVE".toByteArray(Charsets.US_ASCII))
             put("fmt ".toByteArray(Charsets.US_ASCII))
             putInt(16)
@@ -60,7 +60,7 @@ internal class WavAudioFileWriter(
             putShort(blockAlign.toShort())
             putShort(BITS_PER_SAMPLE.toShort())
             put("data".toByteArray(Charsets.US_ASCII))
-            putInt(dataSize)
+            putInt(dataSize.toInt())
             flip()
         }
         channel.position(0L)

@@ -104,6 +104,9 @@ class TimeTravelFragment : Fragment() {
             Log.d(TAG, "onServiceDisconnected")
             recorder = null
             serviceBound = false
+            if (isSaving) {
+                setSavingInProgress(false)
+            }
         }
     }
 

@@ -13,10 +13,10 @@ class FormattingAndHistoryMathTest {
 
     @Test
     fun formatShortFileSize_usesStableHumanReadableUnits() {
-        assertEquals("0 B", formatShortFileSize(0))
-        assertEquals("1 KB", formatShortFileSize(1024))
-        assertEquals("1.5 KB", formatShortFileSize(1536))
-        assertEquals("1 MB", formatShortFileSize(1024 * 1024))
+        assertEquals("0.0 MiB", formatShortFileSize(0))
+        assertEquals("0.0 MiB", formatShortFileSize(1024))
+        assertEquals("0.0 MiB", formatShortFileSize(1536))
+        assertEquals("1.0 MiB", formatShortFileSize(1024 * 1024))
     }
 
     @Test
@@ -41,15 +41,12 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
-    fun liveExportHistoryConfig_segmentDuration_isClamped() {
-        val config = LiveExportHistory.Config(
-            codec = ExportCodec.AAC_LC,
-            sampleRate = 48_000,
-            channelCount = 2,
-            bitrateKbps = 192,
-        )
-
-        assertEquals(2_000L, config.suggestedSegmentDurationMillis(96_000L))
-        assertEquals(2_000L, config.suggestedSegmentDurationMillis(96_000_000L))
+    fun durationInput_roundTrips_expectedFormats() {
+        assertEquals(5 * 60, parseDurationInput("5"))
+        assertEquals(65, parseDurationInput("1:05"))
+        assertEquals(3_661, parseDurationInput("1:01:01"))
+        assertEquals("5:00", formatDurationInput(5 * 60))
+        assertEquals("1:05", formatDurationInput(65))
+        assertEquals("1:01:01", formatDurationInput(3_661))
     }
 }

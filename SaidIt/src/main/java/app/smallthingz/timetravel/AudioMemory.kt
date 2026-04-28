@@ -51,7 +51,7 @@ internal class AudioMemory {
 
     @Throws(IOException::class)
     fun read(
-        skipBytes: Int,
+        skipBytes: Long,
         reader: Consumer,
     ) {
         val chunks = mutableListOf<ByteArray>()
@@ -59,11 +59,11 @@ internal class AudioMemory {
             var remainingSkipBytes = skipBytes
             val currentBuffer = current
             if (!filling && currentBuffer != null && currentWasFilled) {
-                val length = currentBuffer.size - offset
+                val length = (currentBuffer.size - offset).toLong()
                 if (remainingSkipBytes < length) {
-                    val take = length - remainingSkipBytes
+                    val take = (length - remainingSkipBytes).toInt()
                     val copy = ByteArray(take)
-                    System.arraycopy(currentBuffer, offset + remainingSkipBytes, copy, 0, take)
+                    System.arraycopy(currentBuffer, offset + remainingSkipBytes.toInt(), copy, 0, take)
                     chunks.add(copy)
                     remainingSkipBytes = 0
                 } else {
@@ -71,11 +71,11 @@ internal class AudioMemory {
                 }
             }
             filled.forEach { array ->
-                val length = array.size
+                val length = array.size.toLong()
                 if (remainingSkipBytes < length) {
-                    val take = length - remainingSkipBytes
+                    val take = (length - remainingSkipBytes).toInt()
                     val copy = ByteArray(take)
-                    System.arraycopy(array, remainingSkipBytes, copy, 0, take)
+                    System.arraycopy(array, remainingSkipBytes.toInt(), copy, 0, take)
                     chunks.add(copy)
                     remainingSkipBytes = 0
                 } else {
@@ -84,9 +84,9 @@ internal class AudioMemory {
             }
             val activeBuffer = current
             if (activeBuffer != null && offset > 0) {
-                val length = offset
+                val length = offset.toLong()
                 if (remainingSkipBytes < length) {
-                    val take = length - remainingSkipBytes
+                    val take = (length - remainingSkipBytes).toInt()
                     val copy = ByteArray(take)
                     System.arraycopy(activeBuffer, 0, copy, 0, take)
                     chunks.add(copy)
@@ -101,16 +101,16 @@ internal class AudioMemory {
         }
     }
 
-    fun countFilled(): Int {
-        var sum = 0
+    fun countFilled(): Long {
+        var sum = 0L
         synchronized(this) {
             val currentBuffer = current
             if (!filling && currentBuffer != null && currentWasFilled) {
-                sum += currentBuffer.size - offset
+                sum += (currentBuffer.size - offset).toLong()
             }
-            filled.forEach { sum += it.size }
+            filled.forEach { sum += it.size.toLong() }
             if (currentBuffer != null && offset > 0) {
-                sum += offset
+                sum += offset.toLong()
             }
         }
         return sum

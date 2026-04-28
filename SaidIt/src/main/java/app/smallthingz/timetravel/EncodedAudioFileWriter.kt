@@ -22,7 +22,7 @@ internal class EncodedAudioFileWriter(
     private var muxerStarted = false
     private var closed = false
 
-    override var totalSampleBytesWritten: Int = 0
+    override var totalSampleBytesWritten: Long = 0
         private set
 
     init {
@@ -132,7 +132,7 @@ internal class EncodedAudioFileWriter(
         }
     }
 
-    private fun bytesToDurationUs(pcmBytes: Int): Long {
+    private fun bytesToDurationUs(pcmBytes: Long): Long {
         val frames = pcmBytes / maxOf(channelCount * 2, 1)
         return frames * 1_000_000L / sampleRate.coerceAtLeast(1)
     }

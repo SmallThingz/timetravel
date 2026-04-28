@@ -403,9 +403,9 @@ class TimeTravelService : Service() {
         audioHandler.post {
             flushAudioRecord()
 
-            val prependBytes = (memorySeconds * fillRate).toInt()
+            val prependBytes = (memorySeconds * fillRate).toLong()
             val bytesAvailable = audioMemory.countFilled()
-            val skipBytes = maxOf(0, bytesAvailable - prependBytes)
+            val skipBytes = maxOf(0L, bytesAvailable - prependBytes)
             val useBytes = bytesAvailable - skipBytes
             val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
             val exportCodec = effectiveOutputCodec
@@ -503,9 +503,9 @@ class TimeTravelService : Service() {
         audioHandler.post {
             flushAudioRecord()
 
-            val prependBytes = (prependedMemorySeconds * fillRate).toInt()
+            val prependBytes = (prependedMemorySeconds * fillRate).toLong()
             val bytesAvailable = audioMemory.countFilled()
-            val skipBytes = maxOf(0, bytesAvailable - prependBytes)
+            val skipBytes = maxOf(0L, bytesAvailable - prependBytes)
             val useBytes = bytesAvailable - skipBytes
             val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
 
@@ -804,10 +804,13 @@ class TimeTravelService : Service() {
 
         audioHandler.post {
             val stats = audioMemory.getStats(fillRate)
+            val configuredRetentionBytes = getConfiguredMemorySizeBytes(this@TimeTravelService, sampleRate, channelMode)
+            val filledBytes = (stats.filled + stats.estimation).coerceAtMost(configuredRetentionBytes)
+            val memorizedBytes = if (stats.overwriting) configuredRetentionBytes else filledBytes
             var recordedBytes = 0L
             val writer = audioFileWriter
             if (writer != null) {
-                recordedBytes += writer.totalSampleBytesWritten.toLong()
+                recordedBytes += writer.totalSampleBytesWritten
                 recordedBytes += stats.estimation
             }
             val finalRecordedBytes = recordedBytes
@@ -815,8 +818,8 @@ class TimeTravelService : Service() {
                 callback.state(
                     listeningEnabled,
                     recording,
-                    (if (stats.overwriting) stats.total else stats.filled + stats.estimation) * bytesToSeconds,
-                    stats.total * bytesToSeconds,
+                    memorizedBytes * bytesToSeconds,
+                    configuredRetentionBytes * bytesToSeconds,
                     finalRecordedBytes * bytesToSeconds,
                 )
             }
@@ -945,7 +948,7 @@ class TimeTravelService : Service() {
             return
         }
         persisted?.let { snapshot ->
-            if (audioMemory.countFilled() == 0 && snapshot.sampleRate > 0 && snapshot.channelCount > 0) {
+            if (audioMemory.countFilled() == 0L && snapshot.sampleRate > 0 && snapshot.channelCount > 0) {
                 sampleRate = snapshot.sampleRate
                 channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
                 fillRate = sampleRate * channelMode.channelCount * 2
@@ -955,7 +958,7 @@ class TimeTravelService : Service() {
         if (audioMemory.allocatedMemorySize != targetMemorySize) {
             audioMemory.allocate(targetMemorySize)
         }
-        if (audioMemory.countFilled() > 0) {
+        if (audioMemory.countFilled() > 0L) {
             return
         }
 
