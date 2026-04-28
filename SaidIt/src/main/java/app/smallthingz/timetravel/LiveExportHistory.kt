@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -27,6 +28,7 @@ internal class LiveExportHistory(
     private var currentWriter: AudioFileWriter? = null
     private var currentSegment: Segment? = null
     private var nextSegmentStartMillis: Long? = null
+    private var compactionInFlight = false
 
     @Synchronized
     fun updateConfiguration(
@@ -184,6 +186,23 @@ internal class LiveExportHistory(
             }
         }
         pruneLocked()
+    }
+
+    fun compactIfNeeded(): Boolean {
+        val task = synchronized(this) { claimCompactionTaskLocked() } ?: return false
+        var mergedFile: File? = null
+        return try {
+            exportSnapshot(task.snapshot, task.outputTarget)
+            mergedFile = requireNotNull(task.outputTarget.file)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "History compaction failed", e)
+            false
+        } finally {
+            synchronized(this) {
+                finishCompactionLocked(task, mergedFile)
+            }
+        }
     }
 
     @Throws(IOException::class)
@@ -380,6 +399,154 @@ internal class LiveExportHistory(
             segment.file.delete()
         }
         pruneLocked()
+    }
+
+    private fun claimCompactionTaskLocked(): CompactionTask? {
+        if (compactionInFlight) {
+            return null
+        }
+        val currentConfig = config ?: return null
+        val targetDurationMillis = currentConfig.suggestedCompactionDurationMillis(retentionBytes)
+        if (targetDurationMillis <= segmentDurationMillis) {
+            return null
+        }
+
+        val compactableBytes = currentConfig.durationMillisToSampleBytes(targetDurationMillis)
+        if (compactableBytes <= 0L) {
+            return null
+        }
+
+        val currentSegments = segments.toList()
+        var startIndex = -1
+        var totalSampleBytes = 0L
+        val selectedSegments = ArrayList<Segment>()
+
+        for ((index, segment) in currentSegments.withIndex()) {
+            val key = segment.file.absolutePath
+            val alreadyPinned = pinnedFiles.containsKey(key)
+            val alreadyLargeEnough = segment.sampleBytes >= compactableBytes
+
+            if (alreadyPinned || alreadyLargeEnough) {
+                if (selectedSegments.isNotEmpty()) {
+                    break
+                }
+                continue
+            }
+
+            if (startIndex < 0) {
+                startIndex = index
+            }
+            selectedSegments += segment
+            totalSampleBytes += segment.sampleBytes
+            if (totalSampleBytes >= compactableBytes) {
+                break
+            }
+        }
+
+        if (selectedSegments.size < MIN_COMPACTION_SEGMENTS || startIndex < 0 || totalSampleBytes <= 0L) {
+            return null
+        }
+
+        val slices = selectedSegments.map { segment ->
+            val key = segment.file.absolutePath
+            pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
+            SegmentSlice(segment, 0L, segment.sampleBytes)
+        }
+
+        if (!historyRoot.exists()) {
+            historyRoot.mkdirs()
+        }
+
+        val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}")
+        val outputTarget = RecordingOutputTarget(
+            id = tempFile.absolutePath,
+            displayName = tempFile.name,
+            mimeType = currentConfig.codec.outputMimeType,
+            storageType = RecordingStorageType.FILE,
+            directoryId = historyRoot.absolutePath,
+            startedAtMillis = selectedSegments.first().startedAtMillis,
+            file = tempFile,
+        )
+        compactionInFlight = true
+        return CompactionTask(
+            startIndex = startIndex,
+            sourcePaths = selectedSegments.map { it.file.absolutePath },
+            startedAtMillis = selectedSegments.first().startedAtMillis,
+            totalSampleBytes = totalSampleBytes,
+            snapshot = Snapshot(currentConfig, slices, totalSampleBytes),
+            outputTarget = outputTarget,
+        )
+    }
+
+    private fun finishCompactionLocked(
+        task: CompactionTask,
+        mergedFile: File?,
+    ) {
+        compactionInFlight = false
+        task.snapshot.slices.forEach { slice ->
+            val key = slice.segment.file.absolutePath
+            val count = pinnedFiles[key] ?: return@forEach
+            if (count <= 1) {
+                pinnedFiles.remove(key)
+            } else {
+                pinnedFiles[key] = count - 1
+            }
+        }
+
+        val mergedSegment =
+            mergedFile
+                ?.takeIf { it.isFile && it.length() > 0L && config == task.snapshot.config }
+                ?.let { file ->
+                    Segment(
+                        file = file,
+                        startedAtMillis = task.startedAtMillis,
+                        sampleBytes = task.totalSampleBytes,
+                    )
+                }
+
+        val replaced = if (mergedSegment != null) {
+            replaceSegmentsLocked(task, mergedSegment)
+        } else {
+            false
+        }
+
+        if (!replaced) {
+            mergedFile?.delete()
+        }
+
+        val livePaths = segments.mapTo(HashSet()) { it.file.absolutePath }
+        task.sourcePaths.forEach { path ->
+            if (path !in livePaths && !pinnedFiles.containsKey(path)) {
+                File(path).delete()
+            }
+        }
+        pruneLocked()
+    }
+
+    private fun replaceSegmentsLocked(
+        task: CompactionTask,
+        mergedSegment: Segment,
+    ): Boolean {
+        val currentSegments = segments.toList()
+        val endIndexExclusive = task.startIndex + task.sourcePaths.size
+        if (task.startIndex < 0 || endIndexExclusive > currentSegments.size) {
+            return false
+        }
+        val matches = task.sourcePaths.indices.all { offset ->
+            currentSegments[task.startIndex + offset].file.absolutePath == task.sourcePaths[offset]
+        }
+        if (!matches) {
+            return false
+        }
+
+        finalizeSegmentFileLocked(mergedSegment)
+        val replacement = ArrayDeque<Segment>(currentSegments.size - task.sourcePaths.size + 1)
+        currentSegments.subList(0, task.startIndex).forEach(replacement::addLast)
+        replacement.addLast(mergedSegment)
+        currentSegments.subList(endIndexExclusive, currentSegments.size).forEach(replacement::addLast)
+        segments.clear()
+        segments.addAll(replacement)
+        return true
     }
 
     private fun resetLocked() {
@@ -614,10 +781,20 @@ internal class LiveExportHistory(
             return durationUs * bytesPerSecond / 1_000_000L
         }
 
+        fun durationMillisToSampleBytes(durationMillis: Long): Long {
+            return durationMillis * bytesPerSecond / 1000L
+        }
+
         fun suggestedSegmentDurationMillis(retentionBytes: Long): Long {
             val retentionMillis = bytesToDurationMillis(retentionBytes)
             val quarterWindow = retentionMillis / 4L
             return quarterWindow.coerceIn(MIN_SEGMENT_DURATION_MS, MAX_SEGMENT_DURATION_MS)
+        }
+
+        fun suggestedCompactionDurationMillis(retentionBytes: Long): Long {
+            val retentionMillis = bytesToDurationMillis(retentionBytes)
+            val twelfthWindow = retentionMillis / 12L
+            return twelfthWindow.coerceIn(MIN_COMPACTION_DURATION_MS, MAX_COMPACTION_DURATION_MS)
         }
     }
 
@@ -637,6 +814,15 @@ internal class LiveExportHistory(
         val config: Config,
         val slices: List<SegmentSlice>,
         val requestedSampleBytes: Long,
+    )
+
+    private data class CompactionTask(
+        val startIndex: Int,
+        val sourcePaths: List<String>,
+        val startedAtMillis: Long,
+        val totalSampleBytes: Long,
+        val snapshot: Snapshot,
+        val outputTarget: RecordingOutputTarget,
     )
 
     data class DebugSnapshot(
@@ -659,11 +845,15 @@ internal class LiveExportHistory(
     }
 
     private companion object {
+        const val TAG = "LiveExportHistory"
         const val WAV_HEADER_BYTES = 44L
         const val COPY_BUFFER_BYTES = 256 * 1024
         const val DEFAULT_SEGMENT_DURATION_MS = 2_000L
         const val MIN_SEGMENT_DURATION_MS = 2_000L
         const val MAX_SEGMENT_DURATION_MS = 2_000L
+        const val MIN_COMPACTION_DURATION_MS = 30_000L
+        const val MAX_COMPACTION_DURATION_MS = 300_000L
+        const val MIN_COMPACTION_SEGMENTS = 2
         val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
         val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")
 

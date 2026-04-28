@@ -3,7 +3,9 @@
   TimeTravel
 </h1>
 
-`Android` `Kotlin` `Material 3`
+![android](https://img.shields.io/badge/android-30%2B-3ddc84?logo=android&logoColor=0f172a)
+![kotlin](https://img.shields.io/badge/kotlin-2.1.10-7c3aed?logo=kotlin&logoColor=ffffff)
+![material](https://img.shields.io/badge/ui-Material%203-2563eb)
 
 Rolling audio buffer recorder for Android. Keeps recent audio alive, survives restarts, and exports past audio fast.
 

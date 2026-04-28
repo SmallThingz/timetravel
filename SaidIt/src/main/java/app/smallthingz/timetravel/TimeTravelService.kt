@@ -79,6 +79,26 @@ class TimeTravelService : Service() {
     private lateinit var liveExportHistory: LiveExportHistory
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private val historyCompactor: Runnable = object : Runnable {
+        override fun run() {
+            val compacted =
+                try {
+                    if (::liveExportHistory.isInitialized) liveExportHistory.compactIfNeeded() else false
+                } catch (t: Throwable) {
+                    Log.w(TAG, "History compaction pass failed", t)
+                    false
+                }
+
+            if (!::exportHandler.isInitialized) {
+                return
+            }
+            if (compacted) {
+                exportHandler.post(this)
+            } else {
+                exportHandler.postDelayed(this, HISTORY_COMPACTION_IDLE_DELAY_MS)
+            }
+        }
+    }
 
     override fun onCreate() {
         loadConfiguration()
@@ -90,6 +110,7 @@ class TimeTravelService : Service() {
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
         exportHandler = Handler(exportThread.looper)
+        exportHandler.post(historyCompactor)
         audioHandler.post {
             restorePersistedBufferIfNeeded()
         }
@@ -105,6 +126,9 @@ class TimeTravelService : Service() {
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
 
+        if (::exportHandler.isInitialized) {
+            exportHandler.removeCallbacks(historyCompactor)
+        }
         liveExportHistory.closePreservingHistory()
         persistentAudioRingStore.close()
         audioThread.quitSafely()
@@ -1216,6 +1240,7 @@ class TimeTravelService : Service() {
         const val FOREGROUND_NOTIFICATION_ID = 458
         const val MIN_AUDIO_RECORD_BUFFER_SIZE = 16 * 1024
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
+        const val HISTORY_COMPACTION_IDLE_DELAY_MS = 1_500L
         const val DEBUG_ACTION_PREFIX = "app.smallthingz.timetravel.debug."
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
         const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
