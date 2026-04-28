@@ -224,27 +224,6 @@ internal class AudioMemory {
         )
     }
 
-    @Throws(IOException::class)
-    private fun skipAndFeed(
-        bytesToSkip: Int,
-        array: ByteArray,
-        offset: Int,
-        length: Int,
-        consumer: Consumer,
-    ): Int {
-        return when {
-            bytesToSkip >= length -> length
-            bytesToSkip > 0 -> {
-                consumer.consume(array, offset + bytesToSkip, length - bytesToSkip)
-                bytesToSkip
-            }
-            else -> {
-                consumer.consume(array, offset, length)
-                0
-            }
-        }
-    }
-
     data class Stats(
         val filled: Int,
         val total: Int,

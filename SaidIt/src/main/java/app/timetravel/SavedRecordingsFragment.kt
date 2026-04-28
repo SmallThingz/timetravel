@@ -293,6 +293,7 @@ class SavedRecordingsFragment : Fragment() {
     private fun finalizePendingDeletions() {
         val pending = pendingDeletionsById.values.toList()
         if (pending.isEmpty()) return
+        val appContext = context?.applicationContext ?: return
 
         pendingDeletionIds.clear()
         pendingDeletionsById.clear()
@@ -300,12 +301,12 @@ class SavedRecordingsFragment : Fragment() {
         lifecycleScope.launch {
             var deletedCount = 0
             pending.forEach { recording ->
-                if (RecordingRepository.delete(requireContext(), recording)) {
+                if (RecordingRepository.delete(appContext, recording)) {
                     deletedCount++
                 }
             }
 
-            val storedRecordings = RecordingRepository.refresh(requireContext())
+            val storedRecordings = RecordingRepository.refresh(appContext)
             latestRecordings = storedRecordings
             latestRecordingsById = storedRecordings.associateBy { it.id }
             selectedRecordingIds.retainAll(latestRecordingsById.keys)
@@ -313,7 +314,7 @@ class SavedRecordingsFragment : Fragment() {
                 renderRecordings()
             }
             if (deletedCount == 0 && isAdded) {
-                Toast.makeText(requireContext(), R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
+                context?.let { Toast.makeText(it, R.string.recording_delete_failed, Toast.LENGTH_SHORT).show() }
             }
         }
     }

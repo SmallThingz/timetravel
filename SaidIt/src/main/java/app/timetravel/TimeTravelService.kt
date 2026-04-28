@@ -384,9 +384,16 @@ class TimeTravelService : Service() {
             val skipBytes = maxOf(0, bytesAvailable - prependBytes)
             val useBytes = bytesAvailable - skipBytes
             val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
+            val exportCodec = effectiveOutputCodec
+            val exportConfig = LiveExportHistory.Config(
+                codec = exportCodec,
+                sampleRate = sampleRate,
+                channelCount = channelMode.channelCount,
+                bitrateKbps = getConfiguredCodecBitrateKbps(this@TimeTravelService, exportCodec, sampleRate, channelMode.channelCount),
+            )
 
             val outTarget = try {
-                createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, effectiveOutputCodec)
+                createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportCodec)
             } catch (e: IOException) {
                 Log.e(TAG, "Unable to prepare export file", e)
                 val message = getString(R.string.cant_create_file_generic)
@@ -401,7 +408,7 @@ class TimeTravelService : Service() {
             exportHandler.post {
                 try {
                     var durationMillis = 0L
-                    if (historySnapshot != null) {
+                    if (historySnapshot != null && historySnapshot.config == exportConfig) {
                         liveExportHistory.exportSnapshot(historySnapshot, outTarget)
                         durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
                     } else {
@@ -422,7 +429,7 @@ class TimeTravelService : Service() {
                             currentCodecSummary(),
                         ),
                     )
-                } catch (e: IOException) {
+                } catch (e: Exception) {
                     Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
                     deleteIfEmpty(outTarget)
                     try {
@@ -443,7 +450,7 @@ class TimeTravelService : Service() {
                                 currentCodecSummary(),
                             ),
                         )
-                    } catch (fallbackError: IOException) {
+                    } catch (fallbackError: Exception) {
                         Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
                         val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
                         showToast(message)
@@ -481,7 +488,7 @@ class TimeTravelService : Service() {
             try {
                 recordingTarget = createOutputTarget(this@TimeTravelService, null, startedAtMillis, effectiveOutputCodec)
                 audioFileWriter = createAudioFileWriter(requireNotNull(recordingTarget))
-            } catch (e: IOException) {
+            } catch (e: Exception) {
                 Log.e(TAG, "Unable to create recording output", e)
                 recordingTarget = null
                 audioFileWriter = null
@@ -501,7 +508,7 @@ class TimeTravelService : Service() {
                         writer?.write(array, offset, count)
                         0
                     }
-                } catch (e: IOException) {
+                } catch (e: Exception) {
                     Log.e(TAG, "Error while priming recording into ${recordingTarget?.displayName}", e)
                     stopRecording(TimeTravelFragment.NotifyFileReceiver(this@TimeTravelService))
                 }
@@ -551,13 +558,13 @@ class TimeTravelService : Service() {
                 newSourceMode != sourceMode ||
                 newChannelMode != channelMode ||
                 newRouteMode != inputRouteMode
-
-        outputCodec = supportedCodecs().firstOrNull { it == newCodec && isCodecSupported(it, newSampleRate, newChannelMode) }
-            ?: supportedCodecs().firstOrNull { isCodecSupported(it, newSampleRate, newChannelMode) }
-            ?: ExportCodec.WAV
+        val hasRetainedBuffer = audioMemory.countFilled() > 0 || persistentAudioRingStore.hasData()
         updateWakeLockState()
 
         if (state != STATE_LISTENING || !isListeningEnabled()) {
+            if (captureConfigChanged && hasRetainedBuffer) {
+                return ApplySettingsResult.DEFERRED_UNTIL_RESTART
+            }
             loadConfiguration()
             audioHandler.post {
                 syncPersistentBufferFromMemory()
@@ -758,7 +765,7 @@ class TimeTravelService : Service() {
     private val audioReader: Runnable = Runnable {
         try {
             audioMemory.fill(filler)
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             val fileName = recordingTarget?.displayName ?: getString(R.string.recording)
             val errorMessage = getString(R.string.error_during_recording_into) + fileName
             Log.e(TAG, errorMessage, e)

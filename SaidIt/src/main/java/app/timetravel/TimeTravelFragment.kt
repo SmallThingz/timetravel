@@ -238,10 +238,11 @@ class TimeTravelFragment : Fragment() {
         listenSurface.setOnClickListener(ListenButtonClickListener())
 
         recTouchArea.setOnClickListener {
+            val service = recorder ?: return@setOnClickListener
             if (isSaving) return@setOnClickListener
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             setSavingInProgress(true)
-            recorder?.stopRecording(SaveResultReceiver(requireActivity()))
+            service.stopRecording(SaveResultReceiver(requireActivity()))
         }
 
         val exportClickListener = ExportButtonClickListener()
@@ -633,6 +634,14 @@ class TimeTravelFragment : Fragment() {
 
     private fun setSavingInProgress(inProgress: Boolean) {
         isSaving = inProgress
+        if (
+            !this::recordMaxButton.isInitialized ||
+            !this::recordCustomButton.isInitialized ||
+            !this::settingsButton.isInitialized ||
+            !this::recTouchArea.isInitialized
+        ) {
+            return
+        }
         val enabled = !inProgress
         recordMaxButton.isEnabled = enabled
         recordCustomButton.isEnabled = enabled
@@ -648,17 +657,19 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun showSavingSnackbar() {
+        val root = view ?: return
         val anchor = activity?.findViewById<View>(R.id.bottom_navigation)
         savingSnackbar?.dismiss()
-        savingSnackbar = Snackbar.make(requireView(), R.string.saving, Snackbar.LENGTH_INDEFINITE).apply {
+        savingSnackbar = Snackbar.make(root, R.string.saving, Snackbar.LENGTH_INDEFINITE).apply {
             anchor?.let { setAnchorView(it) }
             show()
         }
     }
 
     private fun showSavedSnackbar(recording: RecordingEntity) {
+        val root = view ?: return
         val anchor = activity?.findViewById<View>(R.id.bottom_navigation)
-        Snackbar.make(requireView(), R.string.saved_snackbar, Snackbar.LENGTH_LONG)
+        Snackbar.make(root, R.string.saved_snackbar, Snackbar.LENGTH_LONG)
             .setAction(R.string.open) {
                 try {
                     startActivity(buildOpenRecordingIntent(requireContext(), recording))
@@ -717,14 +728,22 @@ class TimeTravelFragment : Fragment() {
     private inner class SaveResultReceiver(private val activity: FragmentActivity) : TimeTravelService.AudioFileReceiver {
         override fun fileReady(recording: RecordingEntity) {
             activity.lifecycleScope.launch {
-                val saved = RecordingRepository.register(activity, recording)
+                val saved = RecordingRepository.register(activity.applicationContext, recording)
+                if (view == null || !isAdded || !this@TimeTravelFragment::recordMaxButton.isInitialized) {
+                    isSaving = false
+                    return@launch
+                }
                 setSavingInProgress(false)
                 showSavedSnackbar(saved)
             }
         }
 
         override fun fileFailed(message: String) {
-            setSavingInProgress(false)
+            if (view == null || !isAdded || !this@TimeTravelFragment::recordMaxButton.isInitialized) {
+                isSaving = false
+            } else {
+                setSavingInProgress(false)
+            }
             Toast.makeText(activity, if (message.isBlank()) activity.getString(R.string.save_failed) else message, Toast.LENGTH_SHORT)
                 .show()
         }

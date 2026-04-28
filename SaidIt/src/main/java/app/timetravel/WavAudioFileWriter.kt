@@ -29,7 +29,10 @@ internal class WavAudioFileWriter(
         offset: Int,
         count: Int,
     ) {
-        channel.write(ByteBuffer.wrap(bytes, offset, count))
+        val buffer = ByteBuffer.wrap(bytes, offset, count)
+        while (buffer.hasRemaining()) {
+            channel.write(buffer)
+        }
         totalSampleBytesWritten += count
     }
 

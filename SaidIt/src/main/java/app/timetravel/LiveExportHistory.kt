@@ -274,7 +274,7 @@ internal class LiveExportHistory(
                             }
                             continue
                         }
-                        if (sampleTimeUs >= sliceEndUs && firstWrittenSampleTimeUs != Long.MIN_VALUE) {
+                        if (sampleTimeUs >= sliceEndUs) {
                             break
                         }
 
@@ -297,7 +297,9 @@ internal class LiveExportHistory(
                             break
                         }
                     }
-                    outputBaseTimeUs += sliceDurationUs
+                    if (firstWrittenSampleTimeUs != Long.MIN_VALUE) {
+                        outputBaseTimeUs += sliceDurationUs
+                    }
                 } finally {
                     extractor.release()
                 }
