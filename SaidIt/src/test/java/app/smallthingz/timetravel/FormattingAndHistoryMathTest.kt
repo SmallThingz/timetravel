@@ -6,6 +6,54 @@ import org.junit.Test
 
 class FormattingAndHistoryMathTest {
     @Test
+    fun missingRecordingTtl_startsFromFirstObservedMiss_notCreationTime() {
+        val createdAt = 1_000L
+        val firstMissingAt = createdAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS - 1L
+        val oldRecording = RecordingEntity(
+            id = "id",
+            displayName = "clip.m4a",
+            mimeType = "audio/mp4",
+            startedAtMillis = 500L,
+            durationMillis = 1_000L,
+            sizeBytes = 2_000L,
+            codecSummary = "aac",
+            storageType = RecordingStorageType.FILE.name,
+            directoryId = "dir",
+            createdAtMillis = createdAt,
+            lastSeenAtMillis = createdAt,
+            missingSinceMillis = firstMissingAt,
+        )
+
+        assertTrue(!isMissingRecordingExpired(oldRecording, firstMissingAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS - 1L))
+        assertTrue(isMissingRecordingExpired(oldRecording, firstMissingAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS))
+    }
+
+    @Test
+    fun mergeObservedRecording_preservesOriginalCreationTime_andClearsMissingState() {
+        val existing = RecordingEntity(
+            id = "id",
+            displayName = "clip.m4a",
+            mimeType = "audio/mp4",
+            startedAtMillis = 500L,
+            durationMillis = 1_000L,
+            sizeBytes = 2_000L,
+            codecSummary = "aac",
+            storageType = RecordingStorageType.FILE.name,
+            directoryId = "dir",
+            createdAtMillis = 10L,
+            lastSeenAtMillis = 20L,
+            missingSinceMillis = 30L,
+        )
+        val observed = existing.copy(createdAtMillis = 999L, lastSeenAtMillis = 999L, missingSinceMillis = 999L)
+
+        val merged = mergeObservedRecording(existing, observed, nowMillis = 40L)
+
+        assertEquals(10L, merged.createdAtMillis)
+        assertEquals(40L, merged.lastSeenAtMillis)
+        assertEquals(null, merged.missingSinceMillis)
+    }
+
+    @Test
     fun formatShortTimer_handlesMinuteAndHourBoundaries() {
         assertEquals("0:00", formatShortTimer(0f))
         assertEquals("1:05", formatShortTimer(65.9f))

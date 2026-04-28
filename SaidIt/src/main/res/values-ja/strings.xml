@@ -156,7 +156,6 @@
     <string name="open_github">GitHub を開く</string>
     <string name="reencode_history">履歴を再エンコード</string>
     <string name="reencode_history_progress">再エンコード中 %1$d%%</string>
-    <string name="reencode_history_disable_listening">先にリスニングをオフにしてください。</string>
     <string name="reencode_history_done">履歴を再エンコードしました。</string>
     <string name="reencode_history_failed">履歴を再エンコードできませんでした。</string>
     <string name="about_version">バージョン %1$s</string>

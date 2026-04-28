@@ -185,7 +185,10 @@ class DebugChunksFragment : Fragment() {
         val totalSampleBytes = chunks.sumOf { it.sampleBytes }
         mergeButton.isEnabled = operations.isEmpty() && chunks.any { !it.active }
         mergeButton.alpha = if (mergeButton.isEnabled) 1f else 0.45f
-        title.text = if (activeChunks > 0) "Chunk ring · active" else "Chunk ring"
+        title.text =
+            getString(
+                if (activeChunks > 0) R.string.chunks_title_active else R.string.chunks_title,
+            )
         summary.text =
             "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)} · ${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)} · ${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)} · ${if ((history?.channelCount ?: snapshot.channelCount) >= 2) "stereo" else "mono"} · $mode$reencode"
         metricPrimary.text = "${chunks.size} chunks"

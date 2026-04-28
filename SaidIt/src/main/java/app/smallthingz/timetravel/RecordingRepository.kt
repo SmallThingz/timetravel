@@ -7,7 +7,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 object RecordingRepository {
-    private const val MISSING_RECORDING_TTL_MILLIS = 24L * 60L * 60L * 1000L
+    internal const val MISSING_RECORDING_TTL_MILLIS = 24L * 60L * 60L * 1000L
     private val mutex = Mutex()
 
     suspend fun refresh(context: Context): List<RecordingEntity> {
@@ -23,8 +23,9 @@ object RecordingRepository {
     suspend fun register(context: Context, recording: RecordingEntity): RecordingEntity {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
-                RecordingDatabase.getInstance(context).recordingDao().upsert(recording)
-                recording
+                val presentRecording = mergeObservedRecording(existing = null, observed = recording, nowMillis = System.currentTimeMillis())
+                RecordingDatabase.getInstance(context).recordingDao().upsert(presentRecording)
+                presentRecording
             }
         }
     }
@@ -129,20 +130,36 @@ object RecordingRepository {
         val currentDirectoryId = getConfiguredOutputDirectoryId(context)
         val imported = listCurrentOutputDirectoryRecordings(context)
         val existing = dao.listByDirectory(currentDirectoryId)
-        val importedIds = imported.mapTo(mutableSetOf()) { it.id }
         val nowMillis = System.currentTimeMillis()
-        val staleIds = existing.asSequence()
-            .filter { it.id !in importedIds }
-            // Keep DB rows for files that still exist even if the directory scan
-            // did not rediscover them yet (for example, provider lag or format-
-            // specific scan gaps right after export).
-            .filterNot { recordingExists(context, it) }
-            .filter { isMissingRecordingExpired(it, nowMillis) }
-            .map { it.id }
-            .toList()
+        val existingById = existing.associateBy { it.id }
+        val importedPresent = imported.map { mergeObservedRecording(existingById[it.id], it, nowMillis) }
+        val importedIds = importedPresent.mapTo(mutableSetOf()) { it.id }
+        val updates = mutableListOf<RecordingEntity>()
+        val staleIds = mutableListOf<String>()
 
-        if (imported.isNotEmpty()) {
-            dao.upsertAll(imported)
+        existing.asSequence()
+            .filter { it.id !in importedIds }
+            .forEach { recording ->
+                // Keep DB rows for files that still exist even if the directory scan
+                // did not rediscover them yet (for example, provider lag or format-
+                // specific scan gaps right after export).
+                val updated =
+                    if (recordingExists(context, recording)) {
+                        markRecordingPresent(recording, nowMillis)
+                    } else {
+                        markRecordingMissing(recording, nowMillis)
+                    }
+                when {
+                    isMissingRecordingExpired(updated, nowMillis) -> staleIds += recording.id
+                    updated != recording -> updates += updated
+                }
+            }
+
+        if (importedPresent.isNotEmpty()) {
+            dao.upsertAll(importedPresent)
+        }
+        if (updates.isNotEmpty()) {
+            dao.upsertAll(updates)
         }
         if (staleIds.isNotEmpty()) {
             dao.deleteByIds(staleIds)
@@ -153,22 +170,27 @@ object RecordingRepository {
         val dao = RecordingDatabase.getInstance(context).recordingDao()
         val all = dao.listAll()
         val nowMillis = System.currentTimeMillis()
-        val missingIds = all.asSequence()
-            .filterNot { recordingExists(context, it) }
-            .filter { isMissingRecordingExpired(it, nowMillis) }
-            .map { it.id }
-            .toList()
+        val updates = mutableListOf<RecordingEntity>()
+        val missingIds = mutableListOf<String>()
+        all.forEach { recording ->
+            val updated =
+                if (recordingExists(context, recording)) {
+                    markRecordingPresent(recording, nowMillis)
+                } else {
+                    markRecordingMissing(recording, nowMillis)
+                }
+            when {
+                isMissingRecordingExpired(updated, nowMillis) -> missingIds += recording.id
+                updated != recording -> updates += updated
+            }
+        }
+        if (updates.isNotEmpty()) {
+            dao.upsertAll(updates)
+        }
         if (missingIds.isNotEmpty()) {
             dao.deleteByIds(missingIds)
         }
         return missingIds.size
-    }
-
-    private fun isMissingRecordingExpired(
-        recording: RecordingEntity,
-        nowMillis: Long,
-    ): Boolean {
-        return nowMillis - recording.createdAtMillis >= MISSING_RECORDING_TTL_MILLIS
     }
 
     data class MoveResult(
@@ -176,4 +198,49 @@ object RecordingRepository {
         val skipped: Int = 0,
         val removedMissing: Int = 0,
     )
+}
+
+internal fun mergeObservedRecording(
+    existing: RecordingEntity?,
+    observed: RecordingEntity,
+    nowMillis: Long,
+): RecordingEntity {
+    return observed.copy(
+        createdAtMillis = existing?.createdAtMillis ?: observed.createdAtMillis,
+        lastSeenAtMillis = nowMillis,
+        missingSinceMillis = null,
+    )
+}
+
+internal fun markRecordingPresent(
+    recording: RecordingEntity,
+    nowMillis: Long,
+): RecordingEntity {
+    return if (recording.lastSeenAtMillis == nowMillis && recording.missingSinceMillis == null) {
+        recording
+    } else {
+        recording.copy(
+            lastSeenAtMillis = nowMillis,
+            missingSinceMillis = null,
+        )
+    }
+}
+
+internal fun markRecordingMissing(
+    recording: RecordingEntity,
+    nowMillis: Long,
+): RecordingEntity {
+    return if (recording.missingSinceMillis != null) {
+        recording
+    } else {
+        recording.copy(missingSinceMillis = nowMillis)
+    }
+}
+
+internal fun isMissingRecordingExpired(
+    recording: RecordingEntity,
+    nowMillis: Long,
+): Boolean {
+    val missingSinceMillis = recording.missingSinceMillis ?: return false
+    return nowMillis - missingSinceMillis >= RecordingRepository.MISSING_RECORDING_TTL_MILLIS
 }

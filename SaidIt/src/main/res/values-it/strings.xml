@@ -66,6 +66,8 @@
     <string name="auto_merge_ratio_supporting">Obiettivo di unione in background. Circa 1/x del buffer mantenuto.</string>
     <string name="auto_merge_custom_time_supporting">Usa MM:SS o HH:MM:SS.</string>
     <string name="auto_merge_custom_size_supporting">Usa un valore MiB come 64.0.</string>
+    <string name="auto_merge_eager_label">Unione anticipata della coda finale</string>
+    <string name="auto_merge_eager_summary">Unisce i frammenti finali residui prima che raggiungano la dimensione obiettivo completa.</string>
     <string name="auto_merge_divisor_invalid">Usa %1$d-%2$d.</string>
     <string name="auto_merge_custom_time_invalid">Usa MM:SS o HH:MM:SS.</string>
     <string name="auto_merge_custom_time_range_invalid">Usa %1$s-%2$s.</string>

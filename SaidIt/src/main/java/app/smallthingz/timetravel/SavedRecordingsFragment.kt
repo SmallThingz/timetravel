@@ -154,20 +154,18 @@ class SavedRecordingsFragment : Fragment() {
         }
     }
 
-    private fun launchIntent(intent: Intent) {
-        try {
-            startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(requireContext(), R.string.no_app_available, Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private fun showRecordingPlayer(recording: RecordingEntity) {
         playerDialog?.dismiss()
         playerDialog = RecordingPlayerDialog(
             context = requireContext(),
             recording = recording,
-            onPlaybackFailed = { launchIntent(buildOpenRecordingIntent(requireContext(), recording)) },
+            onPlaybackFailed = {
+                try {
+                    startActivity(buildOpenRecordingIntent(requireContext(), recording))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(requireContext(), R.string.no_app_available, Toast.LENGTH_SHORT).show()
+                }
+            },
         ).also { it.show() }
     }
 

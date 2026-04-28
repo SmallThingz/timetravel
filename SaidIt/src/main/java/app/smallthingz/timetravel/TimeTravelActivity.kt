@@ -115,7 +115,7 @@ class TimeTravelActivity : AppCompatActivity() {
     }
 
     private fun selectTab(itemId: Int) {
-        selectedTabId = if (itemId == NAVIGATION_CHUNKS_ID && !shouldShowChunksTab()) R.id.navigation_capture else itemId
+        selectedTabId = if (itemId == NAVIGATION_CHUNKS_ID && !isDebugChunksTabEnabled(this)) R.id.navigation_capture else itemId
         val captureFragment = supportFragmentManager.findFragmentByTag(CAPTURE_FRAGMENT_TAG) ?: return
         val filesFragment = supportFragmentManager.findFragmentByTag(FILES_FRAGMENT_TAG) ?: return
         val chunksFragment = supportFragmentManager.findFragmentByTag(CHUNKS_FRAGMENT_TAG)
@@ -154,7 +154,7 @@ class TimeTravelActivity : AppCompatActivity() {
     private fun refreshBottomNavigation() {
         val menu = bottomNavigation.menu
         val chunksItem = menu.findItem(NAVIGATION_CHUNKS_ID)
-        if (shouldShowChunksTab()) {
+        if (isDebugChunksTabEnabled(this)) {
             if (chunksItem == null) {
                 menu.add(Menu.NONE, NAVIGATION_CHUNKS_ID, MENU_ORDER_CHUNKS, "").setIcon(R.drawable.ic_tab_chunks)
             }
@@ -166,8 +166,6 @@ class TimeTravelActivity : AppCompatActivity() {
             }
         }
     }
-
-    private fun shouldShowChunksTab(): Boolean = isDebugChunksTabEnabled(this)
 
     private fun showPermissionDeniedDialog() {
         if (permissionDeniedDialog?.isShowing == true) {

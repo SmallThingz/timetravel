@@ -156,7 +156,6 @@
     <string name="open_github">Ouvrir GitHub</string>
     <string name="reencode_history">Réencoder l’historique</string>
     <string name="reencode_history_progress">Réencodage %1$d%%</string>
-    <string name="reencode_history_disable_listening">Coupez d’abord l’écoute.</string>
     <string name="reencode_history_done">Historique réencodé.</string>
     <string name="reencode_history_failed">Impossible de réencoder l’historique.</string>
     <string name="about_version">Version %1$s</string>

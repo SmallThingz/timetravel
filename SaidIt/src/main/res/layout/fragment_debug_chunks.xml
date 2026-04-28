@@ -4,7 +4,6 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
     android:orientation="vertical"
     tools:context="app.smallthingz.timetravel.DebugChunksFragment">
 
@@ -86,7 +85,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Chunk ring"
+                    android:text="@string/chunks_title"
                     android:textColor="?attr/colorOnSurface"
                     android:textStyle="bold" />
 

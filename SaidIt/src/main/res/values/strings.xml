@@ -20,7 +20,6 @@
     <string name="custom_time">Export custom</string>
     <string name="reencode_history">Re-encode history</string>
     <string name="reencode_history_progress">Re-encoding %1$d%%</string>
-    <string name="reencode_history_disable_listening">Turn off listening first.</string>
     <string name="reencode_history_done">History re-encoded.</string>
     <string name="reencode_history_failed">Couldn\'t re-encode history.</string>
     <string name="custom_export_duration_hint">12:30</string>
@@ -167,6 +166,8 @@
     <string name="recording_delete_failed">Couldn\'t delete recording.</string>
     <string name="recording_info">Info</string>
     <string name="chunks_empty" translatable="false">No chunks yet.</string>
+    <string name="chunks_title" translatable="false">Chunk ring</string>
+    <string name="chunks_title_active" translatable="false">Chunk ring · active</string>
     <string name="chunks_operations_empty" translatable="false">No active operations.</string>
     <string name="chunks_section_operations" translatable="false">Operations</string>
     <string name="chunks_section_chunks" translatable="false">Chunks</string>

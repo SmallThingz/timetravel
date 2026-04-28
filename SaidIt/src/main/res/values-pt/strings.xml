@@ -66,6 +66,8 @@
     <string name="auto_merge_ratio_supporting">Alvo de mesclagem em segundo plano. Cerca de 1/x do buffer mantido.</string>
     <string name="auto_merge_custom_time_supporting">Use MM:SS ou HH:MM:SS.</string>
     <string name="auto_merge_custom_size_supporting">Use um valor MiB como 64.0.</string>
+    <string name="auto_merge_eager_label">Mesclagem antecipada da cauda final</string>
+    <string name="auto_merge_eager_summary">Mescla os blocos finais restantes antes que atinjam o tamanho alvo completo.</string>
     <string name="auto_merge_divisor_invalid">Use %1$d-%2$d.</string>
     <string name="auto_merge_custom_time_invalid">Use MM:SS ou HH:MM:SS.</string>
     <string name="auto_merge_custom_time_range_invalid">Use %1$s-%2$s.</string>

@@ -16,6 +16,11 @@ data class RecordingEntity(
     val storageType: String,
     val directoryId: String,
     val createdAtMillis: Long = System.currentTimeMillis(),
+    // Last successful observation/import of this asset. Used to keep rows stable
+    // across short provider/file-system visibility gaps.
+    val lastSeenAtMillis: Long = createdAtMillis,
+    // First time the asset was observed missing. Null while the asset is present.
+    val missingSinceMillis: Long? = null,
 )
 
 interface RecordingDao {
@@ -49,7 +54,14 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
         oldVersion: Int,
         newVersion: Int,
     ) {
-        db.recreateSchema()
+        var migrated = false
+        if (oldVersion < 2 && newVersion >= 2) {
+            db.migrateToVersion2()
+            migrated = true
+        }
+        if (!migrated && oldVersion != newVersion) {
+            db.recreateSchema()
+        }
     }
 
     override fun onDowngrade(
@@ -127,7 +139,7 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
 
     companion object {
         private const val DATABASE_NAME = "timetravel-recordings.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
         internal const val TABLE_RECORDINGS = "recordings"
         internal const val COLUMN_ID = "id"
         internal const val COLUMN_DISPLAY_NAME = "displayName"
@@ -139,6 +151,8 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
         internal const val COLUMN_STORAGE_TYPE = "storageType"
         internal const val COLUMN_DIRECTORY_ID = "directoryId"
         internal const val COLUMN_CREATED_AT_MILLIS = "createdAtMillis"
+        internal const val COLUMN_LAST_SEEN_AT_MILLIS = "lastSeenAtMillis"
+        internal const val COLUMN_MISSING_SINCE_MILLIS = "missingSinceMillis"
 
         @Volatile
         private var instance: RecordingDatabase? = null
@@ -164,8 +178,31 @@ private fun SQLiteDatabase.createSchema() {
             ${RecordingDatabase.COLUMN_CODEC_SUMMARY} TEXT NOT NULL,
             ${RecordingDatabase.COLUMN_STORAGE_TYPE} TEXT NOT NULL,
             ${RecordingDatabase.COLUMN_DIRECTORY_ID} TEXT NOT NULL,
-            ${RecordingDatabase.COLUMN_CREATED_AT_MILLIS} INTEGER NOT NULL
+            ${RecordingDatabase.COLUMN_CREATED_AT_MILLIS} INTEGER NOT NULL,
+            ${RecordingDatabase.COLUMN_LAST_SEEN_AT_MILLIS} INTEGER NOT NULL,
+            ${RecordingDatabase.COLUMN_MISSING_SINCE_MILLIS} INTEGER
         )
+        """.trimIndent(),
+    )
+}
+
+private fun SQLiteDatabase.migrateToVersion2() {
+    execSQL(
+        """
+        ALTER TABLE ${RecordingDatabase.TABLE_RECORDINGS}
+        ADD COLUMN ${RecordingDatabase.COLUMN_LAST_SEEN_AT_MILLIS} INTEGER NOT NULL DEFAULT 0
+        """.trimIndent(),
+    )
+    execSQL(
+        """
+        UPDATE ${RecordingDatabase.TABLE_RECORDINGS}
+        SET ${RecordingDatabase.COLUMN_LAST_SEEN_AT_MILLIS} = ${RecordingDatabase.COLUMN_CREATED_AT_MILLIS}
+        """.trimIndent(),
+    )
+    execSQL(
+        """
+        ALTER TABLE ${RecordingDatabase.TABLE_RECORDINGS}
+        ADD COLUMN ${RecordingDatabase.COLUMN_MISSING_SINCE_MILLIS} INTEGER
         """.trimIndent(),
     )
 }
@@ -187,6 +224,8 @@ private fun RecordingEntity.toContentValues(): ContentValues {
         put(RecordingDatabase.COLUMN_STORAGE_TYPE, storageType)
         put(RecordingDatabase.COLUMN_DIRECTORY_ID, directoryId)
         put(RecordingDatabase.COLUMN_CREATED_AT_MILLIS, createdAtMillis)
+        put(RecordingDatabase.COLUMN_LAST_SEEN_AT_MILLIS, lastSeenAtMillis)
+        put(RecordingDatabase.COLUMN_MISSING_SINCE_MILLIS, missingSinceMillis)
     }
 }
 
@@ -201,6 +240,8 @@ private fun readRecordings(cursor: android.database.Cursor): List<RecordingEntit
     val storageTypeIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_STORAGE_TYPE)
     val directoryIdIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_DIRECTORY_ID)
     val createdAtMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_CREATED_AT_MILLIS)
+    val lastSeenAtMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_LAST_SEEN_AT_MILLIS)
+    val missingSinceMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_MISSING_SINCE_MILLIS)
     return buildList {
         while (cursor.moveToNext()) {
             add(
@@ -215,6 +256,9 @@ private fun readRecordings(cursor: android.database.Cursor): List<RecordingEntit
                     storageType = cursor.getString(storageTypeIndex),
                     directoryId = cursor.getString(directoryIdIndex),
                     createdAtMillis = cursor.getLong(createdAtMillisIndex),
+                    lastSeenAtMillis = cursor.getLong(lastSeenAtMillisIndex),
+                    missingSinceMillis =
+                        if (cursor.isNull(missingSinceMillisIndex)) null else cursor.getLong(missingSinceMillisIndex),
                 ),
             )
         }
