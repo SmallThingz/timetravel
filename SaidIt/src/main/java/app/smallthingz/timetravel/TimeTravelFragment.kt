@@ -318,12 +318,6 @@ class TimeTravelFragment : Fragment() {
 
     private fun updateBufferSummary() {
         val context = context ?: return
-        if (!isListening && !isRecording) {
-            formatSummary.text = getString(R.string.buffer_status_paused)
-            formatSummary.setTextColor(MaterialColors.getColor(formatSummary, com.google.android.material.R.attr.colorOnSurfaceVariant))
-            return
-        }
-
         val exportConfig = currentExportConfig(context)
         val bytesPerSecond = exportConfig.bytesPerSecond
         val displayedCurrentSeconds = lastMemorizedSeconds.coerceAtLeast(0f).toInt()
