@@ -76,6 +76,8 @@ class TimeTravelFragment : Fragment() {
     private var currentPulseMode = PULSE_OFF
     private var pulseAnimators: List<ObjectAnimator> = emptyList()
     private var savingSnackbar: Snackbar? = null
+    private var lastMemorizedSeconds = 0f
+    private var lastTotalMemorySeconds = 0f
 
     private val updater: Runnable = object : Runnable {
         override fun run() {
@@ -130,9 +132,9 @@ class TimeTravelFragment : Fragment() {
                 updateListenSurfaceAppearance()
             }
 
+            lastMemorizedSeconds = memorized
+            lastTotalMemorySeconds = totalMemory
             updateBufferSummary()
-            historySize.text = formatShortTimer(memorized)
-
             if (recording) {
                 recTime.text = formatShortTimer(recorded)
             }
@@ -323,16 +325,19 @@ class TimeTravelFragment : Fragment() {
         val channelMode = activeConfig?.channelMode ?: getConfiguredChannelMode(context)
         val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
         val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, codec, channelMode)
-        formatSummary.text = when (getConfiguredRetentionMode(context)) {
-            RetentionMode.TIME -> getString(
-                R.string.buffer_status_time,
-                formatDurationInput(getConfiguredRetentionSeconds(context).toInt()),
-            )
+        val bytesPerSecond = (sampleRate * channelMode.channelCount * 2L).coerceAtLeast(1L)
+        val currentBytes = (lastMemorizedSeconds * bytesPerSecond).toLong().coerceAtLeast(0L)
+        val limitBytes = (lastTotalMemorySeconds * bytesPerSecond).toLong().coerceAtLeast(0L)
+        when (getConfiguredRetentionMode(context)) {
+            RetentionMode.TIME -> {
+                historySize.text = "${formatShortTimer(lastMemorizedSeconds)} / ${formatShortTimer(lastTotalMemorySeconds)}"
+                formatSummary.text = formatShortFileSize(currentBytes)
+            }
 
-            RetentionMode.SIZE -> getString(
-                R.string.buffer_status_size,
-                formatShortFileSize(getConfiguredMemorySizeBytes(context, sampleRate, channelMode)),
-            )
+            RetentionMode.SIZE -> {
+                historySize.text = "${formatShortFileSize(currentBytes)} / ${formatShortFileSize(limitBytes)}"
+                formatSummary.text = formatShortTimer(lastMemorizedSeconds)
+            }
         }
     }
 

@@ -101,6 +101,7 @@
                 android:id="@+id/history_size"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:textSize="64sp"
                 android:textAppearance="?attr/textAppearanceDisplayLarge"
                 android:textColor="?attr/colorOnSurface"
                 android:typeface="monospace"
@@ -111,8 +112,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:fontFamily="monospace"
                 android:gravity="center"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textAppearance="?attr/textAppearanceTitleLarge"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 tools:text="Recording the past 60 seconds" />
 

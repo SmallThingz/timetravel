@@ -44,7 +44,7 @@
     <string name="retention_mode_size">Tamanho</string>
     <string name="retention_time_label">Tempo</string>
     <string name="retention_time_invalid">Use MM:SS ou HH:MM:SS.</string>
-    <string name="retention_size_label">Tamanho (MB)</string>
+    <string name="retention_size_label">Tamanho (MiB)</string>
     <string name="recording_settings_title">Áudio</string>
     <string name="storage_settings_title">Armazenamento</string>
     <string name="background_persistence_title">Segundo plano</string>

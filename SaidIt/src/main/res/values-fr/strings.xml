@@ -44,7 +44,7 @@
     <string name="retention_mode_size">Taille</string>
     <string name="retention_time_label">Temps</string>
     <string name="retention_time_invalid">Utilisez MM:SS ou HH:MM:SS.</string>
-    <string name="retention_size_label">Taille (Mo)</string>
+    <string name="retention_size_label">Taille (MiB)</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Stockage</string>
     <string name="background_persistence_title">Arrière-plan</string>

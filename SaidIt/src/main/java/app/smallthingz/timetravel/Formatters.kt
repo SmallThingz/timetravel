@@ -1,10 +1,9 @@
 package app.smallthingz.timetravel
 
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 import kotlin.math.floor
-import kotlin.math.log10
-import kotlin.math.pow
 
 
 fun formatShortTimer(seconds: Float): String {
@@ -21,11 +20,9 @@ fun formatShortTimer(seconds: Float): String {
 }
 
 fun formatShortFileSize(size: Long): String {
-    if (size <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt().coerceAtMost(units.lastIndex)
-    val value = size / 1024.0.pow(digitGroups.toDouble())
-    return "${DecimalFormat("#,##0.#").format(value)} ${units[digitGroups]}"
+    val mebibytes = size.coerceAtLeast(0L) / (1024.0 * 1024.0)
+    val formatter = DecimalFormat("0.0", DecimalFormatSymbols(Locale.US))
+    return "${formatter.format(mebibytes)} MiB"
 }
 
 fun formatSavedRecordingDuration(durationMillis: Long): String {

@@ -44,7 +44,7 @@
     <string name="retention_mode_size">サイズ</string>
     <string name="retention_time_label">時間</string>
     <string name="retention_time_invalid">MM:SS または HH:MM:SS を使用してください。</string>
-    <string name="retention_size_label">サイズ (MB)</string>
+    <string name="retention_size_label">サイズ (MiB)</string>
     <string name="recording_settings_title">音声</string>
     <string name="storage_settings_title">保存先</string>
     <string name="background_persistence_title">バックグラウンド</string>

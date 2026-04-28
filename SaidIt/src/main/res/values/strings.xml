@@ -48,7 +48,7 @@
     <string name="retention_mode_size">Size</string>
     <string name="retention_time_label">Time</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="retention_size_label">Size (MB)</string>
+    <string name="retention_size_label">Size (MiB)</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Storage</string>
     <string name="background_persistence_title">Background</string>
