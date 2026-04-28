@@ -533,6 +533,7 @@ class TimeTravelService : Service() {
                         outputTarget = outTarget,
                         preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
                     )
+                    requireExportedOutput(outTarget)
                     durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
                 } else {
                     val readSucceeded =
@@ -547,6 +548,7 @@ class TimeTravelService : Service() {
                     if (!readSucceeded) {
                         throw IOException("Requested PCM range not available in fallback buffer")
                     }
+                    requireExportedOutput(outTarget)
                 }
                 notifyReceiver(
                     receiver,
@@ -574,6 +576,7 @@ class TimeTravelService : Service() {
                     if (!readSucceeded) {
                         throw IOException("Requested PCM range not available in fallback buffer")
                     }
+                    requireExportedOutput(outTarget)
                     notifyReceiver(
                         receiver,
                         buildRecordingEntity(
@@ -792,6 +795,12 @@ class TimeTravelService : Service() {
             val runtimeMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
             runCatching { writer.close() }
                 .onFailure { Log.e(TAG, "Error while closing recording file", it) }
+            runCatching { requireExportedOutput(target) }
+                .onFailure {
+                    Log.e(TAG, "Recorded output missing or empty", it)
+                    notifyReceiverFailure(receiver, getString(R.string.error_during_writing_history_into) + target.displayName)
+                    return@post
+                }
 
             notifyReceiver(
                 receiver,
@@ -841,7 +850,7 @@ class TimeTravelService : Service() {
         val codec = effectiveOutputCodec
         val bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount)
         return when {
-            codec == ExportCodec.PCM_16 -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
+            format.isPcmContainer -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
             format.usesMuxer -> EncodedAudioFileWriter(
                 this,
                 target,
@@ -870,6 +879,16 @@ class TimeTravelService : Service() {
                 }
             }
         }
+    }
+
+    @Throws(IOException::class)
+    private fun requireExportedOutput(target: RecordingOutputTarget) {
+        val size = resolveOutputTargetSize(this, target)
+        if (size > 0L) {
+            return
+        }
+        deleteIfEmpty(target)
+        throw IOException("Export produced empty output: ${target.displayName}")
     }
 
     private fun currentCodecSummary(): String {
@@ -1140,29 +1159,28 @@ class TimeTravelService : Service() {
         }
     }
 
-    fun debugCompactChunk(
-        filePath: String,
+    fun debugCompactHistory(
         callback: ChunkActionCallback? = null,
     ) {
         if (!isDebuggableBuild()) {
             return
         }
         exportHandler.post {
-            val merged =
+            val mergedCount =
                 try {
-                    if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactChunkNow(filePath) else false
+                    if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactAllChunksNow() else 0
                 } catch (t: Throwable) {
-                    Log.w(TAG, "Debug chunk compaction failed", t)
-                    false
+                    Log.w(TAG, "Debug history compaction failed", t)
+                    0
                 }
             val message =
-                if (merged) {
+                if (mergedCount > 0) {
                     getString(R.string.chunks_merge_done)
                 } else {
                     getString(R.string.chunks_merge_failed)
                 }
             mainHandler.post {
-                callback?.completed(merged, message)
+                callback?.completed(mergedCount > 0, message)
             }
         }
     }
@@ -1186,6 +1204,7 @@ class TimeTravelService : Service() {
                 val outTarget = createOutputTarget(this@TimeTravelService, displayName, descriptor.mimeType, descriptor.startedAtMillis)
                 val exported = liveExportHistory.debugExportChunkToTarget(filePath, outTarget)
                     ?: throw IOException("Chunk export failed")
+                requireExportedOutput(outTarget)
                 val recording = buildRecordingEntity(
                     this@TimeTravelService,
                     outTarget,

@@ -130,8 +130,12 @@ object RecordingRepository {
         val existing = dao.listByDirectory(currentDirectoryId)
         val importedIds = imported.mapTo(mutableSetOf()) { it.id }
         val staleIds = existing.asSequence()
+            .filter { it.id !in importedIds }
+            // Keep DB rows for files that still exist even if the directory scan
+            // did not rediscover them yet (for example, provider lag or format-
+            // specific scan gaps right after export).
+            .filterNot { recordingExists(context, it) }
             .map { it.id }
-            .filter { it !in importedIds }
             .toList()
 
         if (imported.isNotEmpty()) {

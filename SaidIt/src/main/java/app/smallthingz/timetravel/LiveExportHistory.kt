@@ -368,6 +368,10 @@ internal class LiveExportHistory(
         outputTarget: RecordingOutputTarget,
         preferredParallelism: Int = DEFAULT_EXPORT_COMPACTION_PARALLELISM,
     ) {
+        if (!supportsPreparedExportOptimization(snapshot.config.format)) {
+            exportSnapshot(snapshot, outputTarget)
+            return
+        }
         val preparedSession = prepareSnapshotForStreamingExport(snapshot, preferredParallelism)
         if (preparedSession == null) {
             exportSnapshot(snapshot, outputTarget)
@@ -493,7 +497,6 @@ internal class LiveExportHistory(
             val eligible =
                 slice.skipSampleBytes == 0L &&
                     slice.takeSampleBytes == slice.segment.sampleBytes &&
-                    canCopyWholeSliceDirectly(slice.segment, currentConfig) &&
                     isExportBlockCandidateLocked(slice.segment, targetSampleBytes, baseSegmentBytes)
             if (!eligible) {
                 flushBuffered()
@@ -1273,6 +1276,17 @@ internal class LiveExportHistory(
         return inspectPersistedSegment(segment.file, currentConfig) != null
     }
 
+    private fun supportsPreparedExportOptimization(format: ExportFormat): Boolean {
+        return when (format) {
+            ExportFormat.THREE_GPP,
+            ExportFormat.AMR_NB_FILE,
+            ExportFormat.AMR_WB_FILE,
+            ExportFormat.MPEG_2_TS,
+                -> false
+            else -> true
+        }
+    }
+
     private fun ensureWriterLocked(startedAtMillis: Long) {
         if (currentWriter != null) {
             return
@@ -1375,7 +1389,8 @@ internal class LiveExportHistory(
                 }
                 selectedSegments += segment
                 totalSampleBytes = nextTotal
-                if (totalSampleBytes == targetSampleBytes && selectedSegments.size >= MIN_COMPACTION_SEGMENTS) {
+                val reachedEnd = index == currentSegments.lastIndex
+                if (shouldCompactSelection(totalSampleBytes, targetSampleBytes, baseSegmentBytes, selectedSegments.size, reachedEnd)) {
                     val slices = selectedSegments.map { selected ->
                         val key = selected.file.absolutePath
                         pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
@@ -1444,7 +1459,8 @@ internal class LiveExportHistory(
                 if (!includesSelected) {
                     continue
                 }
-                if (totalSampleBytes == targetSampleBytes && selectedSegments.size >= MIN_COMPACTION_SEGMENTS) {
+                val reachedEnd = index == currentSegments.lastIndex
+                if (shouldCompactSelection(totalSampleBytes, targetSampleBytes, baseSegmentBytes, selectedSegments.size, reachedEnd)) {
                     val slices = selectedSegments.map { selected ->
                         val key = selected.file.absolutePath
                         pinnedFiles[key] = (pinnedFiles[key] ?: 0) + 1
@@ -1598,6 +1614,22 @@ internal class LiveExportHistory(
         }
         val sampleBytes = segment.sampleBytes
         return sampleBytes >= baseSegmentBytes && sampleBytes < targetSampleBytes && sampleBytes % baseSegmentBytes == 0L
+    }
+
+    private fun shouldCompactSelection(
+        totalSampleBytes: Long,
+        targetSampleBytes: Long,
+        baseSegmentBytes: Long,
+        segmentCount: Int,
+        reachedEnd: Boolean,
+    ): Boolean {
+        if (segmentCount < MIN_COMPACTION_SEGMENTS) {
+            return false
+        }
+        if (totalSampleBytes == targetSampleBytes) {
+            return true
+        }
+        return reachedEnd && totalSampleBytes > baseSegmentBytes
     }
 
     @Throws(IOException::class)
@@ -2321,6 +2353,43 @@ internal class LiveExportHistory(
                 finishCompactionLocked(task, mergedFile)
             }
         }
+    }
+
+    fun debugCompactAllChunksNow(): Int {
+        var mergedCount = 0
+        while (true) {
+            val task = synchronized(this) { claimCompactionTaskLocked() } ?: break
+            var mergedFile: File? = null
+            val merged =
+                try {
+                    synchronized(this) {
+                        debugOperations[task.operationId] =
+                            DebugOperation(
+                                id = task.operationId,
+                                kind = DebugOperationKind.BACKGROUND_MERGE,
+                                sourcePaths = task.sourcePaths,
+                                targetSampleBytes = task.totalSampleBytes,
+                                startedAtMillis = task.startedAtMillis,
+                            )
+                    }
+                    exportSnapshot(task.snapshot, task.outputTarget)
+                    mergedFile = requireNotNull(task.outputTarget.file)
+                    true
+                } catch (e: Exception) {
+                    Log.w(TAG, "Debug full-history compaction failed", e)
+                    false
+                } finally {
+                    synchronized(this) {
+                        debugOperations.remove(task.operationId)
+                        finishCompactionLocked(task, mergedFile)
+                    }
+                }
+            if (!merged) {
+                break
+            }
+            mergedCount++
+        }
+        return mergedCount
     }
 
     fun debugExportChunkToTarget(

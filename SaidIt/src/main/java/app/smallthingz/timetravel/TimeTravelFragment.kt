@@ -361,7 +361,7 @@ class TimeTravelFragment : Fragment() {
 
     private fun updateActionButtons() {
         val exportBlocked = isRecording || isSaving || isHistoryReencodePending || isHistoryReencoding
-        clearBufferButton.isEnabled = !isRecording && !isSaving && !isHistoryReencodePending && !isHistoryReencoding
+        clearBufferButton.isEnabled = !isRecording && !isSaving && !isHistoryReencoding
         clearBufferButton.alpha = if (clearBufferButton.isEnabled) 1f else 0.5f
         recordMaxButton.isEnabled = !exportBlocked
         recordCustomButton.isEnabled = !exportBlocked

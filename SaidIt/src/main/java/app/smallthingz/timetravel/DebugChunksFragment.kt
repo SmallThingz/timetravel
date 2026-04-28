@@ -38,6 +38,7 @@ class DebugChunksFragment : Fragment() {
     private lateinit var metricPrimary: TextView
     private lateinit var metricSecondary: TextView
     private lateinit var metricDetail: TextView
+    private lateinit var mergeButton: View
     private lateinit var operationsList: LinearLayout
     private lateinit var chunksList: LinearLayout
     private lateinit var brandLockup: View
@@ -72,6 +73,7 @@ class DebugChunksFragment : Fragment() {
         metricPrimary = view.findViewById(R.id.chunks_metric_primary)
         metricSecondary = view.findViewById(R.id.chunks_metric_secondary)
         metricDetail = view.findViewById(R.id.chunks_metric_detail)
+        mergeButton = view.findViewById(R.id.chunks_merge_button)
         operationsList = view.findViewById(R.id.operations_list)
         chunksList = view.findViewById(R.id.chunks_list)
         brandLockup = view.findViewById(R.id.brand_lockup)
@@ -82,6 +84,17 @@ class DebugChunksFragment : Fragment() {
         }
         settingsButton.setOnClickListener {
             startActivity(Intent(requireContext(), SettingsActivity::class.java))
+        }
+        mergeButton.setOnClickListener {
+            service?.debugCompactHistory(
+                object : TimeTravelService.ChunkActionCallback {
+                    override fun completed(success: Boolean, message: String) {
+                        if (!isAdded) return
+                        showDebugMessage(message)
+                        requestSnapshot()
+                    }
+                },
+            )
         }
 
         val start = content.paddingStart
@@ -151,6 +164,8 @@ class DebugChunksFragment : Fragment() {
         val activeChunks = chunks.count { it.active }
         val totalFileBytes = chunks.sumOf { it.fileSizeBytes }
         val totalSampleBytes = chunks.sumOf { it.sampleBytes }
+        mergeButton.isEnabled = operations.isEmpty() && chunks.any { !it.active }
+        mergeButton.alpha = if (mergeButton.isEnabled) 1f else 0.45f
         title.text = if (activeChunks > 0) "Chunk ring · active" else "Chunk ring"
         summary.text =
             "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)} · ${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)} · ${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)} · ${if ((history?.channelCount ?: snapshot.channelCount) >= 2) "stereo" else "mono"} · $mode$reencode"
@@ -206,7 +221,6 @@ class DebugChunksFragment : Fragment() {
             row.findViewById<TextView>(R.id.chunk_active).visibility = if (chunk.active) View.VISIBLE else View.GONE
             val affectingOperations = operations.filter { chunk.filePath in it.sourcePaths }
             val operationsText = row.findViewById<TextView>(R.id.chunk_operations)
-            val mergeButton = row.findViewById<View>(R.id.chunk_merge_button)
             val exportButton = row.findViewById<View>(R.id.chunk_export_button)
             if (affectingOperations.isEmpty()) {
                 operationsText.visibility = View.GONE
@@ -219,23 +233,8 @@ class DebugChunksFragment : Fragment() {
                         )
                     }
             }
-            val actionEnabled = !chunk.active && affectingOperations.isEmpty()
-            mergeButton.isEnabled = actionEnabled
-            mergeButton.alpha = if (actionEnabled) 1f else 0.45f
             exportButton.isEnabled = !chunk.active
             exportButton.alpha = if (!chunk.active) 1f else 0.45f
-            mergeButton.setOnClickListener {
-                service?.debugCompactChunk(
-                    chunk.filePath,
-                    object : TimeTravelService.ChunkActionCallback {
-                        override fun completed(success: Boolean, message: String) {
-                            if (!isAdded) return
-                            showDebugMessage(message)
-                            requestSnapshot()
-                        }
-                    },
-                )
-            }
             exportButton.setOnClickListener {
                 service?.debugExportChunk(
                     chunk.filePath,
