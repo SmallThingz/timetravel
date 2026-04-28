@@ -431,7 +431,7 @@ class TimeTravelService : Service() {
         receiver: AudioFileReceiver,
         newFileName: String,
     ) {
-        check(state == STATE_LISTENING || state == STATE_PAUSED) { "Buffer unavailable" }
+        check(canExportBufferedAudio()) { "Buffer unavailable" }
 
         audioHandler.post {
             flushAudioRecord()
@@ -450,7 +450,7 @@ class TimeTravelService : Service() {
         receiver: AudioFileReceiver,
         newFileName: String,
     ) {
-        check(state == STATE_LISTENING || state == STATE_PAUSED) { "Buffer unavailable" }
+        check(canExportBufferedAudio()) { "Buffer unavailable" }
 
         audioHandler.post {
             flushAudioRecord()
@@ -901,6 +901,10 @@ class TimeTravelService : Service() {
         return false
     }
 
+    private fun canExportBufferedAudio(): Boolean {
+        return availableBufferedSampleBytes() > 0L || state == STATE_LISTENING || state == STATE_PAUSED
+    }
+
     private fun flushAudioRecord() {
         check(audioHandler.looper == Looper.myLooper())
         if (audioRecord == null) {
@@ -1214,6 +1218,7 @@ class TimeTravelService : Service() {
         if (!action.startsWith(DEBUG_ACTION_PREFIX)) {
             return
         }
+        Log.d(TAG, "handleDebugCommand action=$action")
 
         val seconds = intent.getFloatExtra(EXTRA_DEBUG_SECONDS, 0f)
         audioHandler.post {
@@ -1225,6 +1230,7 @@ class TimeTravelService : Service() {
                     liveExportHistory.clear()
                     persistentAudioRingStore.clear()
                 }
+                ACTION_DEBUG_INJECT_BUFFER -> injectDebugBuffer(seconds)
                 ACTION_DEBUG_FORCE_APP_STORAGE_EXPORTS -> {
                     setConfiguredExportTreeUri(this@TimeTravelService, null)
                     writeDebugReport("force-app-storage-exports")
@@ -1243,11 +1249,57 @@ class TimeTravelService : Service() {
             Log.w(TAG, "Debug export ignored; seconds=$seconds")
             return
         }
-        if (state != STATE_LISTENING && state != STATE_PAUSED) {
+        if (!canExportBufferedAudio()) {
             Log.w(TAG, "Debug export ignored; state=$state")
             return
         }
+        Log.d(TAG, "exportDebug seconds=$seconds available=${availableBufferedSampleBytes()}")
         dumpRecording(seconds, DebugAudioFileReceiver(), "")
+    }
+
+    private fun injectDebugBuffer(seconds: Float) {
+        if (!isDebuggableBuild() || seconds <= 0f || state == STATE_RECORDING) {
+            Log.w(TAG, "injectDebugBuffer ignored seconds=$seconds state=$state")
+            return
+        }
+        val logicalRetentionBytes = configuredRetentionSampleBytes()
+        val workingMemoryBytes = configuredWorkingMemorySizeBytes()
+        val persistentBytes = configuredPersistentPcmSizeBytes()
+        if (workingMemoryBytes <= 0L || persistentBytes <= 0L) {
+            Log.w(TAG, "injectDebugBuffer ignored working=$workingMemoryBytes persistent=$persistentBytes")
+            return
+        }
+        audioMemory.allocate(workingMemoryBytes)
+        val totalBytes = (seconds * fillRate).toLong().coerceAtLeast(0L)
+        val chunk = ByteArray(64 * 1024)
+        var remaining = totalBytes
+        var endedAtMillis = System.currentTimeMillis() - (seconds * 1000f).toLong()
+        while (remaining > 0L) {
+            val count = minOf(chunk.size.toLong(), remaining).toInt()
+            audioMemory.write(chunk, 0, count)
+            liveExportHistory.append(chunk, 0, count, endedAtMillis)
+            if (isDiskBufferCacheEnabled(this)) {
+                persistentAudioRingStore.append(
+                    array = chunk,
+                    offset = 0,
+                    count = count,
+                    capacityBytes = persistentBytes,
+                    sampleRate = sampleRate,
+                    channelCount = channelMode.channelCount,
+                )
+            }
+            remaining -= count.toLong()
+            endedAtMillis += maxOf(1L, count.toLong() * 1000L / maxOf(fillRate, 1))
+        }
+        state = STATE_PAUSED
+        updateWakeLockState()
+        updateLiveExportHistoryConfiguration(logicalRetentionBytes)
+        syncPersistentBufferFromMemory()
+        Log.d(
+            TAG,
+            "injectDebugBuffer seconds=$seconds logical=$logicalRetentionBytes working=$workingMemoryBytes persisted=$persistentBytes available=${availableBufferedSampleBytes()}",
+        )
+        writeDebugReport("inject-buffer-${seconds}s")
     }
 
     private fun logDebugState() {
@@ -1292,6 +1344,7 @@ class TimeTravelService : Service() {
             }
         reportFile.parentFile?.mkdirs()
         reportFile.appendText(status + "\n---\n")
+        Log.d(TAG, "writeDebugReport $status path=${reportFile.absolutePath}")
         storeDebugStatus(status)
     }
 
@@ -1447,6 +1500,7 @@ class TimeTravelService : Service() {
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
         const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
         const val ACTION_DEBUG_CLEAR_BUFFER = "${DEBUG_ACTION_PREFIX}CLEAR_BUFFER"
+        const val ACTION_DEBUG_INJECT_BUFFER = "${DEBUG_ACTION_PREFIX}INJECT_BUFFER"
         const val ACTION_DEBUG_FORCE_APP_STORAGE_EXPORTS = "${DEBUG_ACTION_PREFIX}FORCE_APP_STORAGE_EXPORTS"
         const val ACTION_DEBUG_EXPORT_FULL = "${DEBUG_ACTION_PREFIX}EXPORT_FULL"
         const val ACTION_DEBUG_EXPORT_SECONDS = "${DEBUG_ACTION_PREFIX}EXPORT_SECONDS"

@@ -11,6 +11,7 @@
                 <action android:name="app.smallthingz.timetravel.debug.ENABLE_LISTENING" />
                 <action android:name="app.smallthingz.timetravel.debug.DISABLE_LISTENING" />
                 <action android:name="app.smallthingz.timetravel.debug.CLEAR_BUFFER" />
+                <action android:name="app.smallthingz.timetravel.debug.INJECT_BUFFER" />
                 <action android:name="app.smallthingz.timetravel.debug.FORCE_APP_STORAGE_EXPORTS" />
                 <action android:name="app.smallthingz.timetravel.debug.EXPORT_FULL" />
                 <action android:name="app.smallthingz.timetravel.debug.EXPORT_SECONDS" />
