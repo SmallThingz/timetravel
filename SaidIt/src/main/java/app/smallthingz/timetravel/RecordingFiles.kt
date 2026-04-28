@@ -19,6 +19,7 @@ import java.util.Locale
 
 private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
 private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "3gp", "ogg", "webm", "aac", "amr", "awb", "ts")
+private const val CODEC_SUMMARY_SEPARATOR = " • "
 
 enum class RecordingStorageType {
     FILE,
@@ -136,13 +137,23 @@ fun formatRecordingDateHeader(context: Context, startedAtMillis: Long): String {
 
 fun resolveRecordingCodecInfo(file: File): String {
     val retriever = MediaMetadataRetriever()
-    return resolveRecordingCodecInfo(
-        extension = file.extension,
-        bitrate = runCatching {
-            retriever.setDataSource(file.absolutePath)
-            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
-        }.getOrNull(),
-    ).also {
+    return runCatching {
+        retriever.setDataSource(file.absolutePath)
+        resolveRecordingCodecInfo(
+            extension = file.extension,
+            bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull(),
+            sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull(),
+        )
+    }.getOrElse {
+        resolveRecordingCodecInfo(
+            extension = file.extension,
+            bitrate = runCatching {
+                retriever.setDataSource(file.absolutePath)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
+            }.getOrNull(),
+            sampleRate = null,
+        )
+    }.also {
         runCatching { retriever.release() }
     }
 }
@@ -153,87 +164,55 @@ fun resolveRecordingCodecInfo(
     displayName: String,
 ): String {
     val retriever = MediaMetadataRetriever()
-    val bitrate = runCatching {
+    return runCatching {
         retriever.setDataSource(context, uri)
-        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
-    }.getOrNull().also {
+        resolveRecordingCodecInfo(
+            extension = displayName.substringAfterLast('.', ""),
+            bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull(),
+            sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull(),
+        )
+    }.getOrElse {
+        resolveRecordingCodecInfo(
+            extension = displayName.substringAfterLast('.', ""),
+            bitrate = runCatching {
+                retriever.setDataSource(context, uri)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
+            }.getOrNull(),
+            sampleRate = null,
+        )
+    }.also {
         runCatching { retriever.release() }
     }
-    return resolveRecordingCodecInfo(extension = displayName.substringAfterLast('.', ""), bitrate = bitrate)
 }
 
-fun buildCodecSummary(
-    format: ExportFormat,
-    codec: ExportCodec,
-    sampleRate: Int,
-    channelCount: Int,
-    bitrateKbps: Int? = null,
-): String {
-    val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
-    val resolvedBitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
-        ?.let { bitrateKbps ?: it }
-    return buildString {
-        append(
-            when (codec) {
-                ExportCodec.PCM_16 -> "PCM 16-bit"
-                ExportCodec.AAC_LC -> "AAC-LC"
-                ExportCodec.AAC_ELD -> "AAC-ELD"
-                ExportCodec.HE_AAC -> "HE-AAC"
-                ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
-                ExportCodec.XHE_AAC -> "xHE-AAC"
-                ExportCodec.AMR_WB -> "AMR-WB"
-                ExportCodec.AMR_NB -> "AMR-NB"
-                ExportCodec.OPUS -> "Opus"
-                ExportCodec.VORBIS -> "Vorbis"
-                ExportCodec.FLAC -> "FLAC"
-            },
-        )
-        append(" • ")
-        append(
-            when (format) {
-                ExportFormat.WAV -> "WAV"
-                ExportFormat.M4A -> "M4A"
-                ExportFormat.THREE_GPP -> "3GP"
-                ExportFormat.OGG -> "Ogg"
-                ExportFormat.WEBM -> "WebM"
-                ExportFormat.AAC_ADTS -> "AAC ADTS"
-                ExportFormat.AMR_NB_FILE -> "AMR-NB"
-                ExportFormat.AMR_WB_FILE -> "AMR-WB"
-                ExportFormat.MPEG_2_TS -> "MPEG-TS"
-            },
-        )
-        append(" • ")
-        append(sampleRateLabel(sampleRate))
-        append(" • ")
-        append(channelLabel)
-        resolvedBitrateKbps?.let {
-            append(" • ")
-            append(it)
-            append(" kbps")
-        }
-    }
-}
-
-fun describeRecordingLocation(
-    context: Context,
-    recording: RecordingEntity,
-): String {
-    return when (RecordingStorageType.valueOf(recording.storageType)) {
-        RecordingStorageType.FILE -> describeFileRecordingLocation(context, File(recording.id))
-        RecordingStorageType.DOCUMENT -> describeDocumentRecordingLocation(context, recording)
-    }
+fun buildPlayerCodecSummary(codecSummary: String): String {
+    val parts = codecSummary.split(CODEC_SUMMARY_SEPARATOR).map(String::trim).filter(String::isNotEmpty)
+    if (parts.isEmpty()) return codecSummary
+    val sampleRate = parts.firstOrNull { it.contains("kHz", ignoreCase = true) }
+    val bitrate = parts.firstOrNull { it.contains("kbps", ignoreCase = true) }
+    return linkedSetOf(parts.first(), sampleRate, bitrate)
+        .filterNotNull()
+        .joinToString(CODEC_SUMMARY_SEPARATOR)
 }
 
 private fun resolveRecordingCodecInfo(
     extension: String,
     bitrate: Int?,
+    sampleRate: Int?,
 ): String {
     val ext = extension.uppercase(Locale.US)
-    if (bitrate != null && bitrate > 0) {
-        val kbps = bitrate / 1000
-        return "$ext • $kbps kbps"
+    return buildString {
+        append(ext)
+        sampleRate?.takeIf { it > 0 }?.let {
+            append(CODEC_SUMMARY_SEPARATOR)
+            append(sampleRateLabel(it))
+        }
+        bitrate?.takeIf { it > 0 }?.let {
+            append(CODEC_SUMMARY_SEPARATOR)
+            append(it / 1000)
+            append(" kbps")
+        }
     }
-    return ext
 }
 
 private fun describeFileRecordingLocation(
@@ -329,6 +308,69 @@ private fun appendRelativePath(
         "$basePath/$normalizedRelativePath"
     }
 }
+ 
+fun buildCodecSummary(
+    format: ExportFormat,
+    codec: ExportCodec,
+    sampleRate: Int,
+    channelCount: Int,
+    bitrateKbps: Int? = null,
+): String {
+    val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
+    val resolvedBitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
+        ?.let { bitrateKbps ?: it }
+    return buildString {
+        append(
+            when (codec) {
+                ExportCodec.PCM_16 -> "PCM 16-bit"
+                ExportCodec.AAC_LC -> "AAC-LC"
+                ExportCodec.AAC_ELD -> "AAC-ELD"
+                ExportCodec.HE_AAC -> "HE-AAC"
+                ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
+                ExportCodec.XHE_AAC -> "xHE-AAC"
+                ExportCodec.AMR_WB -> "AMR-WB"
+                ExportCodec.AMR_NB -> "AMR-NB"
+                ExportCodec.OPUS -> "Opus"
+                ExportCodec.VORBIS -> "Vorbis"
+                ExportCodec.FLAC -> "FLAC"
+            },
+        )
+        append(CODEC_SUMMARY_SEPARATOR)
+        append(
+            when (format) {
+                ExportFormat.WAV -> "WAV"
+                ExportFormat.M4A -> "M4A"
+                ExportFormat.THREE_GPP -> "3GP"
+                ExportFormat.OGG -> "Ogg"
+                ExportFormat.WEBM -> "WebM"
+                ExportFormat.AAC_ADTS -> "AAC ADTS"
+                ExportFormat.AMR_NB_FILE -> "AMR-NB"
+                ExportFormat.AMR_WB_FILE -> "AMR-WB"
+                ExportFormat.MPEG_2_TS -> "MPEG-TS"
+            },
+        )
+        append(CODEC_SUMMARY_SEPARATOR)
+        append(sampleRateLabel(sampleRate))
+        append(CODEC_SUMMARY_SEPARATOR)
+        append(channelLabel)
+        resolvedBitrateKbps?.let {
+            append(CODEC_SUMMARY_SEPARATOR)
+            append(it)
+            append(" kbps")
+        }
+    }
+}
+
+fun describeRecordingLocation(
+    context: Context,
+    recording: RecordingEntity,
+): String {
+    return when (RecordingStorageType.valueOf(recording.storageType)) {
+        RecordingStorageType.FILE -> describeFileRecordingLocation(context, File(recording.id))
+        RecordingStorageType.DOCUMENT -> describeDocumentRecordingLocation(context, recording)
+    }
+}
+
 
 fun resolveRecordingStartTimeMillis(file: File): Long {
     parseRecordingStartTimeMillis(file.nameWithoutExtension)?.let { return it }

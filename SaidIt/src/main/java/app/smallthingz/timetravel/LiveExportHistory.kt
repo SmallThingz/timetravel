@@ -14,6 +14,9 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 
 internal class LiveExportHistory(
     private val context: Context,
@@ -229,6 +232,16 @@ internal class LiveExportHistory(
     }
 
     @Throws(IOException::class)
+    fun exportSnapshotOptimized(
+        snapshot: Snapshot,
+        outputTarget: RecordingOutputTarget,
+        preferredParallelism: Int = DEFAULT_EXPORT_COMPACTION_PARALLELISM,
+    ) {
+        val compacted = compactSnapshotRegionForExport(snapshot, preferredParallelism)
+        exportSnapshot(compacted, outputTarget)
+    }
+
+    @Throws(IOException::class)
     fun exportSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
@@ -248,6 +261,21 @@ internal class LiveExportHistory(
             snapshot.config.format.isRawAmr -> exportRawAmrSnapshot(snapshot, outputTarget)
             snapshot.config.format.isTransportStream -> exportTransportStreamSnapshot(snapshot, outputTarget)
             else -> throw IOException("Unsupported history export format ${snapshot.config.format.prefValue}")
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun compactSnapshotRegionForExport(
+        snapshot: Snapshot,
+        preferredParallelism: Int,
+    ): Snapshot {
+        val plan = synchronized(this) { buildRegionalCompactionPlanLocked(snapshot, preferredParallelism) } ?: return snapshot
+        val completedGroups = runRegionalCompactionJobs(plan)
+        if (completedGroups.isEmpty()) {
+            return snapshot
+        }
+        return synchronized(this) {
+            installRegionalCompactionResultsLocked(snapshot, plan, completedGroups)
         }
     }
 
@@ -659,6 +687,195 @@ internal class LiveExportHistory(
         )
     }
 
+    private fun buildRegionalCompactionPlanLocked(
+        snapshot: Snapshot,
+        preferredParallelism: Int,
+    ): RegionalCompactionPlan? {
+        val currentConfig = config ?: return null
+        val fullSliceIndices = snapshot.slices.indices.filter { index ->
+            val slice = snapshot.slices[index]
+            slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes
+        }
+        if (fullSliceIndices.size < MIN_COMPACTION_SEGMENTS) {
+            return null
+        }
+
+        val desiredParallelism = preferredParallelism.coerceIn(1, MAX_EXPORT_COMPACTION_PARALLELISM)
+        val totalFullBytes = fullSliceIndices.sumOf { snapshot.slices[it].takeSampleBytes }
+        if (totalFullBytes <= 0L) {
+            return null
+        }
+        val minTargetBytes = currentConfig.durationMillisToSampleBytes(MIN_EXPORT_COMPACTION_DURATION_MS)
+        val targetBytes = maxOf(minTargetBytes, totalFullBytes / desiredParallelism.coerceAtLeast(1))
+
+        val groups = ArrayList<RegionalCompactionGroup>()
+        var runStart = -1
+        for (index in snapshot.slices.indices) {
+            val isFull = index in fullSliceIndices
+            if (isFull) {
+                if (runStart < 0) {
+                    runStart = index
+                }
+            } else if (runStart >= 0) {
+                groups += buildRegionalGroupsForRunLocked(snapshot, runStart, index, targetBytes)
+                runStart = -1
+            }
+        }
+        if (runStart >= 0) {
+            groups += buildRegionalGroupsForRunLocked(snapshot, runStart, snapshot.slices.size, targetBytes)
+        }
+
+        return if (groups.isEmpty()) null else RegionalCompactionPlan(snapshot, groups)
+    }
+
+    private fun buildRegionalGroupsForRunLocked(
+        snapshot: Snapshot,
+        runStartInclusive: Int,
+        runEndExclusive: Int,
+        targetBytes: Long,
+    ): List<RegionalCompactionGroup> {
+        val runSlices = snapshot.slices.subList(runStartInclusive, runEndExclusive)
+        if (runSlices.size < MIN_COMPACTION_SEGMENTS) {
+            return emptyList()
+        }
+        val currentConfig = config ?: return emptyList()
+        val groups = ArrayList<RegionalCompactionGroup>()
+        var groupStart = runStartInclusive
+        var groupBytes = 0L
+        var groupCount = 0
+
+        fun finalizeGroup(endExclusive: Int) {
+            val sliceCount = endExclusive - groupStart
+            if (sliceCount < MIN_COMPACTION_SEGMENTS || groupBytes <= 0L) {
+                groupStart = endExclusive
+                groupBytes = 0L
+                groupCount = 0
+                return
+            }
+            val slices = snapshot.slices.subList(groupStart, endExclusive).map { it.copy() }
+            val startedAtMillis = slices.first().segment.startedAtMillis
+            val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
+            groups +=
+                RegionalCompactionGroup(
+                    startSliceIndex = groupStart,
+                    endSliceIndexExclusive = endExclusive,
+                    sourcePaths = slices.map { it.segment.file.absolutePath },
+                    startedAtMillis = startedAtMillis,
+                    totalSampleBytes = groupBytes,
+                    snapshot = Snapshot(currentConfig, slices, groupBytes),
+                    outputTarget = RecordingOutputTarget(
+                        id = tempFile.absolutePath,
+                        displayName = tempFile.name,
+                        mimeType = currentConfig.format.outputMimeType,
+                        storageType = RecordingStorageType.FILE,
+                        directoryId = historyRoot.absolutePath,
+                        startedAtMillis = startedAtMillis,
+                        file = tempFile,
+                    ),
+                )
+            groupStart = endExclusive
+            groupBytes = 0L
+            groupCount = 0
+        }
+
+        for (index in runStartInclusive until runEndExclusive) {
+            groupBytes += snapshot.slices[index].takeSampleBytes
+            groupCount++
+            if (groupBytes >= targetBytes && groupCount >= MIN_COMPACTION_SEGMENTS) {
+                finalizeGroup(index + 1)
+            }
+        }
+        if (groupCount >= MIN_COMPACTION_SEGMENTS) {
+            finalizeGroup(runEndExclusive)
+        }
+        return groups
+    }
+
+    @Throws(IOException::class)
+    private fun runRegionalCompactionJobs(plan: RegionalCompactionPlan): List<CompletedRegionalCompaction> {
+        val parallelism = minOf(plan.groups.size, MAX_EXPORT_COMPACTION_PARALLELISM).coerceAtLeast(1)
+        val executor = Executors.newFixedThreadPool(parallelism)
+        val futures = ArrayList<Future<CompletedRegionalCompaction?>>(plan.groups.size)
+        try {
+            plan.groups.forEach { group ->
+                futures +=
+                    executor.submit(
+                        Callable {
+                            try {
+                                exportSnapshot(group.snapshot, group.outputTarget)
+                                val file = group.outputTarget.file
+                                if (file == null || !file.isFile || file.length() <= 0L) {
+                                    null
+                                } else {
+                                    CompletedRegionalCompaction(group, file)
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Regional export compaction failed", e)
+                                group.outputTarget.file?.delete()
+                                null
+                            }
+                        },
+                    )
+            }
+            return futures.mapNotNull { future -> future.get() }
+        } catch (e: Exception) {
+            throw IOException("Regional export compaction failed", e)
+        } finally {
+            executor.shutdown()
+        }
+    }
+
+    private fun installRegionalCompactionResultsLocked(
+        originalSnapshot: Snapshot,
+        plan: RegionalCompactionPlan,
+        completedGroups: List<CompletedRegionalCompaction>,
+    ): Snapshot {
+        val replacementByStartIndex = HashMap<Int, SegmentSlice>()
+        completedGroups
+            .sortedBy { it.group.startSliceIndex }
+            .forEach { completed ->
+                val mergedSegment = Segment(
+                    file = completed.file,
+                    startedAtMillis = completed.group.startedAtMillis,
+                    sampleBytes = completed.group.totalSampleBytes,
+                )
+                finalizeSegmentFileLocked(mergedSegment)
+                if (replaceSegmentsLocked(completed.group.sourcePaths, mergedSegment)) {
+                    replacementByStartIndex[completed.group.startSliceIndex] =
+                        SegmentSlice(
+                            segment = mergedSegment,
+                            skipSampleBytes = 0L,
+                            takeSampleBytes = mergedSegment.sampleBytes,
+                        )
+                } else {
+                    mergedSegment.file.delete()
+                }
+            }
+
+        if (replacementByStartIndex.isEmpty()) {
+            return originalSnapshot
+        }
+
+        val mergedSlices = ArrayList<SegmentSlice>(originalSnapshot.slices.size)
+        var index = 0
+        while (index < originalSnapshot.slices.size) {
+            val replacement = replacementByStartIndex[index]
+            if (replacement != null) {
+                mergedSlices += replacement
+                val group = completedGroups.first { it.group.startSliceIndex == index }.group
+                index = group.endSliceIndexExclusive
+                continue
+            }
+            mergedSlices += originalSnapshot.slices[index]
+            index++
+        }
+        return Snapshot(
+            config = originalSnapshot.config,
+            slices = mergedSlices,
+            requestedSampleBytes = originalSnapshot.requestedSampleBytes,
+        )
+    }
+
     private fun finishCompactionLocked(
         task: CompactionTask,
         mergedFile: File?,
@@ -728,6 +945,49 @@ internal class LiveExportHistory(
         segments.clear()
         segments.addAll(replacement)
         return true
+    }
+
+    private fun replaceSegmentsLocked(
+        sourcePaths: List<String>,
+        mergedSegment: Segment,
+    ): Boolean {
+        val currentSegments = segments.toList()
+        val startIndex = findContiguousSegmentRangeStartLocked(currentSegments, sourcePaths)
+        if (startIndex < 0) {
+            return false
+        }
+        finalizeSegmentFileLocked(mergedSegment)
+        val endIndexExclusive = startIndex + sourcePaths.size
+        val replacement = ArrayDeque<Segment>(currentSegments.size - sourcePaths.size + 1)
+        currentSegments.subList(0, startIndex).forEach(replacement::addLast)
+        replacement.addLast(mergedSegment)
+        currentSegments.subList(endIndexExclusive, currentSegments.size).forEach(replacement::addLast)
+        segments.clear()
+        segments.addAll(replacement)
+        return true
+    }
+
+    private fun findContiguousSegmentRangeStartLocked(
+        currentSegments: List<Segment>,
+        sourcePaths: List<String>,
+    ): Int {
+        if (sourcePaths.isEmpty() || sourcePaths.size > currentSegments.size) {
+            return -1
+        }
+        val lastStart = currentSegments.size - sourcePaths.size
+        for (startIndex in 0..lastStart) {
+            var matches = true
+            for (offset in sourcePaths.indices) {
+                if (currentSegments[startIndex + offset].file.absolutePath != sourcePaths[offset]) {
+                    matches = false
+                    break
+                }
+            }
+            if (matches) {
+                return startIndex
+            }
+        }
+        return -1
     }
 
     private fun resetLocked() {
@@ -1017,6 +1277,26 @@ internal class LiveExportHistory(
         val outputTarget: RecordingOutputTarget,
     )
 
+    private data class RegionalCompactionPlan(
+        val originalSnapshot: Snapshot,
+        val groups: List<RegionalCompactionGroup>,
+    )
+
+    private data class RegionalCompactionGroup(
+        val startSliceIndex: Int,
+        val endSliceIndexExclusive: Int,
+        val sourcePaths: List<String>,
+        val startedAtMillis: Long,
+        val totalSampleBytes: Long,
+        val snapshot: Snapshot,
+        val outputTarget: RecordingOutputTarget,
+    )
+
+    private data class CompletedRegionalCompaction(
+        val group: RegionalCompactionGroup,
+        val file: File,
+    )
+
     data class DebugSnapshot(
         val segmentCount: Int,
         val totalSampleBytes: Long,
@@ -1046,6 +1326,9 @@ internal class LiveExportHistory(
         const val MIN_COMPACTION_DURATION_MS = 30_000L
         const val MAX_COMPACTION_DURATION_MS = 300_000L
         const val MIN_COMPACTION_SEGMENTS = 2
+        const val MIN_EXPORT_COMPACTION_DURATION_MS = 60_000L
+        const val MAX_EXPORT_COMPACTION_PARALLELISM = 4
+        const val DEFAULT_EXPORT_COMPACTION_PARALLELISM = 4
         const val TEMP_FILE_SUFFIX = ".tmp"
         val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
         val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")

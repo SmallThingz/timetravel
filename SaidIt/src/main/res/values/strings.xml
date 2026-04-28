@@ -14,22 +14,22 @@
 
     <string name="buffer_active_summary">ON</string>
     <string name="buffer_inactive_summary">OFF</string>
-    <string name="buffer_status_paused">Buffer paused</string>
     <string name="clear_buffer">Clear</string>
-    <string name="clear_buffer_confirm_message">Delete current buffer?</string>
 
     <string name="record_all_memory">Export full</string>
     <string name="custom_time">Export custom</string>
     <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="custom_export_tab_range">Range</string>
-    <string name="custom_export_tab_past">Past</string>
-    <string name="custom_export_range_supporting">Use positions inside current buffer. Start is oldest edge. End is newest edge.</string>
+    <string name="custom_export_mode_range">Range</string>
+    <string name="custom_export_mode_past">Past</string>
+    <string name="custom_export_unit_time">Time</string>
+    <string name="custom_export_unit_size">Size</string>
     <string name="custom_export_start_label">Start</string>
     <string name="custom_export_end_label">End</string>
     <string name="custom_export_range_invalid">End must be after start.</string>
-    <string name="custom_export_past_supporting">Save the last amount from the current buffer.</string>
     <string name="custom_export_past_label">How far back</string>
+    <string name="custom_export_size_hint">12.0</string>
+    <string name="custom_export_size_invalid">Use MiB value like 12.0.</string>
     <string name="export_limit_summary">Max export: %1$s</string>
     <string name="export_limit_dialog_title">Export limit</string>
     <string name="export_limit_dialog_message">Current length is too large. Only exporting last %1$s.</string>
@@ -38,13 +38,11 @@
     <string name="save_failed">Couldn\'t save recording.</string>
     <string name="nothing_to_export">Nothing to export.</string>
     <string name="settings_open">Settings</string>
-    <string name="settings_apply">Apply</string>
     <string name="open">Open</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
     <string name="save">Save</string>
     <string name="export">Export</string>
-    <string name="cancel">Cancel</string>
     <string name="no_app_available">No compatible app available.</string>
 
     <string name="undo">Undo</string>
@@ -57,13 +55,9 @@
     <string name="retention_mode_size">Size</string>
     <string name="retention_time_label">Time</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="retention_time_too_large">Too large. Max buffer %1$s.</string>
     <string name="retention_time_limit_helper">Max export: %1$s</string>
-    <string name="retention_time_limits_helper">Max export: %1$s • Max buffer: %2$s</string>
     <string name="retention_size_label">Size (MiB)</string>
-    <string name="retention_size_too_large">Too large. Max buffer %1$s.</string>
     <string name="retention_size_limit_helper">Max export: %1$s</string>
-    <string name="retention_size_limits_helper">Max export: %1$s • Max buffer: %2$s</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Storage</string>
     <string name="background_persistence_title">Background</string>
@@ -156,7 +150,7 @@
     <string name="recording_deleted">Recording deleted.</string>
     <string name="recording_delete_failed">Couldn\'t delete recording.</string>
     <string name="recording_info">Info</string>
-    <string name="about_open_github">Open GitHub</string>
+    <string name="open_github">Open GitHub</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
     <string name="recording_details_started">Started:</string>
@@ -166,8 +160,6 @@
     <string name="recording_details_mime">MIME:</string>
     <string name="recording_details_storage">Storage:</string>
     <string name="recording_details_location">Location:</string>
-    <string name="player_preparing">Preparing audio…</string>
-    <string name="player_ready">Playing</string>
     <string name="player_play">Play</string>
     <string name="player_pause">Pause</string>
     <string name="player_seek_back">Back 10 seconds</string>

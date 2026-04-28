@@ -82,9 +82,9 @@
 
     <style name="TimeTravel.DropdownMenu" parent="Widget.Material3.AutoCompleteTextView.OutlinedBox">
         <item name="android:textColor">?attr/colorOnSurface</item>
-        <item name="android:paddingTop">2dp</item>
-        <item name="android:paddingBottom">2dp</item>
-        <item name="simpleItemSelectedColor">?attr/colorSurfaceVariant</item>
+        <item name="android:popupBackground">@drawable/dropdown_menu_popup_background</item>
+        <item name="android:dropDownSelector">@drawable/dropdown_menu_item_selector</item>
+        <item name="simpleItemSelectedColor">@android:color/transparent</item>
     </style>
 
     <style name="Widget.TimeTravel.ExportButton" parent="Widget.Material3.Button.TonalButton">

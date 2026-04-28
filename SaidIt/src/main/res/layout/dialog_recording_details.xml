@@ -17,7 +17,7 @@
             android:paddingStart="24dp"
             android:paddingTop="16dp"
             android:paddingEnd="24dp"
-            android:paddingBottom="8dp"
+            android:paddingBottom="16dp"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface"
             android:typeface="monospace"

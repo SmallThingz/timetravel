@@ -6,7 +6,9 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.LayoutInflater
+import android.widget.LinearLayout
 import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.TextView
@@ -28,12 +30,25 @@ internal class RecordingPlayerDialog(
     private val toggleButton: ImageButton = content.findViewById(R.id.player_toggle_button)
     private val seekBackButton: ImageButton = content.findViewById(R.id.player_seek_back_button)
     private val seekForwardButton: ImageButton = content.findViewById(R.id.player_seek_forward_button)
+    private val infoButton = ThemedDialog.createHeaderIconButton(
+        context = context,
+        iconResId = R.drawable.ic_info,
+        contentDescription = context.getString(R.string.recording_info),
+    ).apply {
+        (layoutParams as LinearLayout.LayoutParams).marginEnd = dp(context, 8)
+    }
     private val handle = ThemedDialog.create(
         context = context,
         title = recording.displayName,
         content = content,
-        positiveText = context.getString(R.string.close),
-        negativeText = "",
+        positiveText = null,
+        negativeText = null,
+        headerAccessory = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            addView(infoButton)
+        },
+        headerAccessoryGravity = Gravity.END,
     )
 
     private var mediaPlayer: MediaPlayer? = null
@@ -60,13 +75,8 @@ internal class RecordingPlayerDialog(
     }
 
     init {
-        metaText.text = buildString {
-            append(recording.codecSummary)
-            append(" • ")
-            append(formatSavedRecordingDuration(recording.durationMillis))
-            append(" • ")
-            append(formatShortFileSize(recording.sizeBytes))
-        }
+        metaText.text = buildPlayerCodecSummary(recording.codecSummary)
+        content.findViewById<TextView>(R.id.player_size_text).text = formatShortFileSize(recording.sizeBytes)
         elapsedText.text = formatPlaybackTime(0)
         durationText.text = formatPlaybackTime(recording.durationMillis.toInt())
         seekBar.max = recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt().coerceAtLeast(1)
@@ -106,7 +116,7 @@ internal class RecordingPlayerDialog(
             }
         }
         seekForwardButton.setOnClickListener { seekBy(SEEK_JUMP_MS) }
-        handle.actionRow.visibility = android.view.View.GONE
+        infoButton.setOnClickListener { showRecordingInfoDialog(appContext, recording) }
         handle.dialog.setOnDismissListener { release() }
         setPlaybackControlsEnabled(false)
         updateToggleButton(false)
@@ -215,5 +225,10 @@ internal class RecordingPlayerDialog(
     private companion object {
         const val PROGRESS_UPDATE_INTERVAL_MS = 250L
         const val SEEK_JUMP_MS = 10_000
+
+        private fun dp(
+            context: Context,
+            value: Int,
+        ): Int = (context.resources.displayMetrics.density * value).toInt()
     }
 }

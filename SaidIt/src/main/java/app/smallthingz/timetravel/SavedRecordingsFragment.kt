@@ -22,10 +22,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 class SavedRecordingsFragment : Fragment() {
     private lateinit var brandLockup: View
@@ -352,8 +348,8 @@ class SavedRecordingsFragment : Fragment() {
             title = getString(R.string.rename_recording),
             content = content,
             positiveText = getString(R.string.save),
+            negativeText = null,
         )
-        handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
         handle.positiveButton.setOnClickListener {
             val requestedName = nameInput.text?.toString().orEmpty().trim()
             if (requestedName.isBlank()) {
@@ -377,37 +373,8 @@ class SavedRecordingsFragment : Fragment() {
 
     private fun showSelectedRecordingInfo() {
         val recording = selectedRecordingIds.singleOrNull()?.let(latestRecordingsById::get) ?: return
-        val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_recording_details, null, false)
-        val details = content.findViewById<TextView>(R.id.recording_details_text)
-        details.text = buildRecordingDetailsText(recording)
-
-        val handle = ThemedDialog.create(
-            context = requireContext(),
-            title = getString(R.string.recording_info),
-            content = content,
-            positiveText = getString(R.string.close),
-            negativeText = "",
-        )
-        handle.negativeButton.visibility = View.GONE
-        handle.positiveButton.setOnClickListener { handle.dialog.dismiss() }
-        handle.dialog.show()
+        showRecordingInfoDialog(requireContext(), recording)
     }
-
-    private fun buildRecordingDetailsText(recording: RecordingEntity): String {
-        val startedAt = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z", Locale.getDefault())
-            .format(Instant.ofEpochMilli(recording.startedAtMillis).atZone(ZoneId.systemDefault()))
-        return buildString {
-            appendLine("${getString(R.string.recording_details_name)} ${recording.displayName}")
-            appendLine("${getString(R.string.recording_details_started)} $startedAt")
-            appendLine("${getString(R.string.recording_details_duration)} ${formatSavedRecordingDuration(recording.durationMillis)}")
-            appendLine("${getString(R.string.recording_details_size)} ${formatShortFileSize(recording.sizeBytes)}")
-            appendLine("${getString(R.string.recording_details_codec)} ${recording.codecSummary}")
-            appendLine("${getString(R.string.recording_details_mime)} ${recording.mimeType}")
-            appendLine("${getString(R.string.recording_details_storage)} ${recording.storageType}")
-            append("${getString(R.string.recording_details_location)} ${describeRecordingLocation(requireContext(), recording)}")
-        }.trim()
-    }
-
 }
 
 private sealed class SavedRecordingListItem {

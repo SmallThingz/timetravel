@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.Space
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.app.AppCompatDialog
@@ -28,13 +29,33 @@ internal object ThemedDialog {
         val positiveButton: com.google.android.material.button.MaterialButton,
     )
 
+    fun createHeaderIconButton(
+        context: Context,
+        iconResId: Int,
+        contentDescription: CharSequence,
+        tintAttr: Int = com.google.android.material.R.attr.colorOnSurfaceVariant,
+    ): AppCompatImageButton =
+        AppCompatImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(context, 40), dp(context, 40))
+            background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_circle_outlined)
+            this.contentDescription = contentDescription
+            setImageResource(iconResId)
+            imageTintList = ColorStateList.valueOf(MaterialColors.getColor(this, tintAttr))
+            minimumWidth = 0
+            minimumHeight = 0
+            scaleType = android.widget.ImageView.ScaleType.CENTER
+            setPadding(0, 0, 0, 0)
+        }
+
     fun create(
         context: Context,
         title: CharSequence,
         content: View,
-        positiveText: CharSequence,
-        negativeText: CharSequence = context.getString(R.string.cancel),
+        positiveText: CharSequence? = null,
+        negativeText: CharSequence? = null,
         headerAccessory: View? = null,
+        headerAccessoryGravity: Int = Gravity.CENTER,
+        showCloseButton: Boolean = true,
     ): Handle {
         val dialogContext = ContextThemeWrapper(context, R.style.ThemeOverlay_TimeTravel_AlertDialog)
         val dialog = AppCompatDialog(dialogContext).apply {
@@ -85,30 +106,35 @@ internal object ThemedDialog {
                                 1f,
                             )
                             headerAccessory?.let {
+                                val accessoryLayoutParams =
+                                    when (val params = it.layoutParams) {
+                                        is FrameLayout.LayoutParams -> FrameLayout.LayoutParams(params)
+                                        is ViewGroup.MarginLayoutParams -> FrameLayout.LayoutParams(params)
+                                        null -> FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                                        )
+                                        else -> FrameLayout.LayoutParams(params.width, params.height)
+                                    }.apply {
+                                        gravity = headerAccessoryGravity
+                                    }
                                 addView(
                                     it,
-                                    FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                                        Gravity.CENTER,
-                                    ),
+                                    accessoryLayoutParams,
                                 )
                             }
                         },
                     )
                     addView(
-                        AppCompatImageButton(dialogContext).apply {
-                            layoutParams = LinearLayout.LayoutParams(dp(dialogContext, 40), dp(dialogContext, 40))
-                            background = androidx.core.content.ContextCompat.getDrawable(dialogContext, R.drawable.bg_circle_outlined)
-                            contentDescription = dialogContext.getString(R.string.close)
-                            setImageResource(R.drawable.ic_close)
-                            imageTintList = ColorStateList.valueOf(
-                                MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant),
-                            )
-                            minimumWidth = 0
-                            minimumHeight = 0
-                            scaleType = android.widget.ImageView.ScaleType.CENTER
-                            setPadding(0, 0, 0, 0)
+                        createHeaderIconButton(
+                            context = dialogContext,
+                            iconResId = R.drawable.ic_close,
+                            contentDescription = dialogContext.getString(R.string.close),
+                        ).apply {
+                            layoutParams = LinearLayout.LayoutParams(dp(dialogContext, 40), dp(dialogContext, 40)).apply {
+                                marginStart = if (headerAccessory == null) 0 else dp(dialogContext, 12)
+                            }
+                            visibility = if (showCloseButton) View.VISIBLE else View.GONE
                             setOnClickListener { dialog.dismiss() }
                         },
                     )
@@ -128,25 +154,30 @@ internal object ThemedDialog {
                 topMargin = dp(dialogContext, 12)
             }
         }
-        val closeButton = (surface.getChildAt(0) as LinearLayout).getChildAt(1) as ImageButton
+        val closeButton = (surface.getChildAt(0) as LinearLayout).getChildAt(2) as ImageButton
         val negativeButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
-            text = negativeText
+            text = negativeText ?: ""
+            visibility = if (negativeText == null) View.GONE else View.VISIBLE
         }
         val positiveButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
-            text = positiveText
+            text = positiveText ?: ""
+            visibility = if (positiveText == null) View.GONE else View.VISIBLE
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply {
-                marginStart = dp(dialogContext, 8)
+                marginStart = if (negativeText == null) 0 else dp(dialogContext, 8)
             }
         }
         actionRow.addView(negativeButton)
         actionRow.addView(positiveButton)
+        if (negativeText == null && positiveText == null) {
+            actionRow.visibility = View.GONE
+        }
 
         surface.addView(actionRow)
         dialog.setContentView(

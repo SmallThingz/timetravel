@@ -37,7 +37,11 @@ import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var themeLayout: TextInputLayout
@@ -103,7 +107,7 @@ class SettingsActivity : AppCompatActivity() {
     private var availableSampleRates: List<Int> = emptyList()
     private var activeRetentionMode = RetentionMode.TIME
     private var retentionTimeSecondsValue = 0
-    private var retentionSizeMbValue = 0L
+    private var retentionSizeMbValue = 0.0
     private var historyChunkSecondsValue = 0
     private var activeAutoMergeMode = AutoMergeMode.OFF
     private var autoMergeDivisorValue = 0
@@ -114,7 +118,7 @@ class SettingsActivity : AppCompatActivity() {
         var themeMode: AppThemeMode = AppThemeMode.SYSTEM,
         var retentionMode: RetentionMode = RetentionMode.TIME,
         var retentionTime: Int = 0,
-        var retentionSizeMb: Long = 0,
+        var retentionSizeMb: Double = 0.0,
         var format: ExportFormat? = null,
         var codec: ExportCodec? = null,
         var bitrateKbps: Int = 0,
@@ -196,8 +200,6 @@ class SettingsActivity : AppCompatActivity() {
         val root = findViewById<View>(R.id.settings_layout)
         applyWindowInsets(root)
         installFocusClear(root)
-        installFocusClear(findViewById(R.id.settings_scroll))
-        installFocusClear(findViewById(R.id.settings_content))
 
         themeLayout = findViewById(R.id.theme_layout)
         retentionTimeLayout = findViewById(R.id.retention_time_layout)
@@ -253,7 +255,10 @@ class SettingsActivity : AppCompatActivity() {
 
         undoButton.setOnClickListener { restorePreviousSettings() }
         applyButton.setOnClickListener {
-            if (persistSettings(showFeedback = false)) {
+            if (!hasUnsavedChanges) {
+                finish()
+                applyNoAnimationCloseTransition()
+            } else if (persistSettings(showFeedback = false)) {
                 finish()
                 applyNoAnimationCloseTransition()
             }
@@ -308,17 +313,11 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun installFocusClear(target: View) {
-        target.isFocusable = true
-        target.isFocusableInTouchMode = true
-        target.isClickable = true
         target.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 clearCurrentInputFocus(target)
             }
             false
-        }
-        target.setOnClickListener {
-            clearCurrentInputFocus(target)
         }
     }
 
@@ -327,7 +326,6 @@ class SettingsActivity : AppCompatActivity() {
             focused.clearFocus()
             (getSystemService(InputMethodManager::class.java))?.hideSoftInputFromWindow(focused.windowToken, 0)
         }
-        target.requestFocus()
     }
 
     private fun setupListeners() {
@@ -988,7 +986,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             RetentionMode.SIZE -> {
-                retentionSizeInput.text?.toString()?.trim()?.toLongOrNull()?.takeIf { it > 0L }?.let {
+                parseRetentionSizeMib(retentionSizeInput.text?.toString().orEmpty())?.takeIf { it > 0.0 }?.let {
                     retentionSizeMbValue = it
                 }
             }
@@ -1026,7 +1024,7 @@ class SettingsActivity : AppCompatActivity() {
         )
         val estimatedSizeMb = bytesToMegabytes(
             estimateExportSizeBytes(format, codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps),
-        ).toString()
+        )
         val estimatedDuration = formatDurationInput(
             estimateExportDurationSeconds(
                 format,
@@ -1046,13 +1044,13 @@ class SettingsActivity : AppCompatActivity() {
             if (!preserveActiveInputs) {
                 retentionTimeInput.setText(formatDurationInput(retentionTimeSecondsValue))
             }
-            retentionSizeInput.setText(estimatedSizeMb)
+            retentionSizeInput.setText(formatRetentionSizeMib(estimatedSizeMb))
         } else {
             retentionTimeLayout.prefixText = estimatePrefix
             retentionSizeLayout.prefixText = null
             retentionTimeInput.setText(estimatedDuration)
             if (!preserveActiveInputs) {
-                retentionSizeInput.setText(retentionSizeMbValue.toString())
+                retentionSizeInput.setText(formatRetentionSizeMib(retentionSizeMbValue))
             }
         }
         retentionTimeLayout.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
@@ -1103,11 +1101,11 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val sizeMb = if (activeRetentionMode == RetentionMode.SIZE) {
-            retentionSizeInput.text?.toString()?.trim()?.toLongOrNull()
+            parseRetentionSizeMib(retentionSizeInput.text?.toString().orEmpty())
         } else {
             retentionSizeMbValue
         }
-        if (sizeMb == null || sizeMb <= 0) {
+        if (sizeMb == null || sizeMb <= 0.0) {
             retentionSizeLayout.error = getString(R.string.custom_memory_size_invalid)
             return false
         }
@@ -1424,18 +1422,27 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun bytesToMegabytes(bytes: Long): Long {
-        return maxOf(1L, kotlin.math.ceil(bytes.toDouble() / BYTES_IN_MEGABYTE).toLong())
+    private fun bytesToMegabytes(bytes: Long): Double {
+        return (bytes.coerceAtLeast(0L) / BYTES_IN_MEGABYTE.toDouble())
     }
 
-    private fun rawMegabytesToBytes(memoryInMegabytes: Long): Long {
-        if (memoryInMegabytes <= 0L) {
+    private fun rawMegabytesToBytes(memoryInMegabytes: Double): Long {
+        if (memoryInMegabytes <= 0.0) {
             return 0L
         }
-        if (memoryInMegabytes > Long.MAX_VALUE / BYTES_IN_MEGABYTE) {
+        if (memoryInMegabytes >= Long.MAX_VALUE / BYTES_IN_MEGABYTE.toDouble()) {
             return Long.MAX_VALUE
         }
-        return memoryInMegabytes * BYTES_IN_MEGABYTE
+        return (memoryInMegabytes * BYTES_IN_MEGABYTE.toDouble()).roundToLong()
+    }
+
+    private fun parseRetentionSizeMib(value: String): Double? {
+        return value.trim().replace(',', '.').toDoubleOrNull()
+    }
+
+    private fun formatRetentionSizeMib(value: Double): String {
+        val formatter = DecimalFormat("0.###", DecimalFormatSymbols(Locale.US))
+        return formatter.format(value.coerceAtLeast(0.0))
     }
 
     private companion object {
@@ -1449,6 +1456,9 @@ class SettingsActivity : AppCompatActivity() {
     private fun updateUndoButton(enabled: Boolean) {
         undoButton.isEnabled = enabled
         undoButton.alpha = if (enabled) 1f else 0.38f
+        val applyImageButton = applyButton as? ImageButton ?: return
+        applyImageButton.setImageResource(if (enabled) R.drawable.ic_check else R.drawable.ic_close)
+        applyImageButton.contentDescription = getString(if (enabled) R.string.save else R.string.close)
     }
 }
 
@@ -1458,7 +1468,6 @@ private class DropdownHighlightAdapter(
     selectedValue: String,
 ) : ArrayAdapter<String>(context, R.layout.item_dropdown_option, android.R.id.text1, items.toMutableList()) {
     private var selectedValue = selectedValue
-    private val edgePaddingPx = (context.resources.displayMetrics.density * 6f).toInt()
 
     fun replaceItems(
         items: List<String>,
@@ -1503,9 +1512,6 @@ private class DropdownHighlightAdapter(
         val row = view.findViewById<View>(R.id.dropdown_row)
         val check = view.findViewById<ImageView>(R.id.dropdown_check)
         val active = value == selectedValue
-        val topPadding = if (positionOf(value) == 0) edgePaddingPx else 0
-        val bottomPadding = if (positionOf(value) == count - 1) edgePaddingPx else 0
-        view.setPaddingRelative(0, topPadding, 0, bottomPadding)
         view.isActivated = active
         view.isSelected = active
         row.isActivated = active
@@ -1516,6 +1522,4 @@ private class DropdownHighlightAdapter(
         check.isSelected = active
         check.visibility = if (active) View.VISIBLE else View.GONE
     }
-
-    private fun positionOf(value: String): Int = (0 until count).firstOrNull { getItem(it) == value } ?: -1
 }

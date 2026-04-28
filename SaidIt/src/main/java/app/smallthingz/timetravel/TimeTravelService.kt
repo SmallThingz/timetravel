@@ -505,7 +505,11 @@ class TimeTravelService : Service() {
             try {
                 var durationMillis = 0L
                 if (historySnapshot != null && historySnapshot.config == exportConfig) {
-                    liveExportHistory.exportSnapshot(historySnapshot, outTarget)
+                    liveExportHistory.exportSnapshotOptimized(
+                        snapshot = historySnapshot,
+                        outputTarget = outTarget,
+                        preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+                    )
                     durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
                 } else {
                     val readSucceeded =

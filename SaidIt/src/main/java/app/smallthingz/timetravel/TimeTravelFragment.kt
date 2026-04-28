@@ -21,10 +21,12 @@ import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
+import android.widget.Space
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.textfield.TextInputLayout
@@ -50,6 +52,10 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
@@ -478,20 +484,25 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun showClearBufferDialog() {
-        val content = TextView(requireContext()).apply {
-            setPadding(dp(24), dp(12), dp(24), 0)
-            text = getString(R.string.clear_buffer)
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+        val confirmButton = ThemedDialog.createHeaderIconButton(
+            context = requireContext(),
+            iconResId = R.drawable.ic_check,
+            contentDescription = getString(R.string.clear_buffer),
+            tintAttr = R.attr.colorError,
+        ).apply {
+            (layoutParams as? ViewGroup.MarginLayoutParams)?.marginEnd = dp(12)
         }
         val handle = ThemedDialog.create(
             context = requireContext(),
             title = getString(R.string.clear_buffer),
-            content = content,
-            positiveText = getString(R.string.clear_buffer),
+            content = Space(requireContext()).apply { minimumHeight = dp(14) },
+            positiveText = null,
+            negativeText = null,
+            headerAccessory = confirmButton,
+            headerAccessoryGravity = Gravity.END,
         )
-        handle.negativeButton.visibility = View.GONE
-        handle.positiveButton.setOnClickListener {
+        handle.actionRow.visibility = View.GONE
+        confirmButton.setOnClickListener {
             handle.dialog.dismiss()
             recorder?.clearBuffer()
         }
@@ -635,55 +646,96 @@ class TimeTravelFragment : Fragment() {
         private fun promptForCustomRange() {
             val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null, false)
             val prefs = getRecorderPreferences(requireContext())
-            val modeGroup = content.findViewById<MaterialButtonToggleGroup>(R.id.custom_export_mode_group)
-            val rangePanel = content.findViewById<View>(R.id.custom_range_panel)
-            val pastPanel = content.findViewById<View>(R.id.custom_past_panel)
-            val rangeButton = content.findViewById<MaterialButton>(R.id.custom_export_range_button)
-            val pastButton = content.findViewById<MaterialButton>(R.id.custom_export_past_button)
-            val startLayout = content.findViewById<TextInputLayout>(R.id.custom_start_layout)
-            val endLayout = content.findViewById<TextInputLayout>(R.id.custom_end_layout)
-            val startField = content.findViewById<TextInputEditText>(R.id.custom_start_value)
-            val endField = content.findViewById<TextInputEditText>(R.id.custom_end_value)
-            val pastLayout = content.findViewById<TextInputLayout>(R.id.custom_past_layout)
-            val pastField = content.findViewById<TextInputEditText>(R.id.custom_past_value)
-            startField.setSelectAllOnFocus(true)
-            endField.setSelectAllOnFocus(true)
-            pastField.setSelectAllOnFocus(true)
-            startField.setText("0:00")
-            endField.setText(formatDurationInput(lastMemorizedSeconds.coerceAtLeast(0f).roundToInt()))
+            val scopeGroup = content.findViewById<MaterialButtonToggleGroup>(R.id.custom_export_scope_group)
+            val unitGroup = content.findViewById<MaterialButtonToggleGroup>(R.id.custom_export_unit_group)
+            val rangeScopeButton = content.findViewById<MaterialButton>(R.id.custom_export_scope_range_button)
+            val pastScopeButton = content.findViewById<MaterialButton>(R.id.custom_export_scope_past_button)
+            val timeUnitButton = content.findViewById<MaterialButton>(R.id.custom_export_unit_time_button)
+            val sizeUnitButton = content.findViewById<MaterialButton>(R.id.custom_export_unit_size_button)
+            val rangeTimePanel = content.findViewById<View>(R.id.custom_range_time_panel)
+            val rangeSizePanel = content.findViewById<View>(R.id.custom_range_size_panel)
+            val pastTimePanel = content.findViewById<View>(R.id.custom_past_time_panel)
+            val pastSizePanel = content.findViewById<View>(R.id.custom_past_size_panel)
+            val startTimeLayout = content.findViewById<TextInputLayout>(R.id.custom_start_layout)
+            val endTimeLayout = content.findViewById<TextInputLayout>(R.id.custom_end_layout)
+            val startTimeField = content.findViewById<TextInputEditText>(R.id.custom_start_value)
+            val endTimeField = content.findViewById<TextInputEditText>(R.id.custom_end_value)
+            val startSizeLayout = content.findViewById<TextInputLayout>(R.id.custom_start_size_layout)
+            val endSizeLayout = content.findViewById<TextInputLayout>(R.id.custom_end_size_layout)
+            val startSizeField = content.findViewById<TextInputEditText>(R.id.custom_start_size_value)
+            val endSizeField = content.findViewById<TextInputEditText>(R.id.custom_end_size_value)
+            val pastTimeLayout = content.findViewById<TextInputLayout>(R.id.custom_past_time_layout)
+            val pastTimeField = content.findViewById<TextInputEditText>(R.id.custom_past_time_value)
+            val pastSizeLayout = content.findViewById<TextInputLayout>(R.id.custom_past_size_layout)
+            val pastSizeField = content.findViewById<TextInputEditText>(R.id.custom_past_size_value)
+
+            listOf(startTimeField, endTimeField, startSizeField, endSizeField, pastTimeField, pastSizeField).forEach {
+                it.setSelectAllOnFocus(true)
+            }
+            startTimeField.setText("0:00")
+            endTimeField.setText(formatDurationInput(lastMemorizedSeconds.coerceAtLeast(0f).roundToInt()))
+            val currentBytes = currentBufferExportBytes()
+            startSizeField.setText(formatSizeInputMib(0L))
+            endSizeField.setText(formatSizeInputMib(currentBytes))
             val lastPastSeconds = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, 5 * 60).coerceAtLeast(1)
-            pastField.setText(formatDurationInput(lastPastSeconds))
+            pastTimeField.setText(formatDurationInput(lastPastSeconds))
+            val lastPastSizeMib = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_PAST_SIZE_MIB_KEY, formatSizeInputMib(currentBytes)) ?: formatSizeInputMib(currentBytes)
+            pastSizeField.setText(lastPastSizeMib)
 
-            fun setMode(tabKey: String) {
-                val rangeMode = tabKey == TimeTravelConfig.CUSTOM_EXPORT_TAB_RANGE
-                rangePanel.visibility = if (rangeMode) View.VISIBLE else View.GONE
-                pastPanel.visibility = if (rangeMode) View.GONE else View.VISIBLE
+            fun currentModeKey(): String =
+                if (scopeGroup.checkedButtonId == rangeScopeButton.id) TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE else TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST
+
+            fun currentUnitKey(): String =
+                if (unitGroup.checkedButtonId == timeUnitButton.id) TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME else TimeTravelConfig.CUSTOM_EXPORT_UNIT_SIZE
+
+            fun refreshPanels() {
+                val rangeMode = currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE
+                val timeUnit = currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+                rangeTimePanel.visibility = if (rangeMode && timeUnit) View.VISIBLE else View.GONE
+                rangeSizePanel.visibility = if (rangeMode && !timeUnit) View.VISIBLE else View.GONE
+                pastTimePanel.visibility = if (!rangeMode && timeUnit) View.VISIBLE else View.GONE
+                pastSizePanel.visibility = if (!rangeMode && !timeUnit) View.VISIBLE else View.GONE
             }
 
-            val initialTabKey = prefs.getString(
-                TimeTravelConfig.CUSTOM_EXPORT_TAB_KEY,
-                TimeTravelConfig.CUSTOM_EXPORT_TAB_PAST,
-            ) ?: TimeTravelConfig.CUSTOM_EXPORT_TAB_PAST
-            setMode(initialTabKey)
-            modeGroup.check(
-                if (initialTabKey == TimeTravelConfig.CUSTOM_EXPORT_TAB_RANGE) rangeButton.id else pastButton.id,
+            val initialModeKey = prefs.getString(
+                TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY,
+                TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST,
+            ) ?: TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST
+            val initialUnitKey = prefs.getString(
+                TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY,
+                TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME,
+            ) ?: TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+            scopeGroup.check(
+                if (initialModeKey == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE) rangeScopeButton.id else pastScopeButton.id,
             )
-            modeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            unitGroup.check(
+                if (initialUnitKey == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME) timeUnitButton.id else sizeUnitButton.id,
+            )
+            refreshPanels()
+
+            scopeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
                 if (!isChecked) return@addOnButtonCheckedListener
-                val tabKey =
-                    if (checkedId == rangeButton.id) TimeTravelConfig.CUSTOM_EXPORT_TAB_RANGE
-                    else TimeTravelConfig.CUSTOM_EXPORT_TAB_PAST
-                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_TAB_KEY, tabKey).apply()
-                setMode(tabKey)
+                val modeKey =
+                    if (checkedId == rangeScopeButton.id) TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE
+                    else TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST
+                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, modeKey).apply()
+                refreshPanels()
             }
-            (modeGroup.parent as? ViewGroup)?.removeView(modeGroup)
+            unitGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+                if (!isChecked) return@addOnButtonCheckedListener
+                val unitKey =
+                    if (checkedId == timeUnitButton.id) TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+                    else TimeTravelConfig.CUSTOM_EXPORT_UNIT_SIZE
+                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, unitKey).apply()
+                refreshPanels()
+            }
 
             val handle = ThemedDialog.create(
                 context = requireContext(),
                 title = getString(R.string.export),
                 content = content,
                 positiveText = getString(R.string.export),
-                headerAccessory = modeGroup,
+                negativeText = null,
             )
 
             fun submit(): Boolean {
@@ -692,41 +744,79 @@ class TimeTravelFragment : Fragment() {
                     Toast.makeText(requireContext(), R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
                     return false
                 }
-                val startSeconds = parseDurationInput(startField.text?.toString().orEmpty())?.toFloat()
-                val endSeconds = parseDurationInput(endField.text?.toString().orEmpty())?.toFloat()
-                val pastSeconds = parseDurationInput(pastField.text?.toString().orEmpty())?.toFloat()
-                startLayout.error = null
-                endLayout.error = null
-                pastLayout.error = null
-                if (modeGroup.checkedButtonId == rangeButton.id) {
+                val startSeconds = parseDurationInput(startTimeField.text?.toString().orEmpty())?.toFloat()
+                val endSeconds = parseDurationInput(endTimeField.text?.toString().orEmpty())?.toFloat()
+                val pastSeconds = parseDurationInput(pastTimeField.text?.toString().orEmpty())?.toFloat()
+                val startSizeBytes = parseSizeInputMib(startSizeField.text?.toString().orEmpty())
+                val endSizeBytes = parseSizeInputMib(endSizeField.text?.toString().orEmpty())
+                val pastSizeBytes = parseSizeInputMib(pastSizeField.text?.toString().orEmpty())
+                listOf(startTimeLayout, endTimeLayout, startSizeLayout, endSizeLayout, pastTimeLayout, pastSizeLayout).forEach { it.error = null }
+
+                val rangeMode = currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE
+                val timeUnit = currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+
+                if (rangeMode && timeUnit) {
                     if (startSeconds == null || startSeconds < 0f) {
-                        startLayout.error = getString(R.string.custom_export_duration_invalid)
+                        startTimeLayout.error = getString(R.string.custom_export_duration_invalid)
                         return false
                     }
                     if (endSeconds == null || endSeconds <= 0f) {
-                        endLayout.error = getString(R.string.custom_export_duration_invalid)
+                        endTimeLayout.error = getString(R.string.custom_export_duration_invalid)
                         return false
                     }
-                    if (endSeconds <= startSeconds) {
-                        endLayout.error = getString(R.string.custom_export_range_invalid)
-                        return false
-                    }
-                    if (startSeconds > currentSeconds || endSeconds > currentSeconds) {
-                        endLayout.error = getString(R.string.custom_export_range_invalid)
+                    if (endSeconds <= startSeconds || startSeconds > currentSeconds || endSeconds > currentSeconds) {
+                        endTimeLayout.error = getString(R.string.custom_export_range_invalid)
                         return false
                     }
                     handle.dialog.dismiss()
                     return startExport(clampExportRange(startSeconds, endSeconds))
                 }
-                if (pastSeconds == null || pastSeconds <= 0f) {
-                    pastLayout.error = getString(R.string.custom_export_duration_invalid)
+
+                if (rangeMode && !timeUnit) {
+                    if (startSizeBytes == null || startSizeBytes < 0L) {
+                        startSizeLayout.error = getString(R.string.custom_export_size_invalid)
+                        return false
+                    }
+                    if (endSizeBytes == null || endSizeBytes <= 0L) {
+                        endSizeLayout.error = getString(R.string.custom_export_size_invalid)
+                        return false
+                    }
+                    if (endSizeBytes <= startSizeBytes || startSizeBytes > currentBytes || endSizeBytes > currentBytes) {
+                        endSizeLayout.error = getString(R.string.custom_export_range_invalid)
+                        return false
+                    }
+                    handle.dialog.dismiss()
+                    return startExport(
+                        clampExportRange(
+                            sizeBytesToExportSeconds(startSizeBytes),
+                            sizeBytesToExportSeconds(endSizeBytes),
+                        ),
+                    )
+                }
+
+                if (!rangeMode && timeUnit) {
+                    if (pastSeconds == null || pastSeconds <= 0f) {
+                        pastTimeLayout.error = getString(R.string.custom_export_duration_invalid)
+                        return false
+                    }
+                    prefs.edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, pastSeconds.roundToInt()).apply()
+                    handle.dialog.dismiss()
+                    return startExport(clampExportRange((currentSeconds - pastSeconds).coerceAtLeast(0f), currentSeconds))
+                }
+
+                if (pastSizeBytes == null || pastSizeBytes <= 0L) {
+                    pastSizeLayout.error = getString(R.string.custom_export_size_invalid)
                     return false
                 }
-                prefs.edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, pastSeconds.roundToInt()).apply()
+                if (pastSizeBytes > currentBytes) {
+                    pastSizeLayout.error = getString(R.string.custom_export_range_invalid)
+                    return false
+                }
+                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_PAST_SIZE_MIB_KEY, formatSizeInputMib(pastSizeBytes)).apply()
                 handle.dialog.dismiss()
-                return startExport(clampExportRange((currentSeconds - pastSeconds).coerceAtLeast(0f), currentSeconds))
+                val pastSizeSeconds = sizeBytesToExportSeconds(pastSizeBytes)
+                return startExport(clampExportRange((currentSeconds - pastSizeSeconds).coerceAtLeast(0f), currentSeconds))
             }
-            handle.negativeButton.visibility = View.GONE
             handle.positiveButton.setOnClickListener { submit() }
             val submitListener = TextView.OnEditorActionListener { _, actionId, event ->
                 if (
@@ -738,11 +828,15 @@ class TimeTravelFragment : Fragment() {
                     false
                 }
             }
-            endField.setOnEditorActionListener(submitListener)
-            pastField.setOnEditorActionListener(submitListener)
+            listOf(endTimeField, endSizeField, pastTimeField, pastSizeField).forEach { it.setOnEditorActionListener(submitListener) }
 
             handle.dialog.show()
-            val initialField = if (modeGroup.checkedButtonId == rangeButton.id) startField else pastField
+            val initialField = when {
+                currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE && currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME -> startTimeField
+                currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE -> startSizeField
+                currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME -> pastTimeField
+                else -> pastSizeField
+            }
             initialField.post {
                 initialField.requestFocus()
                 initialField.selectAll()
@@ -791,6 +885,43 @@ class TimeTravelFragment : Fragment() {
             )
         }
 
+        private fun currentBufferExportBytes(): Long {
+            val context = requireContext()
+            val exportConfig = currentExportConfig(context)
+            return estimateExportSizeBytes(
+                exportConfig.format,
+                exportConfig.codec,
+                exportConfig.sampleRate,
+                exportConfig.channelCount,
+                lastMemorizedSeconds.coerceAtLeast(0f).toLong(),
+                exportConfig.bitrateKbps,
+            )
+        }
+
+        private fun sizeBytesToExportSeconds(sizeBytes: Long): Float {
+            val context = requireContext()
+            val exportConfig = currentExportConfig(context)
+            return estimateExportDurationSeconds(
+                exportConfig.format,
+                exportConfig.codec,
+                exportConfig.sampleRate,
+                exportConfig.channelCount,
+                sizeBytes,
+                exportConfig.bitrateKbps,
+            ).toFloat()
+        }
+
+        private fun parseSizeInputMib(value: String): Long? {
+            val mib = value.trim().replace(',', '.').toDoubleOrNull() ?: return null
+            if (mib < 0.0) return null
+            return (mib * 1024.0 * 1024.0).roundToLong()
+        }
+
+        private fun formatSizeInputMib(sizeBytes: Long): String {
+            val mebibytes = sizeBytes.coerceAtLeast(0L) / (1024.0 * 1024.0)
+            return DecimalFormat("0.0", DecimalFormatSymbols(Locale.US)).format(mebibytes)
+        }
+
         private fun showExportClampDialog(
             clampedDurationSeconds: Float,
             onProceed: () -> Unit,
@@ -806,8 +937,8 @@ class TimeTravelFragment : Fragment() {
                 title = getString(R.string.export_limit_dialog_title),
                 content = content,
                 positiveText = getString(R.string.export),
+                negativeText = null,
             )
-            handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
             handle.positiveButton.setOnClickListener {
                 handle.dialog.dismiss()
                 onProceed()

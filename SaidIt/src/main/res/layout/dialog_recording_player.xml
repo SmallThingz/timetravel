@@ -16,13 +16,31 @@
         android:paddingEnd="24dp"
         android:paddingBottom="8dp">
 
-        <TextView
-            android:id="@+id/player_meta_text"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            tools:text="AAC-LC • 24 s • 297.5 KB" />
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/player_meta_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="M4A • 128 kbps" />
+
+            <TextView
+                android:id="@+id/player_size_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:gravity="end"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="30.2 MiB" />
+        </LinearLayout>
 
         <SeekBar
             android:id="@+id/player_seekbar"
