@@ -166,6 +166,8 @@
     <string name="player_ready">Wiedergabe</string>
     <string name="player_play">Abspielen</string>
     <string name="player_pause">Pause</string>
+    <string name="player_seek_back">10 Sekunden zurück</string>
+    <string name="player_seek_forward">10 Sekunden vor</string>
     <string name="player_failed">Aufnahme konnte nicht abgespielt werden.</string>
     <string name="close">Schließen</string>
 

@@ -27,6 +27,8 @@ internal class RecordingPlayerDialog(
     private val durationText: TextView = content.findViewById(R.id.player_duration_text)
     private val seekBar: SeekBar = content.findViewById(R.id.player_seekbar)
     private val toggleButton: MaterialButton = content.findViewById(R.id.player_toggle_button)
+    private val seekBackButton: MaterialButton = content.findViewById(R.id.player_seek_back_button)
+    private val seekForwardButton: MaterialButton = content.findViewById(R.id.player_seek_forward_button)
     private val handle = ThemedDialog.create(
         context = context,
         title = recording.displayName,
@@ -90,6 +92,7 @@ internal class RecordingPlayerDialog(
                 scheduleProgressUpdate()
             }
         })
+        seekBackButton.setOnClickListener { seekBy(-SEEK_JUMP_MS) }
         toggleButton.setOnClickListener {
             val player = mediaPlayer ?: return@setOnClickListener
             if (!prepared) return@setOnClickListener
@@ -103,9 +106,12 @@ internal class RecordingPlayerDialog(
                 scheduleProgressUpdate()
             }
         }
+        seekForwardButton.setOnClickListener { seekBy(SEEK_JUMP_MS) }
         handle.negativeButton.visibility = android.view.View.GONE
         handle.positiveButton.setOnClickListener { dismiss() }
         handle.dialog.setOnDismissListener { release() }
+        setPlaybackControlsEnabled(false)
+        updateToggleButton(false)
     }
 
     fun show() {
@@ -123,7 +129,7 @@ internal class RecordingPlayerDialog(
             if (released) return@setOnPreparedListener
             prepared = true
             seekBar.isEnabled = true
-            toggleButton.isEnabled = true
+            setPlaybackControlsEnabled(true)
             val duration = preparedPlayer.duration.coerceAtLeast(0)
             seekBar.max = duration.coerceAtLeast(1)
             durationText.text = formatPlaybackTime(duration)
@@ -158,6 +164,27 @@ internal class RecordingPlayerDialog(
         handle.dialog.dismiss()
     }
 
+    private fun seekBy(deltaMs: Int) {
+        val player = mediaPlayer ?: return
+        if (!prepared) return
+        val currentPosition = runCatching { player.currentPosition }.getOrDefault(0)
+        val targetPosition = (currentPosition + deltaMs).coerceIn(0, seekBar.max)
+        player.seekTo(targetPosition)
+        seekBar.progress = targetPosition
+        elapsedText.text = formatPlaybackTime(targetPosition)
+        scheduleProgressUpdate()
+    }
+
+    private fun setPlaybackControlsEnabled(enabled: Boolean) {
+        toggleButton.isEnabled = enabled
+        seekBackButton.isEnabled = enabled
+        seekForwardButton.isEnabled = enabled
+        val alpha = if (enabled) 1f else 0.5f
+        listOf(toggleButton, seekBackButton, seekForwardButton).forEach { button ->
+            button.alpha = alpha
+        }
+    }
+
     private fun scheduleProgressUpdate() {
         handler.removeCallbacks(progressUpdater)
         if (!released) {
@@ -166,7 +193,8 @@ internal class RecordingPlayerDialog(
     }
 
     private fun updateToggleButton(playing: Boolean) {
-        toggleButton.text = appContext.getString(if (playing) R.string.player_pause else R.string.player_play)
+        toggleButton.icon = appContext.getDrawable(if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play)
+        toggleButton.contentDescription = appContext.getString(if (playing) R.string.player_pause else R.string.player_play)
     }
 
     private fun playbackFailed() {
@@ -190,5 +218,6 @@ internal class RecordingPlayerDialog(
 
     private companion object {
         const val PROGRESS_UPDATE_INTERVAL_MS = 250L
+        const val SEEK_JUMP_MS = 10_000
     }
 }

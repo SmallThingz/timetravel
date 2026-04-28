@@ -17,6 +17,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -66,8 +67,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var historyChunkInput: EditText
     private lateinit var autoMergeValueInput: EditText
     private lateinit var exportPathValue: TextView
-    private lateinit var chooseFolderButton: MaterialButton
-    private lateinit var defaultFolderButton: MaterialButton
+    private lateinit var chooseFolderButton: ImageButton
+    private lateinit var defaultFolderButton: ImageButton
     private lateinit var moveRecordingsButton: MaterialButton
     private lateinit var batteryOptimizationButton: MaterialButton
     private lateinit var batteryOptimizationStatus: TextView
@@ -1325,7 +1326,9 @@ class SettingsActivity : AppCompatActivity() {
     private fun refreshExportDirectoryUi() {
         bindingUi = true
         exportPathValue.text = describeOutputDirectory(this, selectedExportTreeUri)
-        defaultFolderButton.isEnabled = selectedExportTreeUri != null
+        val hasCustomDirectory = selectedExportTreeUri != null
+        defaultFolderButton.isVisible = hasCustomDirectory
+        defaultFolderButton.isEnabled = hasCustomDirectory
         bindingUi = false
     }
 

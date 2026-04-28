@@ -144,6 +144,8 @@
     <string name="player_ready">Reproduzindo</string>
     <string name="player_play">Reproduzir</string>
     <string name="player_pause">Pausar</string>
+    <string name="player_seek_back">Voltar 10 segundos</string>
+    <string name="player_seek_forward">Avançar 10 segundos</string>
     <string name="player_failed">Não foi possível reproduzir a gravação.</string>
     <string name="close">Fechar</string>
 

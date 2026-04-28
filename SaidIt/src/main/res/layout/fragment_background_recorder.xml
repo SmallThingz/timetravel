@@ -179,15 +179,15 @@
             android:paddingHorizontal="16dp"
             android:paddingBottom="12dp">
 
-            <ImageButton
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/clear_buffer_button"
-                android:layout_width="52dp"
+                style="@style/Widget.TimeTravel.ExportIconButton"
+                android:layout_width="56dp"
                 android:layout_height="52dp"
                 android:layout_marginEnd="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/clear_buffer"
-                android:src="@drawable/ic_delete"
-                app:tint="?attr/colorOnSurfaceVariant" />
+                android:icon="@drawable/ic_delete"
+                tools:ignore="Instantiatable" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/record_last_max"

@@ -95,10 +95,33 @@
         <item name="iconTint">?attr/colorOnSecondaryContainer</item>
     </style>
 
+    <style name="Widget.TimeTravel.ExportIconButton" parent="Widget.TimeTravel.ExportButton">
+        <item name="android:minWidth">52dp</item>
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="iconPadding">0dp</item>
+    </style>
+
     <style name="Widget.TimeTravel.DialogSegmentButton" parent="Widget.Material3.Button.OutlinedButton">
         <item name="shapeAppearanceOverlay">@style/TimeTravel.ShapeAppearanceOverlay.BottomNavIndicator</item>
         <item name="android:minHeight">44dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.TimeTravel.PlayerIconButton" parent="Widget.Material3.Button.TonalButton">
+        <item name="shapeAppearanceOverlay">@style/TimeTravel.ShapeAppearanceOverlay.BottomNavIndicator</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:minWidth">52dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="iconPadding">0dp</item>
+        <item name="iconTint">?attr/colorOnSecondaryContainer</item>
     </style>
 </resources>

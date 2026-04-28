@@ -480,7 +480,7 @@ class TimeTravelFragment : Fragment() {
     private fun showClearBufferDialog() {
         val content = TextView(requireContext()).apply {
             setPadding(dp(24), dp(12), dp(24), 0)
-            text = getString(R.string.clear_buffer_confirm_message)
+            text = getString(R.string.clear_buffer)
             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
             setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
         }
@@ -488,7 +488,7 @@ class TimeTravelFragment : Fragment() {
             context = requireContext(),
             title = getString(R.string.clear_buffer),
             content = content,
-            positiveText = getString(R.string.delete_recording),
+            positiveText = getString(R.string.clear_buffer),
         )
         handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
         handle.positiveButton.setOnClickListener {

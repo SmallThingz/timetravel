@@ -166,6 +166,8 @@
     <string name="player_ready">Lecture</string>
     <string name="player_play">Lire</string>
     <string name="player_pause">Pause</string>
+    <string name="player_seek_back">Reculer de 10 secondes</string>
+    <string name="player_seek_forward">Avancer de 10 secondes</string>
     <string name="player_failed">Impossible de lire l’enregistrement.</string>
     <string name="close">Fermer</string>
 

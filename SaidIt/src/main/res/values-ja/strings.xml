@@ -166,6 +166,8 @@
     <string name="player_ready">再生中</string>
     <string name="player_play">再生</string>
     <string name="player_pause">一時停止</string>
+    <string name="player_seek_back">10秒戻る</string>
+    <string name="player_seek_forward">10秒進む</string>
     <string name="player_failed">録音を再生できませんでした。</string>
     <string name="close">閉じる</string>
 

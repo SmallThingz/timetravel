@@ -166,6 +166,8 @@
     <string name="player_ready">Reproduciendo</string>
     <string name="player_play">Reproducir</string>
     <string name="player_pause">Pausar</string>
+    <string name="player_seek_back">Retroceder 10 segundos</string>
+    <string name="player_seek_forward">Avanzar 10 segundos</string>
     <string name="player_failed">No se pudo reproducir la grabación.</string>
     <string name="close">Cerrar</string>
 

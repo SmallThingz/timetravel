@@ -70,13 +70,43 @@
                 tools:text="0:24" />
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/player_toggle_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:enabled="false"
-            android:text="@string/player_play" />
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/player_seek_back_button"
+                style="@style/Widget.TimeTravel.PlayerIconButton"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:enabled="false"
+                android:contentDescription="@string/player_seek_back"
+                android:icon="@drawable/ic_seek_back"
+                tools:ignore="Instantiatable" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/player_toggle_button"
+                style="@style/Widget.TimeTravel.PlayerIconButton"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_marginHorizontal="12dp"
+                android:enabled="false"
+                android:contentDescription="@string/player_play"
+                android:icon="@drawable/ic_player_play"
+                tools:ignore="Instantiatable" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/player_seek_forward_button"
+                style="@style/Widget.TimeTravel.PlayerIconButton"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:enabled="false"
+                android:contentDescription="@string/player_seek_forward"
+                android:icon="@drawable/ic_seek_forward"
+                tools:ignore="Instantiatable" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>
