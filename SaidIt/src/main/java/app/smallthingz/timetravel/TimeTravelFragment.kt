@@ -489,9 +489,7 @@ class TimeTravelFragment : Fragment() {
             iconResId = R.drawable.ic_check,
             contentDescription = getString(R.string.clear_buffer),
             tintAttr = R.attr.colorError,
-        ).apply {
-            (layoutParams as? ViewGroup.MarginLayoutParams)?.marginEnd = dp(12)
-        }
+        )
         val handle = ThemedDialog.create(
             context = requireContext(),
             title = getString(R.string.clear_buffer),
@@ -500,6 +498,7 @@ class TimeTravelFragment : Fragment() {
             negativeText = null,
             headerAccessory = confirmButton,
             headerAccessoryGravity = Gravity.END,
+            headerCloseSpacingDp = 8,
         )
         handle.actionRow.visibility = View.GONE
         confirmButton.setOnClickListener {

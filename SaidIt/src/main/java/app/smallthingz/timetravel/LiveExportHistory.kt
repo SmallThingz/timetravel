@@ -537,9 +537,7 @@ internal class LiveExportHistory(
             return
         }
         val currentConfig = config ?: return
-        if (!historyRoot.exists()) {
-            historyRoot.mkdirs()
-        }
+        ensureHistoryRootExists()
         val file = File(historyRoot, "history-${startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}")
         val target = RecordingOutputTarget(
             id = file.absolutePath,
@@ -662,9 +660,7 @@ internal class LiveExportHistory(
             SegmentSlice(segment, 0L, segment.sampleBytes)
         }
 
-        if (!historyRoot.exists()) {
-            historyRoot.mkdirs()
-        }
+        ensureHistoryRootExists()
 
         val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
         val outputTarget = RecordingOutputTarget(
@@ -1168,9 +1164,7 @@ internal class LiveExportHistory(
         if (!legacyCacheRoot.exists() || !legacyCacheRoot.isDirectory) {
             return
         }
-        if (!historyRoot.exists()) {
-            historyRoot.mkdirs()
-        }
+        ensureHistoryRootExists()
         legacyCacheRoot.listFiles()?.forEach { file ->
             if (!file.isFile) {
                 return@forEach
@@ -1212,6 +1206,12 @@ internal class LiveExportHistory(
         extension: String,
     ): String {
         return "history-$startedAtMillis-pcm-$sampleBytes.$extension"
+    }
+
+    private fun ensureHistoryRootExists() {
+        if (!historyRoot.exists() && !historyRoot.mkdirs() && !historyRoot.exists()) {
+            throw IOException("Unable to create history cache directory: ${historyRoot.absolutePath}")
+        }
     }
 
     private fun parseStartedAtMillis(file: File): Long? {

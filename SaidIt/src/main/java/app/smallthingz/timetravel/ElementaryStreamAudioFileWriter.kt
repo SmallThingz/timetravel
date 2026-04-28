@@ -102,11 +102,24 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
     }
 
     private fun drainEncoder(endOfStream: Boolean) {
+        var endOfStreamPollCount = 0
         while (true) {
             when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)) {
-                MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return
-                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> onOutputFormatChanged(codec.outputFormat)
+                MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                    if (!endOfStream) return
+                    endOfStreamPollCount++
+                    if (endOfStreamPollCount >= MAX_END_OF_STREAM_POLL_COUNT) {
+                        throw IOException("Timed out waiting for encoder end-of-stream output")
+                    }
+                }
+
+                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                    endOfStreamPollCount = 0
+                    onOutputFormatChanged(codec.outputFormat)
+                }
+
                 else -> if (outputIndex >= 0) {
+                    endOfStreamPollCount = 0
                     val outputBuffer = codec.getOutputBuffer(outputIndex)
                         ?: throw IOException("Encoder output buffer is null")
                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
@@ -139,6 +152,7 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
 
     private companion object {
         const val TIMEOUT_US = 10_000L
+        const val MAX_END_OF_STREAM_POLL_COUNT = 200
         const val OUTPUT_BUFFER_BYTES = 256 * 1024
     }
 }

@@ -11,7 +11,11 @@ import java.nio.channels.FileChannel
 internal class PersistentAudioRingStore(
     context: Context,
 ) : Closeable {
-    private val directory = File(context.noBackupFilesDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME).apply { mkdirs() }
+    private val directory = File(context.noBackupFilesDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME).also { directory ->
+        if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
+            throw IllegalStateException("Unable to create buffer cache directory: ${directory.absolutePath}")
+        }
+    }
     private val metaFile = File(directory, "buffer.meta")
     private val dataFile = File(directory, "buffer.pcm")
 

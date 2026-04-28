@@ -43,7 +43,13 @@ class SavedRecordingsFragment : Fragment() {
     private var pendingDeleteSnackbar: Snackbar? = null
     private var playerDialog: RecordingPlayerDialog? = null
     private val adapter = SavedRecordingAdapter(
-        onOpen = ::handleRecordingTap,
+        onOpen = { recording ->
+            if (selectedRecordingIds.isNotEmpty()) {
+                toggleSelection(recording)
+            } else {
+                showRecordingPlayer(recording)
+            }
+        },
         onToggleSelection = ::toggleSelection,
     )
     private val pendingDeleteSnackbarCallback = object : Snackbar.Callback() {
@@ -94,7 +100,11 @@ class SavedRecordingsFragment : Fragment() {
         selectionClearButton.setOnClickListener { clearSelection() }
         selectionDeleteButton.setOnClickListener { deleteSelectedRecordings() }
         selectionRenameButton.setOnClickListener { renameSelectedRecording() }
-        selectionInfoButton.setOnClickListener { showSelectedRecordingInfo() }
+        selectionInfoButton.setOnClickListener {
+            selectedRecordingIds.singleOrNull()
+                ?.let(latestRecordingsById::get)
+                ?.let { recording -> showRecordingInfoDialog(requireContext(), recording) }
+        }
 
         list = view.findViewById(R.id.recordings_list)
         emptyState = view.findViewById(R.id.recordings_empty)
@@ -142,14 +152,6 @@ class SavedRecordingsFragment : Fragment() {
                 }
             }
         }
-    }
-
-    private fun handleRecordingTap(recording: RecordingEntity) {
-        if (selectedRecordingIds.isNotEmpty()) {
-            toggleSelection(recording)
-            return
-        }
-        showRecordingPlayer(recording)
     }
 
     private fun launchIntent(intent: Intent) {
@@ -371,11 +373,6 @@ class SavedRecordingsFragment : Fragment() {
         }
         confirmButton.setOnClickListener { submitRename() }
         handle.dialog.show()
-    }
-
-    private fun showSelectedRecordingInfo() {
-        val recording = selectedRecordingIds.singleOrNull()?.let(latestRecordingsById::get) ?: return
-        showRecordingInfoDialog(requireContext(), recording)
     }
 }
 

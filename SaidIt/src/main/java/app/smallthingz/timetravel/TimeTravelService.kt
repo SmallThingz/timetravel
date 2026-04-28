@@ -1346,7 +1346,11 @@ class TimeTravelService : Service() {
                 append(" historyFiles=").append(history.segmentFiles.joinToString(","))
                 append(" exportDir=").append(describeConfiguredOutputDirectory(this@TimeTravelService))
             }
-        reportFile.parentFile?.mkdirs()
+        reportFile.parentFile?.let { parent ->
+            if (!parent.exists() && !parent.mkdirs() && !parent.exists()) {
+                throw IOException("Unable to create debug report directory: ${parent.absolutePath}")
+            }
+        }
         reportFile.appendText(status + "\n---\n")
         Log.d(TAG, "writeDebugReport $status path=${reportFile.absolutePath}")
         storeDebugStatus(status)
@@ -1354,8 +1358,8 @@ class TimeTravelService : Service() {
 
     private fun resolveDebugReportFile(): File {
         val directory = getSavedRecordingsDirectory(this)
-        if (!directory.exists()) {
-            directory.mkdirs()
+        if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
+            throw IOException("Unable to create recordings directory: ${directory.absolutePath}")
         }
         return File(directory, "debug-report.txt")
     }

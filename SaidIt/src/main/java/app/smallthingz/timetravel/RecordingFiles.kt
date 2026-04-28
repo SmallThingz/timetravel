@@ -649,8 +649,8 @@ private fun createLocalOutputTarget(
     startedAtMillis: Long,
 ): RecordingOutputTarget {
     val storageDir = getSavedRecordingsDirectory(context)
-    if (!storageDir.exists()) {
-        storageDir.mkdirs()
+    if (!storageDir.exists() && !storageDir.mkdirs() && !storageDir.exists()) {
+        throw IOException("Unable to create recordings directory: ${storageDir.absolutePath}")
     }
 
     val uniqueName = findAvailableDisplayName(requestedDisplayName) { candidate ->
@@ -726,7 +726,7 @@ private fun createDocumentOutputTarget(
     }
     val documentUri = DocumentsContract.createDocument(
         context.contentResolver,
-        buildTreeDocumentUri(treeUri),
+        DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri)),
         mimeType,
         uniqueName,
     ) ?: throw IOException("Unable to create output document")
@@ -740,10 +740,6 @@ private fun createDocumentOutputTarget(
         startedAtMillis = startedAtMillis,
         uri = documentUri,
     )
-}
-
-private fun buildTreeDocumentUri(treeUri: Uri): Uri {
-    return DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
 }
 
 private fun findAvailableDisplayName(

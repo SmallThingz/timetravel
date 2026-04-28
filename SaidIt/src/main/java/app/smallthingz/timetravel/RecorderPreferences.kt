@@ -523,7 +523,7 @@ fun getConfiguredMemorySizeBytes(
     val prefs = getRecorderPreferences(context)
     return when (getConfiguredRetentionMode(context)) {
         RetentionMode.SIZE -> {
-            val configuredSizeBytes = prefs.getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, defaultConfiguredExportSizeBytes())
+            val configuredSizeBytes = prefs.getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, 512L * 1024L * 1024L)
             val retentionSeconds = estimateExportDurationSeconds(
                 format = format,
                 codec = codec,
@@ -1048,8 +1048,6 @@ private fun bytesPerSecond(
     if (sampleRate <= 0 || channelCount <= 0) return 0L
     return sampleRate.toLong() * channelCount.toLong() * BYTES_PER_PCM_SAMPLE
 }
-
-private fun defaultConfiguredExportSizeBytes(): Long = 512L * 1024L * 1024L
 
 fun codecBitrateBitsPerSecond(
     codec: ExportCodec,
