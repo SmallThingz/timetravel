@@ -29,7 +29,7 @@ private const val MP4_CONTAINER_BASE_OVERHEAD_BYTES = 1536L
 private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
 private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
 private const val WAV_MAX_EXPORT_BYTES = 0xFFFF_FFFFL - WAV_HEADER_BYTES
-private const val MUXED_MAX_EXPORT_BYTES = (2L * 1024L * 1024L * 1024L) - (8L * 1024L * 1024L)
+private const val MUXED_MAX_EXPORT_BYTES = (4L * 1024L * 1024L * 1024L) - (8L * 1024L * 1024L)
 private const val DEFAULT_HISTORY_CHUNK_SECONDS = 10
 private const val MIN_HISTORY_CHUNK_SECONDS = 2
 private const val MAX_HISTORY_CHUNK_SECONDS = 300
@@ -203,9 +203,9 @@ enum class ExportCodec(
             HE_AAC, HE_AAC_V2, XHE_AAC -> setOf(ExportFormat.M4A, ExportFormat.THREE_GPP)
             AMR_WB -> setOf(ExportFormat.THREE_GPP, ExportFormat.AMR_WB_FILE)
             AMR_NB -> setOf(ExportFormat.THREE_GPP, ExportFormat.AMR_NB_FILE)
-            OPUS -> setOf(ExportFormat.OGG, ExportFormat.WEBM, ExportFormat.M4A)
-            VORBIS -> setOf(ExportFormat.OGG, ExportFormat.WEBM, ExportFormat.M4A)
-            FLAC -> setOf(ExportFormat.M4A)
+            OPUS -> setOf(ExportFormat.OGG, ExportFormat.WEBM)
+            VORBIS -> setOf(ExportFormat.WEBM)
+            FLAC -> emptySet()
         }
 
     companion object {
@@ -421,7 +421,9 @@ fun getConfiguredOutputCodec(context: Context): ExportCodec {
     return if (isCodecCompatibleWithFormat(preferredFormat, storedCodec)) storedCodec else preferred
 }
 
-fun preferredOutputFormatForCodec(codec: ExportCodec): ExportFormat = codec.supportedFormats.first()
+fun preferredOutputFormatForCodec(codec: ExportCodec): ExportFormat {
+    return codec.supportedFormats.firstOrNull() ?: preferredDefaultOutputFormat()
+}
 
 fun preferredDefaultOutputFormat(): ExportFormat {
     val formats = supportedFormats()

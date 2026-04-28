@@ -319,11 +319,24 @@ class TimeTravelFragment : Fragment() {
     private fun updateBufferSummary() {
         val context = context ?: return
         val exportConfig = currentExportConfig(context)
-        val bytesPerSecond = exportConfig.bytesPerSecond
         val displayedCurrentSeconds = lastMemorizedSeconds.coerceAtLeast(0f).toInt()
         val displayedLimitSeconds = lastTotalMemorySeconds.coerceAtLeast(0f).toInt()
-        val currentBytes = displayedCurrentSeconds.toLong() * bytesPerSecond
-        val limitBytes = displayedLimitSeconds.toLong() * bytesPerSecond
+        val currentBytes = estimateExportSizeBytes(
+            exportConfig.format,
+            exportConfig.codec,
+            exportConfig.sampleRate,
+            exportConfig.channelCount,
+            displayedCurrentSeconds.toLong(),
+            exportConfig.bitrateKbps,
+        )
+        val limitBytes = estimateExportSizeBytes(
+            exportConfig.format,
+            exportConfig.codec,
+            exportConfig.sampleRate,
+            exportConfig.channelCount,
+            displayedLimitSeconds.toLong(),
+            exportConfig.bitrateKbps,
+        )
         val exportLimitBytes = exportFileSizeLimitBytes(exportConfig.format)
         val overExportLimit = currentBytes > exportLimitBytes
         when (getConfiguredRetentionMode(context)) {
@@ -827,10 +840,7 @@ class TimeTravelFragment : Fragment() {
         val sampleRate: Int,
         val channelCount: Int,
         val bitrateKbps: Int?,
-    ) {
-        val bytesPerSecond: Long
-            get() = (sampleRate.toLong() * channelCount.toLong() * 2L).coerceAtLeast(1L)
-    }
+    )
 
     private fun dp(value: Int): Int = (resources.displayMetrics.density * value).toInt()
 

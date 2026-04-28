@@ -47,11 +47,11 @@
     <string name="retention_mode_size">サイズ</string>
     <string name="retention_time_label">時間</string>
     <string name="retention_time_invalid">MM:SS または HH:MM:SS を使用してください。</string>
-    <string name="retention_time_too_large">現在の形式では大きすぎます。最大 %1$s。</string>
-    <string name="retention_time_limit_helper">対応上限: %1$s</string>
+    <string name="retention_time_too_large">大きすぎます。最大バッファは %1$s です。</string>
+    <string name="retention_time_limit_helper">最大エクスポート: %1$s</string>
     <string name="retention_size_label">サイズ (MiB)</string>
-    <string name="retention_size_too_large">現在の形式では大きすぎます。最大 %1$d MiB。</string>
-    <string name="retention_size_limit_helper">対応上限: %1$d MiB</string>
+    <string name="retention_size_too_large">大きすぎます。最大バッファは %1$s です。</string>
+    <string name="retention_size_limit_helper">最大エクスポート: %1$s</string>
     <string name="recording_settings_title">音声</string>
     <string name="storage_settings_title">保存先</string>
     <string name="background_persistence_title">バックグラウンド</string>

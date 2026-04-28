@@ -21,50 +21,59 @@
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/custom_start_layout"
-            style="@style/TimeTravel.TextInputLayout"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:hint="@string/custom_export_start_label"
-            app:errorEnabled="true">
+            android:baselineAligned="false"
+            android:orientation="horizontal">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/custom_start_value"
-                style="@style/TimeTravel.TextInputEditText"
-                android:layout_width="match_parent"
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/custom_start_layout"
+                style="@style/TimeTravel.TextInputLayout"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:digits="0123456789:"
-                android:hint="@string/custom_export_duration_hint"
-                android:importantForAutofill="no"
-                android:imeOptions="actionDone"
-                android:inputType="textNoSuggestions"
-                android:maxLines="1"
-                android:selectAllOnFocus="true" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_weight="1"
+                android:hint="@string/custom_export_start_label"
+                app:errorEnabled="true">
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/custom_end_layout"
-            style="@style/TimeTravel.TextInputLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:hint="@string/custom_export_end_label"
-            app:errorEnabled="true">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/custom_start_value"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:digits="0123456789:"
+                    android:hint="@string/custom_export_duration_hint"
+                    android:importantForAutofill="no"
+                    android:imeOptions="actionNext"
+                    android:inputType="textNoSuggestions"
+                    android:maxLines="1"
+                    android:selectAllOnFocus="true" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/custom_end_value"
-                style="@style/TimeTravel.TextInputEditText"
-                android:layout_width="match_parent"
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/custom_end_layout"
+                style="@style/TimeTravel.TextInputLayout"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:digits="0123456789:"
-                android:hint="@string/custom_export_duration_hint"
-                android:importantForAutofill="no"
-                android:imeOptions="actionDone"
-                android:inputType="textNoSuggestions"
-                android:maxLines="1"
-                android:selectAllOnFocus="true" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:hint="@string/custom_export_end_label"
+                app:errorEnabled="true">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/custom_end_value"
+                    style="@style/TimeTravel.TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:digits="0123456789:"
+                    android:hint="@string/custom_export_duration_hint"
+                    android:importantForAutofill="no"
+                    android:imeOptions="actionDone"
+                    android:inputType="textNoSuggestions"
+                    android:maxLines="1"
+                    android:selectAllOnFocus="true" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

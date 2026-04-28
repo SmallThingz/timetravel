@@ -1,5 +1,5 @@
 <h1>
-  <img src="docs/app-icon.svg" alt="TimeTravel app icon" width="52" valign="middle" />
+  <img src="SaidIt/src/main/icon.svg" alt="TimeTravel app icon" width="52" valign="middle" />
   TimeTravel
 </h1>
 

@@ -317,6 +317,14 @@ class TimeTravelService : Service() {
                 showToast(getString(R.string.audio_input_init_failed))
                 return@post
             }
+            if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                Log.e(TAG, "AudioRecord failed to enter recording state")
+                releaseAudioRecord()
+                state = STATE_READY
+                updateWakeLockState()
+                showToast(getString(R.string.audio_input_init_failed))
+                return@post
+            }
 
             audioHandler.removeCallbacks(audioReader)
             audioHandler.post(audioReader)

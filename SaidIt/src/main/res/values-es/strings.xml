@@ -47,11 +47,11 @@
     <string name="retention_mode_size">Tamaño</string>
     <string name="retention_time_label">Tiempo</string>
     <string name="retention_time_invalid">Usa MM:SS o HH:MM:SS.</string>
-    <string name="retention_time_too_large">Demasiado grande para el formato actual. Máximo %1$s.</string>
-    <string name="retention_time_limit_helper">Máximo compatible: %1$s</string>
+    <string name="retention_time_too_large">Demasiado grande. Búfer máximo %1$s.</string>
+    <string name="retention_time_limit_helper">Exportación máxima: %1$s</string>
     <string name="retention_size_label">Tamaño (MiB)</string>
-    <string name="retention_size_too_large">Demasiado grande para el formato actual. Máximo %1$d MiB.</string>
-    <string name="retention_size_limit_helper">Máximo compatible: %1$d MiB</string>
+    <string name="retention_size_too_large">Demasiado grande. Búfer máximo %1$s.</string>
+    <string name="retention_size_limit_helper">Exportación máxima: %1$s</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Almacenamiento</string>
     <string name="background_persistence_title">Segundo plano</string>

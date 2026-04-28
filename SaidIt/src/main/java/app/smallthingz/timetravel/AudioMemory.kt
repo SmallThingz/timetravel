@@ -63,7 +63,6 @@ internal class AudioMemory {
         maxBytes: Long,
         reader: Consumer,
     ) {
-        val chunks = mutableListOf<ByteArray>()
         synchronized(this) {
             var remainingSkipBytes = skipBytes
             var remainingTakeBytes = maxBytes.coerceAtLeast(0L)
@@ -71,10 +70,9 @@ internal class AudioMemory {
             if (!filling && currentBuffer != null && currentWasFilled) {
                 val length = (currentBuffer.size - offset).toLong()
                 if (remainingSkipBytes < length && remainingTakeBytes > 0L) {
+                    val readOffset = offset + remainingSkipBytes.toInt()
                     val take = minOf(length - remainingSkipBytes, remainingTakeBytes).toInt()
-                    val copy = ByteArray(take)
-                    System.arraycopy(currentBuffer, offset + remainingSkipBytes.toInt(), copy, 0, take)
-                    chunks.add(copy)
+                    reader.consume(currentBuffer, readOffset, take)
                     remainingSkipBytes = 0
                     remainingTakeBytes -= take.toLong()
                 } else {
@@ -87,10 +85,9 @@ internal class AudioMemory {
                 }
                 val length = array.size.toLong()
                 if (remainingSkipBytes < length) {
+                    val readOffset = remainingSkipBytes.toInt()
                     val take = minOf(length - remainingSkipBytes, remainingTakeBytes).toInt()
-                    val copy = ByteArray(take)
-                    System.arraycopy(array, remainingSkipBytes.toInt(), copy, 0, take)
-                    chunks.add(copy)
+                    reader.consume(array, readOffset, take)
                     remainingSkipBytes = 0
                     remainingTakeBytes -= take.toLong()
                 } else {
@@ -101,19 +98,15 @@ internal class AudioMemory {
             if (activeBuffer != null && offset > 0 && remainingTakeBytes > 0L) {
                 val length = offset.toLong()
                 if (remainingSkipBytes < length) {
+                    val readOffset = remainingSkipBytes.toInt()
                     val take = minOf(length - remainingSkipBytes, remainingTakeBytes).toInt()
-                    val copy = ByteArray(take)
-                    System.arraycopy(activeBuffer, 0, copy, 0, take)
-                    chunks.add(copy)
+                    reader.consume(activeBuffer, readOffset, take)
                     remainingSkipBytes = 0
                     remainingTakeBytes -= take.toLong()
                 } else {
                     remainingSkipBytes -= length
                 }
             }
-        }
-        for (chunk in chunks) {
-            reader.consume(chunk, 0, chunk.size)
         }
     }
 

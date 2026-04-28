@@ -996,8 +996,15 @@ class SettingsActivity : AppCompatActivity() {
         val channelMode = currentChannelMode()
         val bitrateKbps = effectiveCodecBitrateKbps()
         val estimatePrefix = if (format.isPcmContainer) "=" else "~"
-        val maxSupportedBytes = retentionCapacityLimitBytes()
-        val maxSupportedSeconds = retentionSecondsForBytes(maxSupportedBytes, sampleRate, channelMode.channelCount)
+        val exportLimitBytes = exportFileSizeLimitBytes(format)
+        val exportLimitDurationSeconds = estimateExportDurationSeconds(
+            format,
+            codec,
+            sampleRate,
+            channelMode.channelCount,
+            exportLimitBytes,
+            bitrateKbps,
+        )
         val estimatedSizeMb = bytesToMegabytes(
             estimateExportSizeBytes(format, codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps),
         ).toString()
@@ -1031,8 +1038,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         retentionTimeLayout.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
         retentionSizeLayout.alpha = if (activeRetentionMode == RetentionMode.SIZE) 1f else 0.82f
-        retentionTimeLayout.helperText = getString(R.string.retention_time_limit_helper, formatDurationInput(maxSupportedSeconds))
-        retentionSizeLayout.helperText = getString(R.string.retention_size_limit_helper, bytesToMegabytes(maxSupportedBytes))
+        val exportLimitSizeSummary = formatShortFileSize(exportLimitBytes)
+        val exportLimitTimeSummary = "$estimatePrefix${formatDurationInput(exportLimitDurationSeconds)}"
+        retentionTimeLayout.helperText = getString(R.string.retention_time_limit_helper, exportLimitTimeSummary)
+        retentionSizeLayout.helperText = getString(R.string.retention_size_limit_helper, exportLimitSizeSummary)
         bindingUi = previousBindingUi
     }
 
@@ -1094,7 +1103,7 @@ class SettingsActivity : AppCompatActivity() {
         if (requestedSizeBytes > maxSupportedBytes) {
             retentionSizeLayout.error = getString(
                 R.string.retention_size_too_large,
-                bytesToMegabytes(maxSupportedBytes),
+                formatShortFileSize(maxSupportedBytes),
             )
             return false
         }
