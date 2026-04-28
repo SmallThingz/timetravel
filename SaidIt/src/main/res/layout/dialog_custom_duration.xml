@@ -17,8 +17,10 @@
 
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/custom_export_mode_group"
-            android:layout_width="match_parent"
+            style="@style/Widget.TimeTravel.DialogSegmentGroup"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             app:selectionRequired="true"
             app:singleSelection="true"
             tools:ignore="Instantiatable">
@@ -26,18 +28,16 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/custom_export_range_button"
                 style="@style/Widget.TimeTravel.DialogSegmentButton"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:text="@string/custom_export_tab_range"
                 tools:ignore="Instantiatable" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/custom_export_past_button"
                 style="@style/Widget.TimeTravel.DialogSegmentButton"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:text="@string/custom_export_tab_past"
                 tools:ignore="Instantiatable" />
         </com.google.android.material.button.MaterialButtonToggleGroup>

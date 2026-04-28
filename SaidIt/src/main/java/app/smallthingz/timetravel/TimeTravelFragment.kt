@@ -269,7 +269,7 @@ class TimeTravelFragment : Fragment() {
     }
 
     private fun applyWindowInsets(root: View) {
-        val statusBar = root.findViewById<View>(R.id.status_bar)
+        val statusBar = root.findViewById<View>(R.id.top_bar)
         val content = root.findViewById<View>(R.id.content_scroll)
         val recordingSurface = root.findViewById<View>(R.id.rec_touch_area)
         val statusStart = statusBar.paddingStart

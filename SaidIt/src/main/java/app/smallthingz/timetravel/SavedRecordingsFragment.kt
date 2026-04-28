@@ -174,11 +174,14 @@ class SavedRecordingsFragment : Fragment() {
     }
 
     private fun applyWindowInsets(root: View) {
-        val header = root.findViewById<View>(R.id.recordings_header)
+        val header = root.findViewById<View>(R.id.top_bar)
+        val selectionRow = root.findViewById<View>(R.id.selection_actions)
         val start = header.paddingStart
         val top = header.paddingTop
         val end = header.paddingEnd
         val bottom = header.paddingBottom
+        val selectionStart = selectionRow.paddingStart
+        val selectionEnd = selectionRow.paddingEnd
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             header.updatePadding(
@@ -186,6 +189,10 @@ class SavedRecordingsFragment : Fragment() {
                 top = top + bars.top,
                 right = end + bars.right,
                 bottom = bottom,
+            )
+            selectionRow.updatePadding(
+                left = selectionStart + bars.left,
+                right = selectionEnd + bars.right,
             )
             insets
         }

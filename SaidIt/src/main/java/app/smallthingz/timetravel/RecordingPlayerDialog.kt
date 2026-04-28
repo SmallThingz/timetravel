@@ -7,10 +7,10 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
+import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.button.MaterialButton
 import java.io.File
 
 internal class RecordingPlayerDialog(
@@ -21,14 +21,13 @@ internal class RecordingPlayerDialog(
     private val appContext = context
     private val handler = Handler(Looper.getMainLooper())
     private val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_player, null, false)
-    private val statusText: TextView = content.findViewById(R.id.player_status_text)
     private val metaText: TextView = content.findViewById(R.id.player_meta_text)
     private val elapsedText: TextView = content.findViewById(R.id.player_elapsed_text)
     private val durationText: TextView = content.findViewById(R.id.player_duration_text)
     private val seekBar: SeekBar = content.findViewById(R.id.player_seekbar)
-    private val toggleButton: MaterialButton = content.findViewById(R.id.player_toggle_button)
-    private val seekBackButton: MaterialButton = content.findViewById(R.id.player_seek_back_button)
-    private val seekForwardButton: MaterialButton = content.findViewById(R.id.player_seek_forward_button)
+    private val toggleButton: ImageButton = content.findViewById(R.id.player_toggle_button)
+    private val seekBackButton: ImageButton = content.findViewById(R.id.player_seek_back_button)
+    private val seekForwardButton: ImageButton = content.findViewById(R.id.player_seek_forward_button)
     private val handle = ThemedDialog.create(
         context = context,
         title = recording.displayName,
@@ -107,8 +106,7 @@ internal class RecordingPlayerDialog(
             }
         }
         seekForwardButton.setOnClickListener { seekBy(SEEK_JUMP_MS) }
-        handle.negativeButton.visibility = android.view.View.GONE
-        handle.positiveButton.setOnClickListener { dismiss() }
+        handle.actionRow.visibility = android.view.View.GONE
         handle.dialog.setOnDismissListener { release() }
         setPlaybackControlsEnabled(false)
         updateToggleButton(false)
@@ -133,7 +131,6 @@ internal class RecordingPlayerDialog(
             val duration = preparedPlayer.duration.coerceAtLeast(0)
             seekBar.max = duration.coerceAtLeast(1)
             durationText.text = formatPlaybackTime(duration)
-            statusText.text = appContext.getString(R.string.player_ready)
             preparedPlayer.start()
             updateToggleButton(true)
             scheduleProgressUpdate()
@@ -153,7 +150,6 @@ internal class RecordingPlayerDialog(
                 RecordingStorageType.FILE -> player.setDataSource(File(recording.id).absolutePath)
                 RecordingStorageType.DOCUMENT -> player.setDataSource(appContext, Uri.parse(recording.id))
             }
-            statusText.text = appContext.getString(R.string.player_preparing)
             player.prepareAsync()
         } catch (_: Throwable) {
             playbackFailed()
@@ -193,7 +189,7 @@ internal class RecordingPlayerDialog(
     }
 
     private fun updateToggleButton(playing: Boolean) {
-        toggleButton.icon = appContext.getDrawable(if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play)
+        toggleButton.setImageResource(if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play)
         toggleButton.contentDescription = appContext.getString(if (playing) R.string.player_pause else R.string.player_play)
     }
 

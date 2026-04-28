@@ -10,10 +10,11 @@ import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.app.AppCompatDialog
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
@@ -21,8 +22,10 @@ import com.google.android.material.shape.ShapeAppearanceModel
 internal object ThemedDialog {
     data class Handle(
         val dialog: AppCompatDialog,
-        val negativeButton: MaterialButton,
-        val positiveButton: MaterialButton,
+        val actionRow: LinearLayout,
+        val closeButton: ImageButton,
+        val negativeButton: com.google.android.material.button.MaterialButton,
+        val positiveButton: com.google.android.material.button.MaterialButton,
     )
 
     fun create(
@@ -54,15 +57,46 @@ internal object ThemedDialog {
             clipToOutline = true
             outlineProvider = ViewOutlineProvider.BACKGROUND
             addView(
-                TextView(dialogContext).apply {
+                LinearLayout(dialogContext).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    orientation = LinearLayout.HORIZONTAL
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                     )
-                    setPadding(dp(dialogContext, 24), dp(dialogContext, 20), dp(dialogContext, 24), 0)
-                    text = title
-                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
-                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                    setPadding(dp(dialogContext, 24), dp(dialogContext, 14), dp(dialogContext, 14), 0)
+                    addView(
+                        TextView(dialogContext).apply {
+                            layoutParams = LinearLayout.LayoutParams(
+                                0,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                1f,
+                            )
+                            text = title
+                            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
+                            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                        },
+                    )
+                    addView(
+                        AppCompatImageButton(dialogContext).apply {
+                            layoutParams = LinearLayout.LayoutParams(dp(dialogContext, 40), dp(dialogContext, 40))
+                            background = androidx.core.content.ContextCompat.getDrawable(dialogContext, R.drawable.bg_circle_outlined)
+                            contentDescription = dialogContext.getString(R.string.close)
+                            setImageResource(R.drawable.ic_close)
+                            foreground = androidx.core.content.ContextCompat.getDrawable(
+                                dialogContext,
+                                resolveSelectableBorderless(dialogContext),
+                            )
+                            imageTintList = ColorStateList.valueOf(
+                                MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant),
+                            )
+                            minimumWidth = 0
+                            minimumHeight = 0
+                            scaleType = android.widget.ImageView.ScaleType.CENTER
+                            setPadding(0, 0, 0, 0)
+                            setOnClickListener { dialog.dismiss() }
+                        },
+                    )
                 },
             )
             addView(content)
@@ -79,12 +113,13 @@ internal object ThemedDialog {
                 topMargin = dp(dialogContext, 12)
             }
         }
-        val negativeButton = MaterialButton(
+        val closeButton = (surface.getChildAt(0) as LinearLayout).getChildAt(1) as ImageButton
+        val negativeButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
             text = negativeText
         }
-        val positiveButton = MaterialButton(
+        val positiveButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
             text = positiveText
@@ -105,11 +140,17 @@ internal object ThemedDialog {
                 addView(surface)
             },
         )
-        return Handle(dialog, negativeButton, positiveButton)
+        return Handle(dialog, actionRow, closeButton, negativeButton, positiveButton)
     }
 
     private fun dp(
         context: Context,
         value: Int,
     ): Int = (context.resources.displayMetrics.density * value).toInt()
+
+    private fun resolveSelectableBorderless(context: Context): Int {
+        val typedValue = android.util.TypedValue()
+        context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
+        return typedValue.resourceId
+    }
 }

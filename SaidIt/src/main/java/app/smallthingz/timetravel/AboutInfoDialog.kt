@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.text.TextUtils
 import android.view.LayoutInflater
 import android.widget.ImageView
 import android.widget.TextView
@@ -17,7 +18,11 @@ internal object AboutInfoDialog {
         val content = LayoutInflater.from(context).inflate(R.layout.dialog_about_info, null, false)
         content.findViewById<ImageView>(R.id.about_icon).setImageResource(R.drawable.ic_app_icon_preview)
         content.findViewById<TextView>(R.id.about_version).text = context.getString(R.string.about_version, appVersionName(context))
-        content.findViewById<TextView>(R.id.about_github_value).text = GITHUB_PROFILE_URL.removePrefix("https://")
+        content.findViewById<TextView>(R.id.about_github_value).apply {
+            text = GITHUB_PROFILE_URL.removePrefix("https://")
+            ellipsize = TextUtils.TruncateAt.END
+            setOnClickListener { openGithub(context) }
+        }
 
         val handle = ThemedDialog.create(
             context = context,
@@ -26,16 +31,16 @@ internal object AboutInfoDialog {
             positiveText = context.getString(R.string.about_open_github),
             negativeText = context.getString(R.string.close),
         )
-        handle.negativeButton.setOnClickListener { handle.dialog.dismiss() }
-        handle.positiveButton.setOnClickListener {
-            try {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_PROFILE_URL)))
-                handle.dialog.dismiss()
-            } catch (_: ActivityNotFoundException) {
-                Toast.makeText(context, R.string.no_app_available, Toast.LENGTH_SHORT).show()
-            }
-        }
+        handle.actionRow.visibility = android.view.View.GONE
         handle.dialog.show()
+    }
+
+    private fun openGithub(context: Context) {
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_PROFILE_URL)))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, R.string.no_app_available, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun appVersionName(context: Context): String {

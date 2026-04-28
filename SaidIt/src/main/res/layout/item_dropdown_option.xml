@@ -7,12 +7,11 @@
         android:id="@android:id/text1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/dropdown_menu_item_selector"
-        android:duplicateParentState="true"
+        android:background="?attr/selectableItemBackground"
         android:ellipsize="end"
         android:maxLines="1"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="14dp"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="16dp"
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
 </FrameLayout>
