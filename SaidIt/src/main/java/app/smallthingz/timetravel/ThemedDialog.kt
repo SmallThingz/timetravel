@@ -34,6 +34,7 @@ internal object ThemedDialog {
         content: View,
         positiveText: CharSequence,
         negativeText: CharSequence = context.getString(R.string.cancel),
+        headerAccessory: View? = null,
     ): Handle {
         val dialogContext = ContextThemeWrapper(context, R.style.ThemeOverlay_TimeTravel_AlertDialog)
         val dialog = AppCompatDialog(dialogContext).apply {
@@ -68,13 +69,31 @@ internal object ThemedDialog {
                     addView(
                         TextView(dialogContext).apply {
                             layoutParams = LinearLayout.LayoutParams(
-                                0,
                                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                                1f,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
                             )
                             text = title
                             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
                             setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                        },
+                    )
+                    addView(
+                        FrameLayout(dialogContext).apply {
+                            layoutParams = LinearLayout.LayoutParams(
+                                0,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                1f,
+                            )
+                            headerAccessory?.let {
+                                addView(
+                                    it,
+                                    FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                                        Gravity.CENTER,
+                                    ),
+                                )
+                            }
                         },
                     )
                     addView(

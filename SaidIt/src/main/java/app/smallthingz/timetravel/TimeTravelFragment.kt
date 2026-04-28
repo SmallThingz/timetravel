@@ -676,12 +676,14 @@ class TimeTravelFragment : Fragment() {
                 prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_TAB_KEY, tabKey).apply()
                 setMode(tabKey)
             }
+            (modeGroup.parent as? ViewGroup)?.removeView(modeGroup)
 
             val handle = ThemedDialog.create(
                 context = requireContext(),
-                title = getString(R.string.custom_time),
+                title = getString(R.string.export),
                 content = content,
                 positiveText = getString(R.string.export),
+                headerAccessory = modeGroup,
             )
 
             fun submit(): Boolean {
