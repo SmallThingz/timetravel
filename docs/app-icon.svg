@@ -9,7 +9,6 @@
       <stop offset="100%" stop-color="#7F67BE"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="100" fill="url(#bg)"/>
   <path d="M32 46H37V54H32Z M40 38H45V62H40Z M48 30H53V70H48Z M56 38H61V62H56Z M64 46H69V54H64Z" fill="#FFFFFF"/>
   <path d="M50 20A30 30 0 1 0 72.5 29.321" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
   <path d="M48.5 11.621L63.5 20.621L48.5 28.621Z" fill="url(#accent)"/>

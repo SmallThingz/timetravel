@@ -142,10 +142,26 @@ enum class ExportFormat(
     THREE_GPP(TimeTravelConfig.OUTPUT_FORMAT_3GP, R.string.format_3gp, "3gp", "audio/3gpp", MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP),
     OGG(TimeTravelConfig.OUTPUT_FORMAT_OGG, R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG),
     WEBM(TimeTravelConfig.OUTPUT_FORMAT_WEBM, R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM),
+    AAC_ADTS(TimeTravelConfig.OUTPUT_FORMAT_AAC_ADTS, R.string.format_aac_adts, "aac", "audio/aac"),
+    AMR_NB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_NB, R.string.format_amr_nb_file, "amr", "audio/amr"),
+    AMR_WB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_WB, R.string.format_amr_wb_file, "awb", "audio/amr-wb"),
+    MPEG_2_TS(TimeTravelConfig.OUTPUT_FORMAT_MPEG_2_TS, R.string.format_mpeg_2_ts, "ts", "video/mp2t"),
     ;
 
     val isPcmContainer: Boolean
         get() = this == WAV
+
+    val usesMuxer: Boolean
+        get() = muxerOutputFormat != null
+
+    val isRawAacAdts: Boolean
+        get() = this == AAC_ADTS
+
+    val isRawAmr: Boolean
+        get() = this == AMR_NB_FILE || this == AMR_WB_FILE
+
+    val isTransportStream: Boolean
+        get() = this == MPEG_2_TS
 
     companion object {
         fun fromPrefValue(value: String?): ExportFormat {
@@ -162,6 +178,7 @@ enum class ExportCodec(
 ) {
     PCM_16(TimeTravelConfig.OUTPUT_CODEC_PCM_16, R.string.codec_pcm_16),
     AAC_LC(TimeTravelConfig.OUTPUT_CODEC_AAC_LC, R.string.codec_aac_lc, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectLC),
+    AAC_ELD(TimeTravelConfig.OUTPUT_CODEC_AAC_ELD, R.string.codec_aac_eld, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectELD),
     HE_AAC(TimeTravelConfig.OUTPUT_CODEC_HE_AAC, R.string.codec_he_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE),
     HE_AAC_V2(TimeTravelConfig.OUTPUT_CODEC_HE_AAC_V2, R.string.codec_he_aac_v2, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS),
     XHE_AAC(TimeTravelConfig.OUTPUT_CODEC_XHE_AAC, R.string.codec_xhe_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectXHE),
@@ -169,6 +186,7 @@ enum class ExportCodec(
     AMR_NB(TimeTravelConfig.OUTPUT_CODEC_AMR_NB, R.string.codec_amr_nb, MediaFormat.MIMETYPE_AUDIO_AMR_NB),
     OPUS(TimeTravelConfig.OUTPUT_CODEC_OPUS, R.string.codec_opus, MediaFormat.MIMETYPE_AUDIO_OPUS),
     VORBIS(TimeTravelConfig.OUTPUT_CODEC_VORBIS, R.string.codec_vorbis, MediaFormat.MIMETYPE_AUDIO_VORBIS),
+    FLAC(TimeTravelConfig.OUTPUT_CODEC_FLAC, R.string.codec_flac, MediaFormat.MIMETYPE_AUDIO_FLAC),
     ;
 
     val isAacFamily: Boolean
@@ -180,9 +198,14 @@ enum class ExportCodec(
     val supportedFormats: Set<ExportFormat>
         get() = when (this) {
             PCM_16 -> setOf(ExportFormat.WAV)
-            AAC_LC, HE_AAC, HE_AAC_V2, XHE_AAC -> setOf(ExportFormat.M4A)
-            AMR_WB, AMR_NB -> setOf(ExportFormat.THREE_GPP)
-            OPUS, VORBIS -> setOf(ExportFormat.OGG, ExportFormat.WEBM)
+            AAC_LC -> setOf(ExportFormat.M4A, ExportFormat.THREE_GPP, ExportFormat.AAC_ADTS, ExportFormat.MPEG_2_TS)
+            AAC_ELD -> setOf(ExportFormat.M4A, ExportFormat.THREE_GPP)
+            HE_AAC, HE_AAC_V2, XHE_AAC -> setOf(ExportFormat.M4A, ExportFormat.THREE_GPP)
+            AMR_WB -> setOf(ExportFormat.THREE_GPP, ExportFormat.AMR_WB_FILE)
+            AMR_NB -> setOf(ExportFormat.THREE_GPP, ExportFormat.AMR_NB_FILE)
+            OPUS -> setOf(ExportFormat.OGG, ExportFormat.WEBM, ExportFormat.M4A)
+            VORBIS -> setOf(ExportFormat.OGG, ExportFormat.WEBM, ExportFormat.M4A)
+            FLAC -> setOf(ExportFormat.M4A)
         }
 
     companion object {
@@ -652,6 +675,11 @@ fun estimateExportDurationSeconds(
 fun exportFileSizeLimitBytes(format: ExportFormat): Long {
     return when (format) {
         ExportFormat.WAV -> WAV_MAX_EXPORT_BYTES
+        ExportFormat.AAC_ADTS,
+        ExportFormat.AMR_NB_FILE,
+        ExportFormat.AMR_WB_FILE,
+        ExportFormat.MPEG_2_TS,
+        -> 4L * 1024L * 1024L * 1024L
         else -> MUXED_MAX_EXPORT_BYTES
     }
 }
@@ -981,6 +1009,7 @@ fun codecBitrateBitsPerSecond(
     return when {
         codec.isPcm -> 0L
         codec.isAacFamily -> aacBitrateForSampleRate(sampleRate, channelCount, bitrateKbps).toLong()
+        codec == ExportCodec.FLAC -> bytesPerSecond(sampleRate, channelCount) * 8L
         else -> ((bitrateKbps ?: defaultCodecBitrateKbps(codec, sampleRate, channelCount) ?: 0) * 1000L)
     }
 }

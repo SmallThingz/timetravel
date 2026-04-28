@@ -744,19 +744,24 @@ class TimeTravelService : Service() {
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
-        return when (effectiveOutputCodec) {
-            ExportCodec.PCM_16 -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
-            else -> {
-                EncodedAudioFileWriter(
-                    this,
-                    target,
-                    effectiveOutputFormat,
-                    effectiveOutputCodec,
-                    sampleRate,
-                    channelMode.channelCount,
-                    getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount),
-                )
-            }
+        val format = effectiveOutputFormat
+        val codec = effectiveOutputCodec
+        val bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount)
+        return when {
+            codec == ExportCodec.PCM_16 -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
+            format.usesMuxer -> EncodedAudioFileWriter(
+                this,
+                target,
+                format,
+                codec,
+                sampleRate,
+                channelMode.channelCount,
+                bitrateKbps,
+            )
+            format.isRawAacAdts -> AdtsAudioFileWriter(this, target, codec, sampleRate, channelMode.channelCount, bitrateKbps)
+            format.isRawAmr -> RawAmrAudioFileWriter(this, target, codec, sampleRate, channelMode.channelCount, bitrateKbps)
+            format.isTransportStream -> TsAudioFileWriter(this, target, codec, sampleRate, channelMode.channelCount, bitrateKbps)
+            else -> throw IOException("Unsupported output format: ${format.prefValue}")
         }
     }
 

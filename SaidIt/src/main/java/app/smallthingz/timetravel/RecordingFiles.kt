@@ -18,7 +18,7 @@ import java.io.RandomAccessFile
 import java.util.Locale
 
 private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
-private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "3gp", "ogg", "webm")
+private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "3gp", "ogg", "webm", "aac", "amr", "awb", "ts")
 
 enum class RecordingStorageType {
     FILE,
@@ -177,6 +177,7 @@ fun buildCodecSummary(
             when (codec) {
                 ExportCodec.PCM_16 -> "PCM 16-bit"
                 ExportCodec.AAC_LC -> "AAC-LC"
+                ExportCodec.AAC_ELD -> "AAC-ELD"
                 ExportCodec.HE_AAC -> "HE-AAC"
                 ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
                 ExportCodec.XHE_AAC -> "xHE-AAC"
@@ -184,6 +185,7 @@ fun buildCodecSummary(
                 ExportCodec.AMR_NB -> "AMR-NB"
                 ExportCodec.OPUS -> "Opus"
                 ExportCodec.VORBIS -> "Vorbis"
+                ExportCodec.FLAC -> "FLAC"
             },
         )
         append(" • ")
@@ -194,6 +196,10 @@ fun buildCodecSummary(
                 ExportFormat.THREE_GPP -> "3GP"
                 ExportFormat.OGG -> "Ogg"
                 ExportFormat.WEBM -> "WebM"
+                ExportFormat.AAC_ADTS -> "AAC ADTS"
+                ExportFormat.AMR_NB_FILE -> "AMR-NB"
+                ExportFormat.AMR_WB_FILE -> "AMR-WB"
+                ExportFormat.MPEG_2_TS -> "MPEG-TS"
             },
         )
         append(" • ")

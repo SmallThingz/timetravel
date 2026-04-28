@@ -78,9 +78,14 @@
     <string name="format_3gp">3GP</string>
     <string name="format_ogg">Ogg</string>
     <string name="format_webm">WebM</string>
+    <string name="format_aac_adts">AAC ADTS</string>
+    <string name="format_amr_nb_file">AMR-NB</string>
+    <string name="format_amr_wb_file">AMR-WB</string>
+    <string name="format_mpeg_2_ts">MPEG-TS</string>
     <string name="codec_label">Codec</string>
     <string name="codec_pcm_16">PCM 16 bits</string>
     <string name="codec_aac_lc">AAC-LC</string>
+    <string name="codec_aac_eld">AAC-ELD</string>
     <string name="codec_he_aac">HE-AAC</string>
     <string name="codec_he_aac_v2">HE-AAC v2</string>
     <string name="codec_xhe_aac">xHE-AAC</string>
@@ -88,6 +93,7 @@
     <string name="codec_amr_nb">AMR-NB</string>
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
+    <string name="codec_flac">FLAC</string>
     <string name="codec_bitrate_label">Débit</string>
     <string name="codec_bitrate_invalid">Utilisez %1$d-%2$d kbps.</string>
     <string name="codec_bitrate_value">%1$d kbps</string>

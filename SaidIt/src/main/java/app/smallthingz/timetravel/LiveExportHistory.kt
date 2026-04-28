@@ -8,6 +8,7 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -237,7 +238,11 @@ internal class LiveExportHistory(
 
         when {
             snapshot.config.format.isPcmContainer -> exportWaveSnapshot(snapshot, outputTarget)
-            else -> exportEncodedSnapshot(snapshot, outputTarget)
+            snapshot.config.format.usesMuxer -> exportEncodedSnapshot(snapshot, outputTarget)
+            snapshot.config.format.isRawAacAdts -> exportAdtsSnapshot(snapshot, outputTarget)
+            snapshot.config.format.isRawAmr -> exportRawAmrSnapshot(snapshot, outputTarget)
+            snapshot.config.format.isTransportStream -> exportTransportStreamSnapshot(snapshot, outputTarget)
+            else -> throw IOException("Unsupported history export format ${snapshot.config.format.prefValue}")
         }
     }
 
@@ -347,6 +352,134 @@ internal class LiveExportHistory(
         }
     }
 
+    private fun exportAdtsSnapshot(
+        snapshot: Snapshot,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        val currentConfig = snapshot.config
+        require(currentConfig.codec == ExportCodec.AAC_LC) { "ADTS snapshot export supports AAC-LC only" }
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        try {
+            forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                outputStream.write(buildAdtsHeader(currentConfig.sampleRate, currentConfig.channelCount, sampleSize))
+                outputStream.write(data, 0, sampleSize)
+            }
+            outputStream.flush()
+        } finally {
+            runCatching { outputStream.close() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun exportRawAmrSnapshot(
+        snapshot: Snapshot,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        val currentConfig = snapshot.config
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        try {
+            outputStream.write(
+                when (currentConfig.codec) {
+                    ExportCodec.AMR_WB -> "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
+                    ExportCodec.AMR_NB -> "#!AMR\n".toByteArray(Charsets.US_ASCII)
+                    else -> throw IOException("Raw AMR snapshot export requires AMR codec")
+                },
+            )
+            forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, _: Long ->
+                outputStream.write(data, 0, sampleSize)
+            }
+            outputStream.flush()
+        } finally {
+            runCatching { outputStream.close() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun exportTransportStreamSnapshot(
+        snapshot: Snapshot,
+        outputTarget: RecordingOutputTarget,
+    ) {
+        val currentConfig = snapshot.config
+        require(currentConfig.codec == ExportCodec.AAC_LC) { "TS snapshot export supports AAC-LC only" }
+        val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
+        val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
+        try {
+            val packetizer = MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount)
+            forEachEncodedSliceSample(snapshot) { _: SegmentSlice, data: ByteArray, sampleSize: Int, presentationTimeUs: Long ->
+                packetizer.writeAccessUnit(data.copyOf(sampleSize), presentationTimeUs)
+            }
+            outputStream.flush()
+        } finally {
+            runCatching { outputStream.close() }
+            runCatching { parcelFileDescriptor.close() }
+        }
+    }
+
+    private fun forEachEncodedSliceSample(
+        snapshot: Snapshot,
+        consumer: (SegmentSlice, ByteArray, Int, Long) -> Unit,
+    ) {
+        val currentConfig = snapshot.config
+        val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
+        var outputBaseTimeUs = 0L
+        snapshot.slices.forEach { slice ->
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(slice.segment.file.absolutePath)
+                val extractorTrackIndex = findAudioTrack(extractor)
+                if (extractorTrackIndex < 0) {
+                    return@forEach
+                }
+                extractor.selectTrack(extractorTrackIndex)
+
+                val sliceStartUs = currentConfig.bytesToDurationUs(slice.skipSampleBytes)
+                val sliceDurationUs = currentConfig.bytesToDurationUs(slice.takeSampleBytes)
+                val sliceEndUs = sliceStartUs + sliceDurationUs
+                extractor.seekTo(sliceStartUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+
+                var firstWrittenSampleTimeUs = Long.MIN_VALUE
+                while (true) {
+                    val sampleTimeUs = extractor.sampleTime
+                    if (sampleTimeUs < 0L) {
+                        break
+                    }
+                    if (sampleTimeUs < sliceStartUs) {
+                        if (!extractor.advance()) {
+                            break
+                        }
+                        continue
+                    }
+                    if (sampleTimeUs >= sliceEndUs) {
+                        break
+                    }
+
+                    byteBuffer.clear()
+                    val sampleSize = extractor.readSampleData(byteBuffer, 0)
+                    if (sampleSize <= 0) {
+                        break
+                    }
+                    if (firstWrittenSampleTimeUs == Long.MIN_VALUE) {
+                        firstWrittenSampleTimeUs = sampleTimeUs
+                    }
+                    val payload = ByteArray(sampleSize)
+                    byteBuffer.flip()
+                    byteBuffer.get(payload, 0, sampleSize)
+                    consumer(slice, payload, sampleSize, outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L))
+                    if (!extractor.advance()) {
+                        break
+                    }
+                }
+                if (firstWrittenSampleTimeUs != Long.MIN_VALUE) {
+                    outputBaseTimeUs += sliceDurationUs
+                }
+            } finally {
+                extractor.release()
+            }
+        }
+    }
+
     private fun copyWholeFile(
         source: File,
         outputTarget: RecordingOutputTarget,
@@ -388,7 +521,7 @@ internal class LiveExportHistory(
         currentWriter =
             when {
                 currentConfig.format.isPcmContainer -> WavAudioFileWriter(context, target, currentConfig.sampleRate, currentConfig.channelCount)
-                else -> EncodedAudioFileWriter(
+                currentConfig.format.usesMuxer -> EncodedAudioFileWriter(
                     context = context,
                     target = target,
                     outputFormat = currentConfig.format,
@@ -397,6 +530,31 @@ internal class LiveExportHistory(
                     channelCount = currentConfig.channelCount,
                     bitrateKbps = currentConfig.bitrateKbps,
                 )
+                currentConfig.format.isRawAacAdts -> AdtsAudioFileWriter(
+                    context = context,
+                    target = target,
+                    codecConfig = currentConfig.codec,
+                    configuredSampleRate = currentConfig.sampleRate,
+                    configuredChannelCount = currentConfig.channelCount,
+                    bitrateKbps = currentConfig.bitrateKbps,
+                )
+                currentConfig.format.isRawAmr -> RawAmrAudioFileWriter(
+                    context = context,
+                    target = target,
+                    codecConfig = currentConfig.codec,
+                    configuredSampleRate = currentConfig.sampleRate,
+                    configuredChannelCount = currentConfig.channelCount,
+                    bitrateKbps = currentConfig.bitrateKbps,
+                )
+                currentConfig.format.isTransportStream -> TsAudioFileWriter(
+                    context = context,
+                    target = target,
+                    codecConfig = currentConfig.codec,
+                    configuredSampleRate = currentConfig.sampleRate,
+                    configuredChannelCount = currentConfig.channelCount,
+                    bitrateKbps = currentConfig.bitrateKbps,
+                )
+                else -> throw IOException("Unsupported history format ${currentConfig.format.prefValue}")
             }
     }
 
@@ -877,9 +1035,9 @@ internal class LiveExportHistory(
         const val TAG = "LiveExportHistory"
         const val WAV_HEADER_BYTES = 44L
         const val COPY_BUFFER_BYTES = 256 * 1024
-        const val DEFAULT_SEGMENT_DURATION_MS = 2_000L
+        const val DEFAULT_SEGMENT_DURATION_MS = 10_000L
         const val MIN_SEGMENT_DURATION_MS = 2_000L
-        const val MAX_SEGMENT_DURATION_MS = 2_000L
+        const val MAX_SEGMENT_DURATION_MS = 300_000L
         const val MIN_COMPACTION_DURATION_MS = 30_000L
         const val MAX_COMPACTION_DURATION_MS = 300_000L
         const val MIN_COMPACTION_SEGMENTS = 2
