@@ -1572,8 +1572,7 @@ class TimeTravelService : Service() {
 
     private fun buildReencodeDebugOperation(history: LiveExportHistory.DebugSnapshot?): ChunkOperationItem? {
         val show =
-            historyReencodePending ||
-                historyReencoding ||
+            historyReencoding ||
                 android.os.SystemClock.elapsedRealtime() < historyReencodeVisibleUntilElapsedRealtime
         if (!show) {
             return null
