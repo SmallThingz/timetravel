@@ -10,8 +10,6 @@
 
     <string name="buffer_active_summary">ON</string>
     <string name="buffer_inactive_summary">OFF</string>
-    <string name="buffer_status_time">過去 %1$s を録音中</string>
-    <string name="buffer_status_size">%1$s の音声を保持中</string>
     <string name="buffer_status_paused">バッファは一時停止中</string>
     <string name="clear_buffer">消去</string>
 
@@ -44,7 +42,11 @@
     <string name="retention_mode_size">サイズ</string>
     <string name="retention_time_label">時間</string>
     <string name="retention_time_invalid">MM:SS または HH:MM:SS を使用してください。</string>
+    <string name="retention_time_too_large">現在の形式では大きすぎます。最大 %1$s。</string>
+    <string name="retention_time_limit_helper">対応上限: %1$s</string>
     <string name="retention_size_label">サイズ (MiB)</string>
+    <string name="retention_size_too_large">現在の形式では大きすぎます。最大 %1$d MiB。</string>
+    <string name="retention_size_limit_helper">対応上限: %1$d MiB</string>
     <string name="recording_settings_title">音声</string>
     <string name="storage_settings_title">保存先</string>
     <string name="background_persistence_title">バックグラウンド</string>
@@ -65,14 +67,22 @@
     <string name="auto_merge_divisor_invalid">%1$d-%2$d を使用してください。</string>
     <string name="auto_merge_custom_invalid">MM:SS または HH:MM:SS を使用してください。</string>
     <string name="auto_merge_custom_range_invalid">%1$s-%2$s を使用してください。</string>
+    <string name="format_label">形式</string>
+    <string name="format_wav">WAV</string>
+    <string name="format_m4a">M4A</string>
+    <string name="format_3gp">3GP</string>
+    <string name="format_ogg">Ogg</string>
+    <string name="format_webm">WebM</string>
     <string name="codec_label">コーデック</string>
-    <string name="codec_aac_lc">AAC-LC / M4A</string>
-    <string name="codec_he_aac">HE-AAC / M4A</string>
-    <string name="codec_he_aac_v2">HE-AAC v2 / M4A</string>
-    <string name="codec_xhe_aac">xHE-AAC / M4A</string>
-    <string name="codec_amr_wb">AMR-WB / 3GP</string>
-    <string name="codec_amr_nb">AMR-NB / 3GP</string>
-    <string name="codec_wav">WAV / PCM</string>
+    <string name="codec_pcm_16">PCM 16ビット</string>
+    <string name="codec_aac_lc">AAC-LC</string>
+    <string name="codec_he_aac">HE-AAC</string>
+    <string name="codec_he_aac_v2">HE-AAC v2</string>
+    <string name="codec_xhe_aac">xHE-AAC</string>
+    <string name="codec_amr_wb">AMR-WB</string>
+    <string name="codec_amr_nb">AMR-NB</string>
+    <string name="codec_opus">Opus</string>
+    <string name="codec_vorbis">Vorbis</string>
     <string name="codec_bitrate_label">ビットレート</string>
     <string name="codec_bitrate_invalid">%1$d-%2$d kbps を使用してください。</string>
     <string name="codec_bitrate_value">%1$d kbps</string>

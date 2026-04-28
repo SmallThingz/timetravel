@@ -323,11 +323,12 @@ class TimeTravelFragment : Fragment() {
         }
 
         val activeConfig = recorder?.getConfigurationSnapshot()
+        val format = activeConfig?.format ?: getConfiguredOutputFormat(context)
         val codec = activeConfig?.codec ?: getConfiguredOutputCodec(context)
         val sourceMode = activeConfig?.sourceMode ?: getConfiguredAudioSourceMode(context)
         val channelMode = activeConfig?.channelMode ?: getConfiguredChannelMode(context)
         val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
-        val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, codec, channelMode)
+        val sampleRate = activeConfig?.sampleRate ?: getConfiguredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
         val bytesPerSecond = (sampleRate * channelMode.channelCount * 2L).coerceAtLeast(1L)
         val displayedCurrentSeconds = lastMemorizedSeconds.coerceAtLeast(0f).toInt()
         val displayedLimitSeconds = lastTotalMemorySeconds.coerceAtLeast(0f).toInt()
@@ -457,7 +458,7 @@ class TimeTravelFragment : Fragment() {
 
         val fillColor = MaterialColors.getColor(
             listenSurface,
-            if (active) androidx.appcompat.R.attr.colorPrimary
+            if (active) R.attr.colorPrimary
             else com.google.android.material.R.attr.colorSurfaceContainerHigh,
         )
         val contentColor = MaterialColors.getColor(
@@ -472,7 +473,7 @@ class TimeTravelFragment : Fragment() {
         )
         val ringBaseColor = MaterialColors.getColor(
             listenSurface,
-            if (active) androidx.appcompat.R.attr.colorPrimary
+            if (active) R.attr.colorPrimary
             else com.google.android.material.R.attr.colorOutlineVariant,
         )
         val ringFillColor = if (active) ColorUtils.setAlphaComponent(ringBaseColor, if (isRecording) 56 else 40) else Color.TRANSPARENT

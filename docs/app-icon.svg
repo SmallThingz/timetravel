@@ -10,8 +10,7 @@
     </linearGradient>
   </defs>
   <rect width="100" height="100" fill="url(#bg)"/>
-  <path d="M31 45H38V55H31Z M39 37H46V63H39Z M47 29H54V71H47Z M55 37H62V63H55Z M63 45H70V55H63Z" fill="#FFFFFF" fill-opacity="0.18"/>
   <path d="M32 46H37V54H32Z M40 38H45V62H40Z M48 30H53V70H48Z M56 38H61V62H56Z M64 46H69V54H64Z" fill="#FFFFFF"/>
-  <path d="M47 14L61 22L47 30Z" fill="url(#accent)"/>
-  <path d="M50 22A28 28 0 1 0 71 30.7" fill="none" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M50 20A30 30 0 1 0 72.5 29.321" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M48.5 11.621L63.5 20.621L48.5 28.621Z" fill="url(#accent)"/>
 </svg>

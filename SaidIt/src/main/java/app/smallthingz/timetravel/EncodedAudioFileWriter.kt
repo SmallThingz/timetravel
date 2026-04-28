@@ -9,6 +9,7 @@ import java.io.IOException
 internal class EncodedAudioFileWriter(
     context: Context,
     override val target: RecordingOutputTarget,
+    private val outputFormat: ExportFormat,
     private val codecConfig: ExportCodec,
     private val sampleRate: Int,
     private val channelCount: Int,
@@ -32,7 +33,7 @@ internal class EncodedAudioFileWriter(
             start()
         }
         parcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
-        muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(codecConfig.muxerOutputFormat))
+        muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(outputFormat.muxerOutputFormat))
     }
 
     override fun write(

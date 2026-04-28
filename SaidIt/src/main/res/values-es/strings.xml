@@ -10,8 +10,6 @@
 
     <string name="buffer_active_summary">ACTIVO</string>
     <string name="buffer_inactive_summary">APAGADO</string>
-    <string name="buffer_status_time">Grabando los últimos %1$s</string>
-    <string name="buffer_status_size">Manteniendo %1$s de audio listo</string>
     <string name="buffer_status_paused">Búfer en pausa</string>
     <string name="clear_buffer">Borrar</string>
 
@@ -44,7 +42,11 @@
     <string name="retention_mode_size">Tamaño</string>
     <string name="retention_time_label">Tiempo</string>
     <string name="retention_time_invalid">Usa MM:SS o HH:MM:SS.</string>
+    <string name="retention_time_too_large">Demasiado grande para el formato actual. Máximo %1$s.</string>
+    <string name="retention_time_limit_helper">Máximo compatible: %1$s</string>
     <string name="retention_size_label">Tamaño (MiB)</string>
+    <string name="retention_size_too_large">Demasiado grande para el formato actual. Máximo %1$d MiB.</string>
+    <string name="retention_size_limit_helper">Máximo compatible: %1$d MiB</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Almacenamiento</string>
     <string name="background_persistence_title">Segundo plano</string>
@@ -65,14 +67,22 @@
     <string name="auto_merge_divisor_invalid">Usa %1$d-%2$d.</string>
     <string name="auto_merge_custom_invalid">Usa MM:SS o HH:MM:SS.</string>
     <string name="auto_merge_custom_range_invalid">Usa %1$s-%2$s.</string>
+    <string name="format_label">Formato</string>
+    <string name="format_wav">WAV</string>
+    <string name="format_m4a">M4A</string>
+    <string name="format_3gp">3GP</string>
+    <string name="format_ogg">Ogg</string>
+    <string name="format_webm">WebM</string>
     <string name="codec_label">Códec</string>
-    <string name="codec_aac_lc">AAC-LC / M4A</string>
-    <string name="codec_he_aac">HE-AAC / M4A</string>
-    <string name="codec_he_aac_v2">HE-AAC v2 / M4A</string>
-    <string name="codec_xhe_aac">xHE-AAC / M4A</string>
-    <string name="codec_amr_wb">AMR-WB / 3GP</string>
-    <string name="codec_amr_nb">AMR-NB / 3GP</string>
-    <string name="codec_wav">WAV / PCM</string>
+    <string name="codec_pcm_16">PCM 16-bit</string>
+    <string name="codec_aac_lc">AAC-LC</string>
+    <string name="codec_he_aac">HE-AAC</string>
+    <string name="codec_he_aac_v2">HE-AAC v2</string>
+    <string name="codec_xhe_aac">xHE-AAC</string>
+    <string name="codec_amr_wb">AMR-WB</string>
+    <string name="codec_amr_nb">AMR-NB</string>
+    <string name="codec_opus">Opus</string>
+    <string name="codec_vorbis">Vorbis</string>
     <string name="codec_bitrate_label">Tasa de bits</string>
     <string name="codec_bitrate_invalid">Usa %1$d-%2$d kbps.</string>
     <string name="codec_bitrate_value">%1$d kbps</string>
@@ -140,11 +150,13 @@
 
     <plurals name="move_recordings_done">
         <item quantity="one">Se movió %1$d grabación.</item>
+        <item quantity="many">Se movieron %1$d grabaciones.</item>
         <item quantity="other">Se movieron %1$d grabaciones.</item>
     </plurals>
 
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">Se eliminó %1$d entrada faltante.</item>
+        <item quantity="many">Se eliminaron %1$d entradas faltantes.</item>
         <item quantity="other">Se eliminaron %1$d entradas faltantes.</item>
     </plurals>
 </resources>

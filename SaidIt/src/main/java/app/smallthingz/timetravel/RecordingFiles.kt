@@ -18,7 +18,7 @@ import java.io.RandomAccessFile
 import java.util.Locale
 
 private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
-private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "aac", "3gp")
+private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "3gp", "ogg", "webm")
 
 enum class RecordingStorageType {
     FILE,
@@ -163,39 +163,47 @@ fun resolveRecordingCodecInfo(
 }
 
 fun buildCodecSummary(
+    format: ExportFormat,
     codec: ExportCodec,
     sampleRate: Int,
     channelCount: Int,
-    aacBitrateKbps: Int? = null,
+    bitrateKbps: Int? = null,
 ): String {
     val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
-    return when (codec) {
-        ExportCodec.WAV -> "WAV • ${sampleRateLabel(sampleRate)} • $channelLabel"
-        else -> {
-            val bitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
-                ?.let { aacBitrateKbps ?: it }
-            buildString {
-                append(
-                    when (codec) {
-                        ExportCodec.AAC_LC -> "AAC-LC"
-                        ExportCodec.HE_AAC -> "HE-AAC"
-                        ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
-                        ExportCodec.XHE_AAC -> "xHE-AAC"
-                        ExportCodec.AMR_WB -> "AMR-WB"
-                        ExportCodec.AMR_NB -> "AMR-NB"
-                        ExportCodec.WAV -> "WAV"
-                    },
-                )
-                append(" • ")
-                append(sampleRateLabel(sampleRate))
-                append(" • ")
-                append(channelLabel)
-                bitrateKbps?.let {
-                    append(" • ")
-                    append(it)
-                    append(" kbps")
-                }
-            }
+    val resolvedBitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
+        ?.let { bitrateKbps ?: it }
+    return buildString {
+        append(
+            when (codec) {
+                ExportCodec.PCM_16 -> "PCM 16-bit"
+                ExportCodec.AAC_LC -> "AAC-LC"
+                ExportCodec.HE_AAC -> "HE-AAC"
+                ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
+                ExportCodec.XHE_AAC -> "xHE-AAC"
+                ExportCodec.AMR_WB -> "AMR-WB"
+                ExportCodec.AMR_NB -> "AMR-NB"
+                ExportCodec.OPUS -> "Opus"
+                ExportCodec.VORBIS -> "Vorbis"
+            },
+        )
+        append(" • ")
+        append(
+            when (format) {
+                ExportFormat.WAV -> "WAV"
+                ExportFormat.M4A -> "M4A"
+                ExportFormat.THREE_GPP -> "3GP"
+                ExportFormat.OGG -> "Ogg"
+                ExportFormat.WEBM -> "WebM"
+            },
+        )
+        append(" • ")
+        append(sampleRateLabel(sampleRate))
+        append(" • ")
+        append(channelLabel)
+        resolvedBitrateKbps?.let {
+            append(" • ")
+            append(it)
+            append(" kbps")
         }
     }
 }
@@ -375,13 +383,14 @@ fun createOutputTarget(
     context: Context,
     requestedName: String?,
     startedAtMillis: Long,
+    format: ExportFormat,
     codec: ExportCodec,
 ): RecordingOutputTarget {
     val baseName = sanitizeBaseName(
         if (requestedName.isNullOrBlank()) buildRecordingBaseName(startedAtMillis) else requestedName.trim(),
     )
-    val displayName = "$baseName.${codec.extension}"
-    val mimeType = codec.outputMimeType
+    val displayName = "$baseName.${format.extension}"
+    val mimeType = format.outputMimeType
     return createOutputTarget(context, displayName, mimeType, startedAtMillis)
 }
 

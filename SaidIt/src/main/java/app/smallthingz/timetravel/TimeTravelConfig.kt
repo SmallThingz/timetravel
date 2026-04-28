@@ -11,6 +11,7 @@ object TimeTravelConfig {
     const val RETENTION_MODE_KEY = "retention_mode"
     const val RETENTION_SECONDS_KEY = "retention_seconds"
     const val EXPORT_DIRECTORY_URI_KEY = "export_directory_uri"
+    const val OUTPUT_FORMAT_KEY = "output_format"
     const val OUTPUT_CODEC_KEY = "output_codec"
     const val OUTPUT_BITRATE_KBPS_KEY = "output_bitrate_kbps"
     const val AUDIO_SOURCE_KEY = "audio_source"
@@ -26,7 +27,14 @@ object TimeTravelConfig {
     const val RETENTION_MODE_SIZE = "size"
     const val RETENTION_MODE_TIME = "time"
 
+    const val OUTPUT_FORMAT_WAV = "wav"
+    const val OUTPUT_FORMAT_M4A = "m4a"
+    const val OUTPUT_FORMAT_3GP = "3gp"
+    const val OUTPUT_FORMAT_OGG = "ogg"
+    const val OUTPUT_FORMAT_WEBM = "webm"
+
     const val OUTPUT_CODEC_WAV = "wav"
+    const val OUTPUT_CODEC_PCM_16 = "pcm_16"
     const val OUTPUT_CODEC_AAC = "aac"
     const val OUTPUT_CODEC_AAC_LC = "aac_lc"
     const val OUTPUT_CODEC_HE_AAC = "he_aac"
@@ -34,6 +42,8 @@ object TimeTravelConfig {
     const val OUTPUT_CODEC_XHE_AAC = "xhe_aac"
     const val OUTPUT_CODEC_AMR_WB = "amr_wb"
     const val OUTPUT_CODEC_AMR_NB = "amr_nb"
+    const val OUTPUT_CODEC_OPUS = "opus"
+    const val OUTPUT_CODEC_VORBIS = "vorbis"
 
     const val CHANNEL_MODE_MONO = "mono"
     const val CHANNEL_MODE_STEREO = "stereo"

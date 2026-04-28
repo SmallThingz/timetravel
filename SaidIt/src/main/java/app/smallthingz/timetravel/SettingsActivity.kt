@@ -41,6 +41,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var themeLayout: TextInputLayout
     private lateinit var retentionTimeLayout: TextInputLayout
     private lateinit var retentionSizeLayout: TextInputLayout
+    private lateinit var formatLayout: TextInputLayout
     private lateinit var codecLayout: TextInputLayout
     private lateinit var sampleRateLayout: TextInputLayout
     private lateinit var audioSourceLayout: TextInputLayout
@@ -53,6 +54,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var bitrateValue: TextView
     private lateinit var bitrateSlider: Slider
     private lateinit var themeDropdown: MaterialAutoCompleteTextView
+    private lateinit var formatDropdown: MaterialAutoCompleteTextView
     private lateinit var codecDropdown: MaterialAutoCompleteTextView
     private lateinit var sampleRateDropdown: MaterialAutoCompleteTextView
     private lateinit var audioSourceDropdown: MaterialAutoCompleteTextView
@@ -90,6 +92,7 @@ class SettingsActivity : AppCompatActivity() {
     private val currentSettings = SettingsSnapshot()
 
     private var availableThemes: List<AppThemeMode> = emptyList()
+    private var availableFormats: List<ExportFormat> = emptyList()
     private var availableCodecs: List<ExportCodec> = emptyList()
     private var availableSourceModes: List<AudioSourceMode> = emptyList()
     private var availableChannelModes: List<ChannelMode> = emptyList()
@@ -110,6 +113,7 @@ class SettingsActivity : AppCompatActivity() {
         var retentionMode: RetentionMode = RetentionMode.TIME,
         var retentionTime: Int = 0,
         var retentionSizeMb: Long = 0,
+        var format: ExportFormat? = null,
         var codec: ExportCodec? = null,
         var bitrateKbps: Int = 0,
         var source: AudioSourceMode? = null,
@@ -130,6 +134,7 @@ class SettingsActivity : AppCompatActivity() {
             retentionMode = other.retentionMode
             retentionTime = other.retentionTime
             retentionSizeMb = other.retentionSizeMb
+            format = other.format
             codec = other.codec
             bitrateKbps = other.bitrateKbps
             source = other.source
@@ -195,6 +200,7 @@ class SettingsActivity : AppCompatActivity() {
         themeLayout = findViewById(R.id.theme_layout)
         retentionTimeLayout = findViewById(R.id.retention_time_layout)
         retentionSizeLayout = findViewById(R.id.retention_size_layout)
+        formatLayout = findViewById(R.id.format_layout)
         codecLayout = findViewById(R.id.codec_layout)
         sampleRateLayout = findViewById(R.id.sample_rate_layout)
         audioSourceLayout = findViewById(R.id.audio_source_layout)
@@ -207,6 +213,7 @@ class SettingsActivity : AppCompatActivity() {
         bitrateValue = findViewById(R.id.bitrate_value)
         bitrateSlider = findViewById(R.id.bitrate_slider)
         themeDropdown = findViewById(R.id.theme_dropdown)
+        formatDropdown = findViewById(R.id.format_dropdown)
         codecDropdown = findViewById(R.id.codec_dropdown)
         sampleRateDropdown = findViewById(R.id.sample_rate_dropdown)
         audioSourceDropdown = findViewById(R.id.audio_source_dropdown)
@@ -373,6 +380,24 @@ class SettingsActivity : AppCompatActivity() {
                 pushUndoState()
             }
         }
+        formatDropdown.setOnItemClickListener { _, _, _, _ ->
+            if (!bindingUi) {
+                updateDropdownSelection(formatDropdown)
+                if (capabilityUiReady) {
+                    refreshCodecOptions(
+                        preferredCodec = currentCodec(),
+                        preferredSource = currentSourceMode(),
+                        preferredChannelMode = currentChannelMode(),
+                        preferredRate = currentSampleRate(),
+                        preferredBitrateKbps = currentBitrateKbpsOrNull(),
+                    )
+                } else {
+                    refreshCapabilityUiAsync(resetOriginalSnapshot = false)
+                }
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
         codecDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(codecDropdown)
@@ -527,6 +552,7 @@ class SettingsActivity : AppCompatActivity() {
             TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY,
             Runtime.getRuntime().maxMemory() / 4,
         ).coerceAtMost(getRetentionMemoryCapBytes())
+        val configuredFormat = getConfiguredOutputFormat(this)
         val configuredCodec = getConfiguredOutputCodec(this)
         val configuredRoute = getConfiguredInputRouteMode(this)
         val configuredSource = getConfiguredAudioSourceMode(this)
@@ -560,6 +586,13 @@ class SettingsActivity : AppCompatActivity() {
             getString(configuredThemeMode.labelRes),
         )
 
+        availableFormats = supportedFormats()
+        setDropdownItems(
+            formatDropdown,
+            availableFormats.map { getString(it.labelRes) },
+            getString((configuredFormat.takeIf { it in availableFormats } ?: availableFormats.first()).labelRes),
+        )
+
         availableRouteModes = InputRouteMode.entries
         setDropdownItems(
             inputRouteDropdown,
@@ -567,11 +600,11 @@ class SettingsActivity : AppCompatActivity() {
             getString(configuredRoute.labelRes),
         )
 
-        availableCodecs = ExportCodec.entries
+        availableCodecs = supportedCodecs(currentFormat())
         setDropdownItems(
             codecDropdown,
             availableCodecs.map { getString(it.labelRes) },
-            getString(configuredCodec.labelRes),
+            getString((configuredCodec.takeIf { it in availableCodecs } ?: availableCodecs.first()).labelRes),
         )
 
         availableSourceModes = AudioSourceMode.availableModes()
@@ -681,6 +714,7 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.retentionMode = activeRetentionMode
         snapshot.retentionTime = retentionTimeSecondsValue
         snapshot.retentionSizeMb = retentionSizeMbValue
+        snapshot.format = currentFormat()
         snapshot.codec = currentCodec()
         snapshot.bitrateKbps = effectiveCodecBitrateKbps() ?: 0
         snapshot.source = currentSourceMode()
@@ -723,6 +757,11 @@ class SettingsActivity : AppCompatActivity() {
             themeDropdown,
             availableThemes.map { getString(it.labelRes) },
             getString(previous.themeMode.labelRes),
+        )
+        setDropdownItems(
+            formatDropdown,
+            availableFormats.map { getString(it.labelRes) },
+            getString(previous.format?.labelRes ?: availableFormats.first().labelRes),
         )
         setDropdownItems(
             codecDropdown,
@@ -774,7 +813,8 @@ class SettingsActivity : AppCompatActivity() {
         preferredRate: Int? = null,
         preferredBitrateKbps: Int? = null,
     ) {
-        availableCodecs = supportedCodecs()
+        val format = currentFormat()
+        availableCodecs = supportedCodecs(format)
         val selectedCodec = preferredCodec?.takeIf { it in availableCodecs } ?: availableCodecs.first()
         setDropdownItems(
             codecDropdown,
@@ -790,9 +830,10 @@ class SettingsActivity : AppCompatActivity() {
         preferredChannelMode: ChannelMode? = null,
         preferredRate: Int? = null,
     ) {
+        val format = currentFormat()
         val codec = currentCodec()
         val route = currentRouteMode()
-        availableSourceModes = supportedAudioSourceModes(this, route, codec)
+        availableSourceModes = supportedAudioSourceModes(this, route, format, codec)
         val selectedSource = preferredSource?.takeIf { it in availableSourceModes } ?: availableSourceModes.first()
         setDropdownItems(
             audioSourceDropdown,
@@ -806,10 +847,11 @@ class SettingsActivity : AppCompatActivity() {
         preferredChannelMode: ChannelMode? = null,
         preferredRate: Int? = null,
     ) {
+        val format = currentFormat()
         val codec = currentCodec()
         val route = currentRouteMode()
         val source = currentSourceMode()
-        availableChannelModes = supportedChannelModes(this, source, route, codec)
+        availableChannelModes = supportedChannelModes(this, source, route, format, codec)
         val selectedChannelMode =
             preferredChannelMode?.takeIf { it in availableChannelModes } ?: availableChannelModes.first()
         setDropdownItems(
@@ -821,11 +863,12 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshSampleRates(preferredRate: Int? = null) {
+        val format = currentFormat()
         val codec = currentCodec()
         val route = currentRouteMode()
         val source = currentSourceMode()
         val channelMode = currentChannelMode()
-        availableSampleRates = supportedSampleRates(this, source, route, codec, channelMode)
+        availableSampleRates = supportedSampleRates(this, source, route, format, codec, channelMode)
 
         sampleRateLayout.error = if (availableSampleRates.isEmpty()) getString(R.string.unsupported_config_message) else null
 
@@ -948,15 +991,25 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
 
+        val format = currentFormat()
         val codec = currentCodec()
         val channelMode = currentChannelMode()
         val bitrateKbps = effectiveCodecBitrateKbps()
-        val estimatePrefix = if (codec == ExportCodec.WAV) "=" else "~"
+        val estimatePrefix = if (format.isPcmContainer) "=" else "~"
+        val maxSupportedBytes = retentionCapacityLimitBytes()
+        val maxSupportedSeconds = retentionSecondsForBytes(maxSupportedBytes, sampleRate, channelMode.channelCount)
         val estimatedSizeMb = bytesToMegabytes(
-            estimateExportSizeBytes(codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps),
+            estimateExportSizeBytes(format, codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps),
         ).toString()
         val estimatedDuration = formatDurationInput(
-            estimateExportDurationSeconds(codec, sampleRate, channelMode.channelCount, megabytesToBytes(retentionSizeMbValue), bitrateKbps).toInt(),
+            estimateExportDurationSeconds(
+                format,
+                codec,
+                sampleRate,
+                channelMode.channelCount,
+                rawMegabytesToBytes(retentionSizeMbValue),
+                bitrateKbps,
+            ),
         )
 
         val previousBindingUi = bindingUi
@@ -978,6 +1031,8 @@ class SettingsActivity : AppCompatActivity() {
         }
         retentionTimeLayout.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
         retentionSizeLayout.alpha = if (activeRetentionMode == RetentionMode.SIZE) 1f else 0.82f
+        retentionTimeLayout.helperText = getString(R.string.retention_time_limit_helper, formatDurationInput(maxSupportedSeconds))
+        retentionSizeLayout.helperText = getString(R.string.retention_size_limit_helper, bytesToMegabytes(maxSupportedBytes))
         bindingUi = previousBindingUi
     }
 
@@ -985,6 +1040,7 @@ class SettingsActivity : AppCompatActivity() {
         clearErrors()
 
         val themeMode = currentThemeMode()
+        val format = currentFormat()
         val codec = currentCodec()
         val channelMode = currentChannelMode()
         val route = currentRouteMode()
@@ -1021,6 +1077,25 @@ class SettingsActivity : AppCompatActivity() {
         }
         if (sizeMb == null || sizeMb <= 0) {
             retentionSizeLayout.error = getString(R.string.custom_memory_size_invalid)
+            return false
+        }
+
+        val maxSupportedBytes = retentionCapacityLimitBytes()
+        val requestedTimeBytes = rawBytesForRetentionSeconds(retentionTime.toLong(), sampleRate, channelMode.channelCount)
+        if (requestedTimeBytes > maxSupportedBytes) {
+            retentionTimeLayout.error = getString(
+                R.string.retention_time_too_large,
+                formatDurationInput(retentionSecondsForBytes(maxSupportedBytes, sampleRate, channelMode.channelCount)),
+            )
+            return false
+        }
+
+        val requestedSizeBytes = rawMegabytesToBytes(sizeMb)
+        if (requestedSizeBytes > maxSupportedBytes) {
+            retentionSizeLayout.error = getString(
+                R.string.retention_size_too_large,
+                bytesToMegabytes(maxSupportedBytes),
+            )
             return false
         }
 
@@ -1085,13 +1160,14 @@ class SettingsActivity : AppCompatActivity() {
         historyChunkSecondsValue = historyChunkSeconds
         autoMergeDivisorValue = autoMergeDivisor ?: autoMergeDivisorValue
         autoMergeCustomSecondsValue = autoMergeCustomSeconds ?: autoMergeCustomSecondsValue
-        val sizeBytes = megabytesToBytes(sizeMb)
+        val sizeBytes = requestedSizeBytes
 
         setConfiguredThemeMode(this, themeMode)
         getRecorderPreferences(this).edit()
             .putString(TimeTravelConfig.RETENTION_MODE_KEY, activeRetentionMode.prefValue)
             .putLong(TimeTravelConfig.RETENTION_SECONDS_KEY, retentionTime.toLong())
             .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, sizeBytes)
+            .putString(TimeTravelConfig.OUTPUT_FORMAT_KEY, format.prefValue)
             .putString(TimeTravelConfig.OUTPUT_CODEC_KEY, codec.prefValue)
             .putInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, bitrateKbps ?: (effectiveCodecBitrateKbps() ?: 0))
             .putInt(TimeTravelConfig.AUDIO_SOURCE_KEY, source.sourceValue)
@@ -1143,6 +1219,7 @@ class SettingsActivity : AppCompatActivity() {
         retentionTimeLayout.error = null
         retentionSizeLayout.error = null
         themeLayout.error = null
+        formatLayout.error = null
         sampleRateLayout.error = null
         codecLayout.error = null
         audioSourceLayout.error = null
@@ -1173,6 +1250,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun currentThemeMode(): AppThemeMode {
         val selected = themeDropdown.text?.toString().orEmpty()
         return availableThemes.firstOrNull { getString(it.labelRes) == selected } ?: AppThemeMode.SYSTEM
+    }
+
+    private fun currentFormat(): ExportFormat {
+        val selected = formatDropdown.text?.toString().orEmpty()
+        return availableFormats.firstOrNull { getString(it.labelRes) == selected } ?: availableFormats.first()
     }
 
     private fun currentCodec(): ExportCodec {
@@ -1329,11 +1411,40 @@ class SettingsActivity : AppCompatActivity() {
         return maxOf(1L, kotlin.math.ceil(bytes.toDouble() / BYTES_IN_MEGABYTE).toLong())
     }
 
+    private fun retentionCapacityLimitBytes(): Long {
+        return minOf(getRetentionMemoryCapBytes(), Int.MAX_VALUE.toLong())
+    }
+
     private fun megabytesToBytes(memoryInMegabytes: Long): Long {
         if (memoryInMegabytes > Long.MAX_VALUE / BYTES_IN_MEGABYTE) {
             return getRetentionMemoryCapBytes()
         }
         return (memoryInMegabytes * BYTES_IN_MEGABYTE).coerceAtMost(getRetentionMemoryCapBytes())
+    }
+
+    private fun rawMegabytesToBytes(memoryInMegabytes: Long): Long {
+        if (memoryInMegabytes <= 0L) {
+            return 0L
+        }
+        if (memoryInMegabytes > Long.MAX_VALUE / BYTES_IN_MEGABYTE) {
+            return Long.MAX_VALUE
+        }
+        return memoryInMegabytes * BYTES_IN_MEGABYTE
+    }
+
+    private fun rawBytesForRetentionSeconds(
+        seconds: Long,
+        sampleRate: Int,
+        channelCount: Int,
+    ): Long {
+        val bytesPerSecond = (sampleRate.toLong() * channelCount.toLong() * 2L).coerceAtLeast(1L)
+        if (seconds <= 0L) {
+            return 0L
+        }
+        if (seconds > Long.MAX_VALUE / bytesPerSecond) {
+            return Long.MAX_VALUE
+        }
+        return seconds * bytesPerSecond
     }
 
     private companion object {

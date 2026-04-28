@@ -33,6 +33,7 @@ internal class LiveExportHistory(
 
     @Synchronized
     fun updateConfiguration(
+        format: ExportFormat,
         codec: ExportCodec,
         sampleRate: Int,
         channelCount: Int,
@@ -41,7 +42,7 @@ internal class LiveExportHistory(
         segmentDurationMillis: Long,
         compactionTargetDurationMillis: Long?,
     ) {
-        val updatedConfig = Config(codec, sampleRate, channelCount, bitrateKbps)
+        val updatedConfig = Config(format, codec, sampleRate, channelCount, bitrateKbps)
         val previousConfig = config
         val configChanged = previousConfig != updatedConfig
         val retentionChanged = this.retentionBytes != retentionBytes
@@ -224,8 +225,8 @@ internal class LiveExportHistory(
             }
         }
 
-        when (snapshot.config.codec) {
-            ExportCodec.WAV -> exportWaveSnapshot(snapshot, outputTarget)
+        when {
+            snapshot.config.format.isPcmContainer -> exportWaveSnapshot(snapshot, outputTarget)
             else -> exportEncodedSnapshot(snapshot, outputTarget)
         }
     }
@@ -267,7 +268,7 @@ internal class LiveExportHistory(
         var outputBaseTimeUs = 0L
 
         try {
-            muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(currentConfig.codec.muxerOutputFormat))
+            muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(currentConfig.format.muxerOutputFormat))
             snapshot.slices.forEach { slice ->
                 val extractor = MediaExtractor()
                 try {
@@ -363,11 +364,11 @@ internal class LiveExportHistory(
         if (!historyRoot.exists()) {
             historyRoot.mkdirs()
         }
-        val file = File(historyRoot, "history-${startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}")
+        val file = File(historyRoot, "history-${startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}")
         val target = RecordingOutputTarget(
             id = file.absolutePath,
             displayName = file.name,
-            mimeType = currentConfig.codec.outputMimeType,
+            mimeType = currentConfig.format.outputMimeType,
             storageType = RecordingStorageType.FILE,
             directoryId = historyRoot.absolutePath,
             startedAtMillis = startedAtMillis,
@@ -375,11 +376,12 @@ internal class LiveExportHistory(
         )
         currentSegment = Segment(file = file, startedAtMillis = startedAtMillis)
         currentWriter =
-            when (currentConfig.codec) {
-                ExportCodec.WAV -> WavAudioFileWriter(context, target, currentConfig.sampleRate, currentConfig.channelCount)
+            when {
+                currentConfig.format.isPcmContainer -> WavAudioFileWriter(context, target, currentConfig.sampleRate, currentConfig.channelCount)
                 else -> EncodedAudioFileWriter(
                     context = context,
                     target = target,
+                    outputFormat = currentConfig.format,
                     codecConfig = currentConfig.codec,
                     sampleRate = currentConfig.sampleRate,
                     channelCount = currentConfig.channelCount,
@@ -463,11 +465,11 @@ internal class LiveExportHistory(
             historyRoot.mkdirs()
         }
 
-        val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.codec.extension}.tmp")
+        val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
         val outputTarget = RecordingOutputTarget(
             id = tempFile.absolutePath,
             displayName = tempFile.name,
-            mimeType = currentConfig.codec.outputMimeType,
+            mimeType = currentConfig.format.outputMimeType,
             storageType = RecordingStorageType.FILE,
             directoryId = historyRoot.absolutePath,
             startedAtMillis = selectedSegments.first().startedAtMillis,
@@ -644,7 +646,7 @@ internal class LiveExportHistory(
         currentConfig: Config,
     ): Segment? {
         val extension = file.extension.lowercase()
-        if (extension != currentConfig.codec.extension.lowercase()) {
+        if (extension != currentConfig.format.extension.lowercase()) {
             return null
         }
 
@@ -663,7 +665,7 @@ internal class LiveExportHistory(
             val startedAtMillis = parseStartedAtMillis(file) ?: file.lastModified()
             val sampleBytes =
                 parseSampleBytes(file)
-                    ?: if (currentConfig.codec == ExportCodec.WAV) {
+                    ?: if (currentConfig.format.isPcmContainer) {
                         (file.length() - WAV_HEADER_BYTES).coerceAtLeast(0L)
                     } else {
                         durationUsFor(file, format)?.let { currentConfig.durationUsToSampleBytes(it) }
@@ -716,7 +718,7 @@ internal class LiveExportHistory(
             return
         }
         val currentConfig = config ?: return
-        val targetName = buildSegmentFileName(segment.startedAtMillis, segment.sampleBytes, currentConfig.codec.extension)
+        val targetName = buildSegmentFileName(segment.startedAtMillis, segment.sampleBytes, currentConfig.format.extension)
         if (segment.file.name == targetName) {
             return
         }
@@ -789,6 +791,7 @@ internal class LiveExportHistory(
     }
 
     internal data class Config(
+        val format: ExportFormat,
         val codec: ExportCodec,
         val sampleRate: Int,
         val channelCount: Int,

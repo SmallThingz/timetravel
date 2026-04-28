@@ -10,8 +10,6 @@
 
     <string name="buffer_active_summary">ACCESO</string>
     <string name="buffer_inactive_summary">SPENTO</string>
-    <string name="buffer_status_time">Registrazione degli ultimi %1$s</string>
-    <string name="buffer_status_size">Mantenimento di %1$s di audio pronto</string>
     <string name="buffer_status_paused">Buffer in pausa</string>
     <string name="clear_buffer">Svuota</string>
 
@@ -67,12 +65,11 @@
     <string name="auto_merge_custom_range_invalid">Usa %1$s-%2$s.</string>
     <string name="codec_label">Codec</string>
     <string name="codec_aac_lc">AAC-LC / M4A</string>
-    <string name="codec_he_aac">HE-AAC / M4A</string>
-    <string name="codec_he_aac_v2">HE-AAC v2 / M4A</string>
-    <string name="codec_xhe_aac">xHE-AAC / M4A</string>
-    <string name="codec_amr_wb">AMR-WB / 3GP</string>
-    <string name="codec_amr_nb">AMR-NB / 3GP</string>
-    <string name="codec_wav">WAV / PCM</string>
+    <string name="codec_he_aac">HE-AAC</string>
+    <string name="codec_he_aac_v2">HE-AAC v2</string>
+    <string name="codec_xhe_aac">xHE-AAC</string>
+    <string name="codec_amr_wb">AMR-WB</string>
+    <string name="codec_amr_nb">AMR-NB</string>
     <string name="codec_bitrate_label">Bitrate</string>
     <string name="codec_bitrate_invalid">Usa %1$d-%2$d kbps.</string>
     <string name="codec_bitrate_value">%1$d kbps</string>
@@ -140,11 +137,13 @@
 
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d registrazione spostata.</item>
+        <item quantity="many">%1$d registrazioni spostate.</item>
         <item quantity="other">%1$d registrazioni spostate.</item>
     </plurals>
 
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">%1$d voce mancante rimossa.</item>
+        <item quantity="many">%1$d voci mancanti rimosse.</item>
         <item quantity="other">%1$d voci mancanti rimosse.</item>
     </plurals>
 </resources>

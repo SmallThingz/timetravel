@@ -51,7 +51,10 @@ class TimeTravelService : Service() {
     private var channelMode = ChannelMode.MONO
 
     @Volatile
-    private var outputCodec = ExportCodec.WAV
+    private var outputFormat = ExportFormat.WAV
+
+    @Volatile
+    private var outputCodec = ExportCodec.PCM_16
 
     @Volatile
     private var inputRouteMode = InputRouteMode.AUTO
@@ -168,6 +171,7 @@ class TimeTravelService : Service() {
         writer.println("  listeningEnabled=${isListeningEnabled()}")
         writer.println("  sampleRate=$sampleRate")
         writer.println("  channelCount=${channelMode.channelCount}")
+        writer.println("  format=${effectiveOutputFormat.prefValue}")
         writer.println("  codec=${effectiveOutputCodec.prefValue}")
         writer.println("  fillRate=$fillRate")
         writer.println("  exportDir=${describeConfiguredOutputDirectory(this)}")
@@ -212,27 +216,29 @@ class TimeTravelService : Service() {
         var selectedSourceMode = getConfiguredAudioSourceMode(this)
         var selectedChannelMode = getConfiguredChannelMode(this)
         var selectedRouteMode = getConfiguredInputRouteMode(this)
+        var selectedFormat = getConfiguredOutputFormat(this)
         var selectedCodec = getConfiguredOutputCodec(this)
 
-        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode).isEmpty()) {
+        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedFormat, selectedCodec, selectedChannelMode).isEmpty()) {
             if (
                 selectedChannelMode != ChannelMode.MONO &&
-                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, ChannelMode.MONO).isNotEmpty()
+                supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedFormat, selectedCodec, ChannelMode.MONO).isNotEmpty()
             ) {
                 selectedChannelMode = ChannelMode.MONO
             } else {
+                selectedFormat = supportedFormats().firstOrNull() ?: ExportFormat.WAV
                 selectedCodec =
-                    supportedCodecs().firstOrNull {
-                        supportedSampleRates(this, selectedSourceMode, selectedRouteMode, it, selectedChannelMode).isNotEmpty()
+                    supportedCodecs(selectedFormat).firstOrNull {
+                        supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedFormat, it, selectedChannelMode).isNotEmpty()
                     }
-                        ?: ExportCodec.WAV
+                        ?: ExportCodec.PCM_16
             }
         }
 
-        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode).isEmpty()) {
+        if (supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedFormat, selectedCodec, selectedChannelMode).isEmpty()) {
             val codecFallback =
-                supportedCodecs().firstOrNull {
-                    supportedSampleRates(this, selectedSourceMode, selectedRouteMode, it, selectedChannelMode).isNotEmpty()
+                supportedCodecs(selectedFormat).firstOrNull {
+                    supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedFormat, it, selectedChannelMode).isNotEmpty()
                 }
             if (codecFallback != null) {
                 selectedCodec = codecFallback
@@ -240,20 +246,22 @@ class TimeTravelService : Service() {
                 selectedRouteMode = InputRouteMode.AUTO
                 selectedSourceMode = AudioSourceMode.MIC
                 selectedChannelMode = ChannelMode.MONO
+                selectedFormat = supportedFormats().firstOrNull() ?: ExportFormat.WAV
                 selectedCodec =
-                    supportedCodecs().firstOrNull {
-                        supportedSampleRates(this, selectedSourceMode, selectedRouteMode, it, selectedChannelMode).isNotEmpty()
+                    supportedCodecs(selectedFormat).firstOrNull {
+                        supportedSampleRates(this, selectedSourceMode, selectedRouteMode, selectedFormat, it, selectedChannelMode).isNotEmpty()
                     }
-                        ?: ExportCodec.WAV
+                        ?: ExportCodec.PCM_16
             }
         }
 
-        val requestedRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedCodec, selectedChannelMode)
+        val requestedRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedFormat, selectedCodec, selectedChannelMode)
         val preferredRate = resolveOperationalSampleRate(
             this,
             requestedRate,
             selectedSourceMode,
             selectedRouteMode,
+            selectedFormat,
             selectedCodec,
             selectedChannelMode,
         )
@@ -263,9 +271,10 @@ class TimeTravelService : Service() {
         sourceMode = selectedSourceMode
         channelMode = selectedChannelMode
         audioSource = selectedSourceMode.sourceValue
-        outputCodec = supportedCodecs().firstOrNull { it == selectedCodec && isCodecSupported(it, sampleRate, selectedChannelMode) }
-            ?: supportedCodecs().firstOrNull { isCodecSupported(it, sampleRate, selectedChannelMode) }
-            ?: ExportCodec.WAV
+        outputFormat = selectedFormat
+        outputCodec = supportedCodecs(selectedFormat).firstOrNull { it == selectedCodec && isCodecSupported(selectedFormat, it, sampleRate, selectedChannelMode) }
+            ?: supportedCodecs(selectedFormat).firstOrNull { isCodecSupported(selectedFormat, it, sampleRate, selectedChannelMode) }
+            ?: ExportCodec.PCM_16
         inputRouteMode = selectedRouteMode
         updateLiveExportHistoryConfiguration()
     }
@@ -408,8 +417,10 @@ class TimeTravelService : Service() {
             val skipBytes = maxOf(0L, bytesAvailable - prependBytes)
             val useBytes = bytesAvailable - skipBytes
             val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
+            val exportFormat = effectiveOutputFormat
             val exportCodec = effectiveOutputCodec
             val exportConfig = LiveExportHistory.Config(
+                format = exportFormat,
                 codec = exportCodec,
                 sampleRate = sampleRate,
                 channelCount = channelMode.channelCount,
@@ -417,7 +428,7 @@ class TimeTravelService : Service() {
             )
 
             val outTarget = try {
-                createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportCodec)
+                createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
             } catch (e: IOException) {
                 Log.e(TAG, "Unable to prepare export file", e)
                 val message = getString(R.string.cant_create_file_generic)
@@ -510,7 +521,7 @@ class TimeTravelService : Service() {
             val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
 
             try {
-                recordingTarget = createOutputTarget(this@TimeTravelService, null, startedAtMillis, effectiveOutputCodec)
+                recordingTarget = createOutputTarget(this@TimeTravelService, null, startedAtMillis, effectiveOutputFormat, effectiveOutputCodec)
                 audioFileWriter = createAudioFileWriter(requireNotNull(recordingTarget))
             } catch (e: Exception) {
                 Log.e(TAG, "Unable to create recording output", e)
@@ -568,12 +579,14 @@ class TimeTravelService : Service() {
         val newSourceMode = getConfiguredAudioSourceMode(this)
         val newChannelMode = getConfiguredChannelMode(this)
         val newRouteMode = getConfiguredInputRouteMode(this)
+        val newFormat = getConfiguredOutputFormat(this)
         val newCodec = getConfiguredOutputCodec(this)
         val newSampleRate = resolveOperationalSampleRate(
             this,
-            getConfiguredSampleRate(this, newSourceMode, newRouteMode, newCodec, newChannelMode),
+            getConfiguredSampleRate(this, newSourceMode, newRouteMode, newFormat, newCodec, newChannelMode),
             newSourceMode,
             newRouteMode,
+            newFormat,
             newCodec,
             newChannelMode,
         )
@@ -582,11 +595,12 @@ class TimeTravelService : Service() {
                 newSourceMode != sourceMode ||
                 newChannelMode != channelMode ||
                 newRouteMode != inputRouteMode
+        val outputConfigChanged = newFormat != outputFormat || newCodec != outputCodec
         val hasRetainedBuffer = audioMemory.countFilled() > 0 || persistentAudioRingStore.hasData()
         updateWakeLockState()
 
         if (state != STATE_LISTENING || !isListeningEnabled()) {
-            if (captureConfigChanged && hasRetainedBuffer) {
+            if ((captureConfigChanged || outputConfigChanged) && hasRetainedBuffer) {
                 return ApplySettingsResult.DEFERRED_UNTIL_RESTART
             }
             loadConfiguration()
@@ -603,7 +617,7 @@ class TimeTravelService : Service() {
             updateLiveExportHistoryConfiguration()
         }
 
-        return if (captureConfigChanged) {
+        return if (captureConfigChanged || outputConfigChanged) {
             ApplySettingsResult.DEFERRED_UNTIL_RESTART
         } else {
             loadConfiguration()
@@ -682,21 +696,25 @@ class TimeTravelService : Service() {
         mainHandler.post { receiver.fileFailed(message) }
     }
 
+    private val effectiveOutputFormat: ExportFormat
+        get() = if (outputFormat in supportedFormats()) outputFormat else supportedFormats().firstOrNull() ?: ExportFormat.WAV
+
     private val effectiveOutputCodec: ExportCodec
-        get() = if (isCodecSupported(outputCodec, sampleRate, channelMode)) {
+        get() = if (isCodecSupported(effectiveOutputFormat, outputCodec, sampleRate, channelMode)) {
             outputCodec
         } else {
-            supportedCodecs().firstOrNull { isCodecSupported(it, sampleRate, channelMode) } ?: ExportCodec.WAV
+            supportedCodecs(effectiveOutputFormat).firstOrNull { isCodecSupported(effectiveOutputFormat, it, sampleRate, channelMode) } ?: ExportCodec.PCM_16
         }
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
         return when (effectiveOutputCodec) {
-            ExportCodec.WAV -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
+            ExportCodec.PCM_16 -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
             else -> {
                 EncodedAudioFileWriter(
                     this,
                     target,
+                    effectiveOutputFormat,
                     effectiveOutputCodec,
                     sampleRate,
                     channelMode.channelCount,
@@ -722,6 +740,7 @@ class TimeTravelService : Service() {
 
     private fun currentCodecSummary(): String {
         return buildCodecSummary(
+            effectiveOutputFormat,
             effectiveOutputCodec,
             sampleRate,
             channelMode.channelCount,
@@ -828,6 +847,7 @@ class TimeTravelService : Service() {
 
     fun getConfigurationSnapshot(): RecorderConfigurationSnapshot {
         return RecorderConfigurationSnapshot(
+            format = effectiveOutputFormat,
             codec = effectiveOutputCodec,
             sampleRate = sampleRate,
             sourceMode = sourceMode,
@@ -857,6 +877,7 @@ class TimeTravelService : Service() {
         val codec = effectiveOutputCodec
         val retentionBytes = memorySizeOverride ?: getConfiguredMemorySizeBytes(this, sampleRate, channelMode)
         liveExportHistory.updateConfiguration(
+            format = effectiveOutputFormat,
             codec = codec,
             sampleRate = sampleRate,
             channelCount = channelMode.channelCount,
@@ -1080,6 +1101,7 @@ class TimeTravelService : Service() {
             TAG,
             "debug-state state=$state filled=${stats.filled} total=${stats.total} overwriting=${stats.overwriting} " +
                 "sampleRate=$sampleRate channels=${channelMode.channelCount} codec=${effectiveOutputCodec.prefValue} " +
+                "format=${effectiveOutputFormat.prefValue} " +
                 "persistedFilled=${persisted?.filledBytes ?: 0} persistedCapacity=${persisted?.capacityBytes ?: 0}",
         )
     }
@@ -1095,6 +1117,7 @@ class TimeTravelService : Service() {
                 append(" state=").append(state)
                 append(" sampleRate=").append(sampleRate)
                 append(" channelCount=").append(channelMode.channelCount)
+                append(" format=").append(effectiveOutputFormat.prefValue)
                 append(" codec=").append(effectiveOutputCodec.prefValue)
                 append(" filled=").append(stats.filled)
                 append(" total=").append(stats.total)
@@ -1220,6 +1243,7 @@ class TimeTravelService : Service() {
     }
 
     data class RecorderConfigurationSnapshot(
+        val format: ExportFormat,
         val codec: ExportCodec,
         val sampleRate: Int,
         val sourceMode: AudioSourceMode,

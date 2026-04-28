@@ -29,7 +29,8 @@ class FormattingAndHistoryMathTest {
     @Test
     fun liveExportHistoryConfig_convertsBetweenBytesAndDurationConsistently() {
         val config = LiveExportHistory.Config(
-            codec = ExportCodec.WAV,
+            format = ExportFormat.WAV,
+            codec = ExportCodec.PCM_16,
             sampleRate = 48_000,
             channelCount = 2,
             bitrateKbps = null,
