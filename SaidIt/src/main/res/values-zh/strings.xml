@@ -99,7 +99,12 @@
     <string name="audio_source_default">默认</string>
     <string name="audio_source_mic">麦克风</string>
     <string name="audio_source_voice_recognition">语音</string>
+    <string name="audio_source_voice_communication">语音通信</string>
+    <string name="audio_source_voice_call">语音通话</string>
+    <string name="audio_source_voice_uplink">上行语音</string>
+    <string name="audio_source_voice_downlink">下行语音</string>
     <string name="audio_source_camcorder">摄像机</string>
+    <string name="audio_source_remote_submix">远程子混音</string>
     <string name="audio_source_unprocessed">未处理</string>
     <string name="audio_source_voice_performance">语音性能</string>
     <string name="input_route_label">路由</string>

@@ -99,7 +99,12 @@
     <string name="audio_source_default">डिफ़ॉल्ट</string>
     <string name="audio_source_mic">माइक</string>
     <string name="audio_source_voice_recognition">आवाज़</string>
+    <string name="audio_source_voice_communication">वॉइस कम्युनिकेशन</string>
+    <string name="audio_source_voice_call">वॉइस कॉल</string>
+    <string name="audio_source_voice_uplink">वॉइस अपलिंक</string>
+    <string name="audio_source_voice_downlink">वॉइस डाउनलिंक</string>
     <string name="audio_source_camcorder">कैमकॉर्डर</string>
+    <string name="audio_source_remote_submix">रिमोट सबमिक्स</string>
     <string name="audio_source_unprocessed">अप्रसंस्कृत</string>
     <string name="audio_source_voice_performance">वॉइस परफ</string>
     <string name="input_route_label">रूट</string>

@@ -99,7 +99,12 @@
     <string name="audio_source_default">По умолчанию</string>
     <string name="audio_source_mic">Микрофон</string>
     <string name="audio_source_voice_recognition">Голос</string>
+    <string name="audio_source_voice_communication">Голосовая связь</string>
+    <string name="audio_source_voice_call">Голосовой вызов</string>
+    <string name="audio_source_voice_uplink">Исходящий голос</string>
+    <string name="audio_source_voice_downlink">Входящий голос</string>
     <string name="audio_source_camcorder">Видеокамера</string>
+    <string name="audio_source_remote_submix">Удалённый субмикс</string>
     <string name="audio_source_unprocessed">Без обработки</string>
     <string name="audio_source_voice_performance">Голос. режим</string>
     <string name="input_route_label">Маршрут</string>

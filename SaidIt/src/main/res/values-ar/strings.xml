@@ -99,7 +99,12 @@
     <string name="audio_source_default">افتراضي</string>
     <string name="audio_source_mic">الميكروفون</string>
     <string name="audio_source_voice_recognition">الصوت</string>
+    <string name="audio_source_voice_communication">اتصال صوتي</string>
+    <string name="audio_source_voice_call">مكالمة صوتية</string>
+    <string name="audio_source_voice_uplink">صوت الرفع</string>
+    <string name="audio_source_voice_downlink">صوت التنزيل</string>
     <string name="audio_source_camcorder">الكاميرا</string>
+    <string name="audio_source_remote_submix">مزج فرعي عن بُعد</string>
     <string name="audio_source_unprocessed">غير معالج</string>
     <string name="audio_source_voice_performance">أداء الصوت</string>
     <string name="input_route_label">المسار</string>

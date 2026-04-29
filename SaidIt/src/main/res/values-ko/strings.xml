@@ -99,7 +99,12 @@
     <string name="audio_source_default">기본값</string>
     <string name="audio_source_mic">마이크</string>
     <string name="audio_source_voice_recognition">음성</string>
+    <string name="audio_source_voice_communication">음성 통신</string>
+    <string name="audio_source_voice_call">음성 통화</string>
+    <string name="audio_source_voice_uplink">업링크 음성</string>
+    <string name="audio_source_voice_downlink">다운링크 음성</string>
     <string name="audio_source_camcorder">캠코더</string>
+    <string name="audio_source_remote_submix">원격 서브믹스</string>
     <string name="audio_source_unprocessed">원시 입력</string>
     <string name="audio_source_voice_performance">음성 성능</string>
     <string name="input_route_label">경로</string>

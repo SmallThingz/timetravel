@@ -95,7 +95,12 @@
     <string name="audio_source_default">デフォルト</string>
     <string name="audio_source_mic">マイク</string>
     <string name="audio_source_voice_recognition">音声</string>
+    <string name="audio_source_voice_communication">音声通信</string>
+    <string name="audio_source_voice_call">音声通話</string>
+    <string name="audio_source_voice_uplink">上り音声</string>
+    <string name="audio_source_voice_downlink">下り音声</string>
     <string name="audio_source_camcorder">カムコーダー</string>
+    <string name="audio_source_remote_submix">リモートサブミックス</string>
     <string name="audio_source_unprocessed">未処理</string>
     <string name="audio_source_voice_performance">音声最適化</string>
     <string name="input_route_label">入力経路</string>

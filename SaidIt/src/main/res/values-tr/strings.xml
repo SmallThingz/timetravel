@@ -99,7 +99,12 @@
     <string name="audio_source_default">Varsayılan</string>
     <string name="audio_source_mic">Mikrofon</string>
     <string name="audio_source_voice_recognition">Ses</string>
+    <string name="audio_source_voice_communication">Sesli iletişim</string>
+    <string name="audio_source_voice_call">Sesli arama</string>
+    <string name="audio_source_voice_uplink">Ses uplink</string>
+    <string name="audio_source_voice_downlink">Ses downlink</string>
     <string name="audio_source_camcorder">Video kamera</string>
+    <string name="audio_source_remote_submix">Uzak submix</string>
     <string name="audio_source_unprocessed">İşlenmemiş</string>
     <string name="audio_source_voice_performance">Ses perf</string>
     <string name="input_route_label">Yol</string>

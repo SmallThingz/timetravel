@@ -246,7 +246,7 @@ class TimeTravelService : Service() {
     }
 
     private fun isListeningEnabled(): Boolean {
-        return getRecorderPreferences(this).getBoolean(TimeTravelConfig.AUDIO_MEMORY_ENABLED_KEY, true)
+        return getRecorderPreferences(this).getBoolean(TimeTravelConfig.AUDIO_MEMORY_ENABLED_KEY, false)
     }
 
     private fun loadConfiguration() {

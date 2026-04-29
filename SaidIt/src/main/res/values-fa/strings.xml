@@ -99,7 +99,12 @@
     <string name="audio_source_default">پیش‌فرض</string>
     <string name="audio_source_mic">میکروفن</string>
     <string name="audio_source_voice_recognition">صدا</string>
+    <string name="audio_source_voice_communication">ارتباط صوتی</string>
+    <string name="audio_source_voice_call">تماس صوتی</string>
+    <string name="audio_source_voice_uplink">صدای بالارونده</string>
+    <string name="audio_source_voice_downlink">صدای پایین‌رونده</string>
     <string name="audio_source_camcorder">دوربین</string>
+    <string name="audio_source_remote_submix">زیرمیکس راه‌دور</string>
     <string name="audio_source_unprocessed">پردازش‌نشده</string>
     <string name="audio_source_voice_performance">کارایی صدا</string>
     <string name="input_route_label">مسیر</string>

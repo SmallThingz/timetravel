@@ -99,7 +99,12 @@
     <string name="audio_source_default">Bawaan</string>
     <string name="audio_source_mic">Mikrofon</string>
     <string name="audio_source_voice_recognition">Suara</string>
+    <string name="audio_source_voice_communication">Komunikasi suara</string>
+    <string name="audio_source_voice_call">Panggilan suara</string>
+    <string name="audio_source_voice_uplink">Suara uplink</string>
+    <string name="audio_source_voice_downlink">Suara downlink</string>
     <string name="audio_source_camcorder">Camcorder</string>
+    <string name="audio_source_remote_submix">Submix jarak jauh</string>
     <string name="audio_source_unprocessed">Tanpa proses</string>
     <string name="audio_source_voice_performance">Performa suara</string>
     <string name="input_route_label">Rute</string>

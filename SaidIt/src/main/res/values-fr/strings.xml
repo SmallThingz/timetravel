@@ -95,7 +95,12 @@
     <string name="audio_source_default">Par défaut</string>
     <string name="audio_source_mic">Micro</string>
     <string name="audio_source_voice_recognition">Voix</string>
+    <string name="audio_source_voice_communication">Communication vocale</string>
+    <string name="audio_source_voice_call">Appel vocal</string>
+    <string name="audio_source_voice_uplink">Voix montante</string>
+    <string name="audio_source_voice_downlink">Voix descendante</string>
     <string name="audio_source_camcorder">Caméscope</string>
+    <string name="audio_source_remote_submix">Sous-mixage distant</string>
     <string name="audio_source_unprocessed">Non traité</string>
     <string name="audio_source_voice_performance">Voix perf.</string>
     <string name="input_route_label">Entrée</string>
