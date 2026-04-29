@@ -29,7 +29,7 @@ def releaseSigningReady =
         releaseKeyPassword
 
 android {
-    namespace 'app.smallthingz.timetravel'
+    namespace = 'app.smallthingz.timetravel'
     compileSdk = 37
     buildToolsVersion = '37.0.0'
 
@@ -55,17 +55,17 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            shrinkResources true
+            shrinkResources = true
             proguardFile file('proguard.cfg')
             proguardFile getDefaultProguardFile('proguard-android-optimize.txt')
-            signingConfig releaseSigningReady ? signingConfigs.release : signingConfigs.debug
+            signingConfig = releaseSigningReady ? signingConfigs.release : signingConfigs.debug
         }
 
         debug {
         }
     }
     buildFeatures {
-        buildConfig false
+        buildConfig = false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -73,7 +73,7 @@ android {
     }
     packaging {
         dex {
-            useLegacyPackaging true
+            useLegacyPackaging = true
         }
         resources {
             excludes += [
