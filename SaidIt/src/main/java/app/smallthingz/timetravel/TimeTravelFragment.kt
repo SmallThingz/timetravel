@@ -824,11 +824,11 @@ class TimeTravelFragment : Fragment() {
 
                 if (rangeMode && timeUnit) {
                     if (startSeconds == null || startSeconds < 0f) {
-                        startTimeLayout.error = getString(R.string.custom_export_duration_invalid)
+                        startTimeLayout.error = getString(R.string.retention_time_invalid)
                         return false
                     }
                     if (endSeconds == null || endSeconds <= 0f) {
-                        endTimeLayout.error = getString(R.string.custom_export_duration_invalid)
+                        endTimeLayout.error = getString(R.string.retention_time_invalid)
                         return false
                     }
                     if (endSeconds <= startSeconds || startSeconds > currentSeconds || endSeconds > currentSeconds) {
@@ -863,7 +863,7 @@ class TimeTravelFragment : Fragment() {
 
                 if (!rangeMode && timeUnit) {
                     if (pastSeconds == null || pastSeconds <= 0f) {
-                        pastTimeLayout.error = getString(R.string.custom_export_duration_invalid)
+                        pastTimeLayout.error = getString(R.string.retention_time_invalid)
                         return false
                     }
                     prefs.edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, pastSeconds.roundToInt()).apply()

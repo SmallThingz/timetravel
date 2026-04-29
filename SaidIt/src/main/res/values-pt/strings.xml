@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="recording">TimeTravel</string>
     <string name="recording_saved">Salvo</string>
     <string name="notification_channel_name">Captura em segundo plano</string>
     <string name="notification_running">Em execução</string>
@@ -15,7 +14,6 @@
     <string name="record_all_memory">Exportar tudo</string>
     <string name="custom_time">Exportação personalizada</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="custom_export_duration_invalid">Use MM:SS ou HH:MM:SS.</string>
     <string name="custom_export_start_label">Início</string>
     <string name="custom_export_end_label">Fim</string>
     <string name="custom_export_range_invalid">O fim deve ser após o início.</string>
@@ -27,7 +25,6 @@
     <string name="saved_snackbar">Salvo</string>
     <string name="save_failed">Não foi possível salvar a gravação.</string>
     <string name="nothing_to_export">Nada para exportar.</string>
-    <string name="settings_open">Configurações</string>
     <string name="open">Abrir</string>
     <string name="allow">Permitir</string>
     <string name="exit">Sair</string>
@@ -41,8 +38,6 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
     <string name="retention_mode_title">Retenção</string>
-    <string name="retention_mode_time">Tempo</string>
-    <string name="retention_mode_size">Tamanho</string>
     <string name="retention_time_label">Tempo</string>
     <string name="retention_time_invalid">Use MM:SS ou HH:MM:SS.</string>
     <string name="retention_size_label">Tamanho (MiB)</string>
@@ -52,7 +47,6 @@
     <string name="history_settings_title">Histórico</string>
     <string name="history_chunk_summary">O tamanho do bloco decide a frequência com que o histórico ao vivo é salvo no disco. Blocos menores sobrevivem melhor a falhas e cortam exportações personalizadas com mais precisão. Blocos maiores significam menos arquivos e exportações longas mais rápidas.</string>
     <string name="history_chunk_label">Tamanho do bloco</string>
-    <string name="history_chunk_invalid">Use MM:SS ou HH:MM:SS.</string>
     <string name="history_chunk_range_invalid">Use %1$s-%2$s.</string>
     <string name="auto_merge_label">Mesclagem automática</string>
     <string name="auto_merge_mode_off">Desligado</string>
@@ -64,13 +58,9 @@
     <string name="auto_merge_custom_time_value_label">Tempo de mesclagem</string>
     <string name="auto_merge_custom_size_value_label">Tamanho da mesclagem (MiB)</string>
     <string name="auto_merge_ratio_supporting">Alvo de mesclagem em segundo plano. Cerca de 1/x do buffer mantido.</string>
-    <string name="auto_merge_custom_time_supporting">Use MM:SS ou HH:MM:SS.</string>
-    <string name="auto_merge_custom_size_supporting">Use um valor MiB como 64.0.</string>
     <string name="auto_merge_eager_label">Mesclagem antecipada da cauda final</string>
     <string name="auto_merge_eager_summary">Mescla os blocos finais restantes antes que atinjam o tamanho alvo completo.</string>
     <string name="auto_merge_divisor_invalid">Use %1$d-%2$d.</string>
-    <string name="auto_merge_custom_time_invalid">Use MM:SS ou HH:MM:SS.</string>
-    <string name="auto_merge_custom_time_range_invalid">Use %1$s-%2$s.</string>
     <string name="auto_merge_custom_size_invalid">Use um valor MiB como 64.0.</string>
     <string name="auto_merge_custom_size_range_invalid">Use %1$s-%2$s MiB.</string>
     <string name="codec_label">Codec</string>

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="recording">TimeTravel</string>
     <string name="recording_saved">Salvato</string>
     <string name="notification_channel_name">Acquisizione in background</string>
     <string name="notification_running">In esecuzione</string>
@@ -15,7 +14,6 @@
     <string name="record_all_memory">Esporta tutto</string>
     <string name="custom_time">Esportazione personalizzata</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="custom_export_duration_invalid">Usa MM:SS o HH:MM:SS.</string>
     <string name="custom_export_start_label">Inizio</string>
     <string name="custom_export_end_label">Fine</string>
     <string name="custom_export_range_invalid">La fine deve essere dopo l’inizio.</string>
@@ -27,7 +25,6 @@
     <string name="saved_snackbar">Salvato</string>
     <string name="save_failed">Impossibile salvare la registrazione.</string>
     <string name="nothing_to_export">Niente da esportare.</string>
-    <string name="settings_open">Impostazioni</string>
     <string name="open">Apri</string>
     <string name="allow">Consenti</string>
     <string name="exit">Esci</string>
@@ -41,8 +38,6 @@
     <string name="theme_light">Chiaro</string>
     <string name="theme_dark">Scuro</string>
     <string name="retention_mode_title">Conservazione</string>
-    <string name="retention_mode_time">Tempo</string>
-    <string name="retention_mode_size">Dimensione</string>
     <string name="retention_time_label">Tempo</string>
     <string name="retention_time_invalid">Usa MM:SS o HH:MM:SS.</string>
     <string name="retention_size_label">Dimensione (MiB)</string>
@@ -52,7 +47,6 @@
     <string name="history_settings_title">Cronologia</string>
     <string name="history_chunk_summary">La dimensione del frammento decide con quale frequenza la cronologia dal vivo viene sigillata su disco. I frammenti più piccoli sopravvivono meglio agli arresti anomali e tagliano le esportazioni personalizzate con maggiore precisione. Frammenti più grandi significano meno file ed esportazioni lunghe più veloci.</string>
     <string name="history_chunk_label">Dimensione del frammento</string>
-    <string name="history_chunk_invalid">Usa MM:SS o HH:MM:SS.</string>
     <string name="history_chunk_range_invalid">Usa %1$s-%2$s.</string>
     <string name="auto_merge_label">Unione automatica</string>
     <string name="auto_merge_mode_off">Spento</string>
@@ -64,13 +58,9 @@
     <string name="auto_merge_custom_time_value_label">Tempo di unione</string>
     <string name="auto_merge_custom_size_value_label">Dimensione unione (MiB)</string>
     <string name="auto_merge_ratio_supporting">Obiettivo di unione in background. Circa 1/x del buffer mantenuto.</string>
-    <string name="auto_merge_custom_time_supporting">Usa MM:SS o HH:MM:SS.</string>
-    <string name="auto_merge_custom_size_supporting">Usa un valore MiB come 64.0.</string>
     <string name="auto_merge_eager_label">Unione anticipata della coda finale</string>
     <string name="auto_merge_eager_summary">Unisce i frammenti finali residui prima che raggiungano la dimensione obiettivo completa.</string>
     <string name="auto_merge_divisor_invalid">Usa %1$d-%2$d.</string>
-    <string name="auto_merge_custom_time_invalid">Usa MM:SS o HH:MM:SS.</string>
-    <string name="auto_merge_custom_time_range_invalid">Usa %1$s-%2$s.</string>
     <string name="auto_merge_custom_size_invalid">Usa un valore MiB come 64.0.</string>
     <string name="auto_merge_custom_size_range_invalid">Usa %1$s-%2$s MiB.</string>
     <string name="codec_label">Codec</string>

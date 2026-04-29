@@ -4,7 +4,7 @@
     <string name="brand_time" translatable="false">time</string>
     <string name="brand_travel" translatable="false">travel</string>
 
-    <string name="recording">TimeTravel</string>
+    <string name="recording">@string/app_name</string>
     <string name="recording_saved">Saved</string>
     <string name="notification_channel_name">Background capture</string>
     <string name="notification_running">Running</string>
@@ -23,10 +23,8 @@
     <string name="reencode_history_done">History re-encoded.</string>
     <string name="reencode_history_failed">Couldn\'t re-encode history.</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="custom_export_duration_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="custom_export_mode_range">Range</string>
     <string name="custom_export_mode_past">Past</string>
-    <string name="custom_export_unit_time">Time</string>
     <string name="custom_export_unit_size">Size</string>
     <string name="custom_export_start_label">Start</string>
     <string name="custom_export_end_label">End</string>
@@ -41,7 +39,6 @@
     <string name="saved_snackbar">Saved</string>
     <string name="save_failed">Couldn\'t save recording.</string>
     <string name="nothing_to_export">Nothing to export.</string>
-    <string name="settings_open">Settings</string>
     <string name="open">Open</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
@@ -55,20 +52,15 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="retention_mode_title">Retention</string>
-    <string name="retention_mode_time">Time</string>
-    <string name="retention_mode_size">Size</string>
     <string name="retention_time_label">Time</string>
     <string name="retention_time_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="retention_time_limit_helper">Max export: %1$s</string>
     <string name="retention_size_label">Size (MiB)</string>
-    <string name="retention_size_limit_helper">Max export: %1$s</string>
     <string name="recording_settings_title">Audio</string>
     <string name="storage_settings_title">Storage</string>
     <string name="background_persistence_title">Background</string>
     <string name="history_settings_title">History</string>
     <string name="history_chunk_summary">Chunk size decides how often live history is sealed to disk. Smaller chunks survive crashes better and cut custom ranges more precisely. Larger chunks mean fewer files and faster long exports.</string>
     <string name="history_chunk_label">Chunk size</string>
-    <string name="history_chunk_invalid">Use MM:SS or HH:MM:SS.</string>
     <string name="history_chunk_range_invalid">Use %1$s-%2$s.</string>
     <string name="auto_merge_label">Auto merge</string>
     <string name="auto_merge_mode_off">Off</string>
@@ -80,13 +72,9 @@
     <string name="auto_merge_custom_time_value_label">Merge time</string>
     <string name="auto_merge_custom_size_value_label">Merge size (MiB)</string>
     <string name="auto_merge_ratio_supporting">Background merge target. About 1/x of kept buffer.</string>
-    <string name="auto_merge_custom_time_supporting">Use MM:SS or HH:MM:SS.</string>
-    <string name="auto_merge_custom_size_supporting">Use MiB value like 64.0.</string>
     <string name="auto_merge_eager_label">Eager tail merge</string>
     <string name="auto_merge_eager_summary">Merge trailing leftover chunks before they reach full target size.</string>
     <string name="auto_merge_divisor_invalid">Use %1$d-%2$d.</string>
-    <string name="auto_merge_custom_time_invalid">Use MM:SS or HH:MM:SS.</string>
-    <string name="auto_merge_custom_time_range_invalid">Use %1$s-%2$s.</string>
     <string name="auto_merge_custom_size_invalid">Use MiB value like 64.0.</string>
     <string name="auto_merge_custom_size_range_invalid">Use %1$s-%2$s MiB.</string>
     <string name="format_label">Format</string>
@@ -96,8 +84,6 @@
     <string name="format_ogg">Ogg</string>
     <string name="format_webm">WebM</string>
     <string name="format_aac_adts">AAC ADTS</string>
-    <string name="format_amr_nb_file">AMR-NB</string>
-    <string name="format_amr_wb_file">AMR-WB</string>
     <string name="format_mpeg_2_ts">MPEG-TS</string>
     <string name="codec_label">Codec</string>
     <string name="codec_pcm_16">PCM 16-bit</string>
@@ -139,7 +125,6 @@
     <string name="wake_lock_label">Keep CPU awake</string>
     <string name="wake_lock_summary">Hold a partial wake lock while live buffering. Highest survival, highest battery cost.</string>
     <string name="debug_settings_title" translatable="false">Debug</string>
-    <string name="debug_chunks_tab_label" translatable="false">Chunks tab</string>
     <string name="debug_chunks_tab_summary" translatable="false">Show live chunk and merge inspector in bottom tabs.</string>
     <string name="battery_optimization_status_ok">Battery optimization: unrestricted</string>
     <string name="battery_optimization_status_limited">Battery optimization: restricted</string>
@@ -176,13 +161,11 @@
     <string name="chunks_operation_export_merge" translatable="false">Export merge</string>
     <string name="chunks_operation_history_reencode" translatable="false">History re-encode</string>
     <string name="chunks_action_merge" translatable="false">Merge</string>
-    <string name="chunks_action_export" translatable="false">Export</string>
     <string name="chunks_merge_done" translatable="false">Chunk merged.</string>
     <string name="chunks_merge_failed" translatable="false">Couldn\'t merge chunk.</string>
     <string name="chunks_export_done" translatable="false">Chunk exported.</string>
     <string name="chunks_export_failed" translatable="false">Couldn\'t export chunk.</string>
     <string name="chunks_delete_failed" translatable="false">Couldn\'t delete chunk.</string>
-    <string name="open_github">Open GitHub</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
     <string name="recording_details_started">Started:</string>

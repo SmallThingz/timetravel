@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="recording">TimeTravel</string>
     <string name="recording_saved">保存済み</string>
     <string name="notification_channel_name">バックグラウンド録音</string>
     <string name="notification_running">実行中</string>
@@ -15,10 +14,8 @@
     <string name="record_all_memory">全体をエクスポート</string>
     <string name="custom_time">カスタムでエクスポート</string>
     <string name="custom_export_duration_hint">12:30</string>
-    <string name="custom_export_duration_invalid">MM:SS または HH:MM:SS を使用してください。</string>
     <string name="custom_export_mode_range">範囲</string>
     <string name="custom_export_mode_past">過去</string>
-    <string name="custom_export_unit_time">時間</string>
     <string name="custom_export_unit_size">サイズ</string>
     <string name="custom_export_start_label">開始</string>
     <string name="custom_export_end_label">終了</string>
@@ -32,7 +29,6 @@
     <string name="saved_snackbar">保存しました</string>
     <string name="save_failed">録音を保存できませんでした。</string>
     <string name="nothing_to_export">書き出すものがありません。</string>
-    <string name="settings_open">設定</string>
     <string name="open">開く</string>
     <string name="allow">許可</string>
     <string name="exit">終了</string>
@@ -46,20 +42,15 @@
     <string name="theme_light">ライト</string>
     <string name="theme_dark">ダーク</string>
     <string name="retention_mode_title">保持</string>
-    <string name="retention_mode_time">時間</string>
-    <string name="retention_mode_size">サイズ</string>
     <string name="retention_time_label">時間</string>
     <string name="retention_time_invalid">MM:SS または HH:MM:SS を使用してください。</string>
-    <string name="retention_time_limit_helper">最大エクスポート: %1$s</string>
     <string name="retention_size_label">サイズ (MiB)</string>
-    <string name="retention_size_limit_helper">最大エクスポート: %1$s</string>
     <string name="recording_settings_title">音声</string>
     <string name="storage_settings_title">保存先</string>
     <string name="background_persistence_title">バックグラウンド</string>
     <string name="history_settings_title">履歴</string>
     <string name="history_chunk_summary">チャンクサイズは、ライブ履歴をどのくらいの頻度でディスクに確定するかを決めます。小さいチャンクはクラッシュに強く、カスタム書き出しもより正確です。大きいチャンクはファイル数が減り、長い書き出しが速くなります。</string>
     <string name="history_chunk_label">チャンクサイズ</string>
-    <string name="history_chunk_invalid">MM:SS または HH:MM:SS を使用してください。</string>
     <string name="history_chunk_range_invalid">%1$s-%2$s を使用してください。</string>
     <string name="auto_merge_label">自動マージ</string>
     <string name="auto_merge_mode_off">オフ</string>
@@ -71,13 +62,9 @@
     <string name="auto_merge_custom_time_value_label">マージ時間</string>
     <string name="auto_merge_custom_size_value_label">マージサイズ (MiB)</string>
     <string name="auto_merge_ratio_supporting">バックグラウンドマージの目標。保持バッファの約 1/x。</string>
-    <string name="auto_merge_custom_time_supporting">MM:SS または HH:MM:SS を使用してください。</string>
-    <string name="auto_merge_custom_size_supporting">64.0 のような MiB 値を使用してください。</string>
     <string name="auto_merge_eager_label">末尾チャンクを早期結合</string>
     <string name="auto_merge_eager_summary">末尾の残りチャンクが目標サイズに達する前に結合します。</string>
     <string name="auto_merge_divisor_invalid">%1$d-%2$d を使用してください。</string>
-    <string name="auto_merge_custom_time_invalid">MM:SS または HH:MM:SS を使用してください。</string>
-    <string name="auto_merge_custom_time_range_invalid">%1$s-%2$s を使用してください。</string>
     <string name="auto_merge_custom_size_invalid">64.0 のような MiB 値を使用してください。</string>
     <string name="auto_merge_custom_size_range_invalid">%1$s-%2$s MiB を使用してください。</string>
     <string name="format_label">形式</string>
@@ -87,8 +74,6 @@
     <string name="format_ogg">Ogg</string>
     <string name="format_webm">WebM</string>
     <string name="format_aac_adts">AAC ADTS</string>
-    <string name="format_amr_nb_file">AMR-NB</string>
-    <string name="format_amr_wb_file">AMR-WB</string>
     <string name="format_mpeg_2_ts">MPEG-TS</string>
     <string name="codec_label">コーデック</string>
     <string name="codec_pcm_16">PCM 16ビット</string>
@@ -153,7 +138,6 @@
     <string name="recording_deleted">録音を削除しました。</string>
     <string name="recording_delete_failed">録音を削除できませんでした。</string>
     <string name="recording_info">情報</string>
-    <string name="open_github">GitHub を開く</string>
     <string name="reencode_history">履歴を再エンコード</string>
     <string name="reencode_history_progress">再エンコード中 %1$d%%</string>
     <string name="reencode_history_done">履歴を再エンコードしました。</string>

@@ -358,7 +358,7 @@ class DebugChunksFragment : Fragment() {
         settingsButton.isVisible = !selectionActive
         selectionActions.isVisible = selectionActive
         selectionTitle.isVisible = selectionActive
-        selectionTitle.text = resources.getQuantityString(R.plurals.chunks_selected, count, count)
+        selectionTitle.text = resources.getQuantityString(R.plurals.recordings_selected, count, count)
     }
 
     private fun summarizeOperationSources(sourcePaths: List<String>): String {

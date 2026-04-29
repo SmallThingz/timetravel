@@ -66,7 +66,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/settings_open"
+        android:contentDescription="@null"
         android:src="@drawable/ic_settings"
         app:tint="?attr/colorOnSurfaceVariant" />
 </LinearLayout>

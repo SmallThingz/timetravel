@@ -999,14 +999,14 @@ class SettingsActivity : AppCompatActivity() {
             }
             AutoMergeMode.CUSTOM_TIME -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_time_value_label)
-                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_time_supporting)
+                autoMergeValueLayout.helperText = getString(R.string.retention_time_invalid)
                 autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789:")
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 autoMergeValueInput.setText(formatDurationInput(autoMergeCustomSecondsValue))
             }
             AutoMergeMode.CUSTOM_SIZE -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_size_value_label)
-                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_size_supporting)
+                autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_size_invalid)
                 autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789.,")
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
                 autoMergeValueInput.setText(formatRetentionSizeMib(autoMergeCustomSizeMibValue))
@@ -1101,11 +1101,11 @@ class SettingsActivity : AppCompatActivity() {
         retentionTimeLayout.alpha = if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f
         retentionSizeLayout.alpha = if (activeRetentionMode == RetentionMode.SIZE) 1f else 0.82f
         retentionTimeLayout.helperText = getString(
-            R.string.retention_time_limit_helper,
+            R.string.export_limit_summary,
             "$estimatePrefix${formatDurationInput(exportLimitDurationSeconds)}",
         )
         retentionSizeLayout.helperText = getString(
-            R.string.retention_size_limit_helper,
+            R.string.export_limit_summary,
             formatShortFileSize(exportLimitBytes),
         )
         bindingUi = previousBindingUi
@@ -1164,7 +1164,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         if (historyChunkSeconds == null) {
-            historyChunkLayout.error = getString(R.string.history_chunk_invalid)
+            historyChunkLayout.error = getString(R.string.retention_time_invalid)
             return false
         }
 
@@ -1204,12 +1204,12 @@ class SettingsActivity : AppCompatActivity() {
         val customRange = autoMergeCustomSecondsRange()
         if (activeAutoMergeMode == AutoMergeMode.CUSTOM_TIME) {
             if (autoMergeCustomSeconds == null) {
-                autoMergeValueLayout.error = getString(R.string.auto_merge_custom_time_invalid)
+                autoMergeValueLayout.error = getString(R.string.retention_time_invalid)
                 return false
             }
             if (autoMergeCustomSeconds !in customRange) {
                 autoMergeValueLayout.error = getString(
-                    R.string.auto_merge_custom_time_range_invalid,
+                    R.string.history_chunk_range_invalid,
                     formatDurationInput(customRange.first),
                     formatDurationInput(customRange.last),
                 )

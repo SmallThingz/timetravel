@@ -8,10 +8,6 @@
         <item quantity="one">%d Aufnahme gelöscht.</item>
         <item quantity="other">%d Aufnahmen gelöscht.</item>
     </plurals>
-    <plurals name="chunks_selected">
-        <item quantity="one">%d ausgewählt</item>
-        <item quantity="other">%d ausgewählt</item>
-    </plurals>
     <plurals name="chunks_deleted">
         <item quantity="one">%d Chunk gelöscht.</item>
         <item quantity="other">%d Chunks gelöscht.</item>

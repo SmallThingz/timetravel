@@ -133,9 +133,9 @@ private inline fun <K : Any, V : Any> ConcurrentHashMap<K, V>.cached(
     return existing ?: value
 }
 
-enum class RetentionMode(val prefValue: String, @StringRes val labelRes: Int) {
-    SIZE(TimeTravelConfig.RETENTION_MODE_SIZE, R.string.retention_mode_size),
-    TIME(TimeTravelConfig.RETENTION_MODE_TIME, R.string.retention_mode_time),
+enum class RetentionMode(val prefValue: String) {
+    SIZE(TimeTravelConfig.RETENTION_MODE_SIZE),
+    TIME(TimeTravelConfig.RETENTION_MODE_TIME),
     ;
 
     companion object {
@@ -159,8 +159,8 @@ enum class ExportFormat(
     OGG(TimeTravelConfig.OUTPUT_FORMAT_OGG, R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, Build.VERSION_CODES.Q),
     WEBM(TimeTravelConfig.OUTPUT_FORMAT_WEBM, R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, Build.VERSION_CODES.LOLLIPOP),
     AAC_ADTS(TimeTravelConfig.OUTPUT_FORMAT_AAC_ADTS, R.string.format_aac_adts, "aac", "audio/aac"),
-    AMR_NB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_NB, R.string.format_amr_nb_file, "amr", "audio/amr"),
-    AMR_WB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_WB, R.string.format_amr_wb_file, "awb", "audio/amr-wb"),
+    AMR_NB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_NB, R.string.codec_amr_nb, "amr", "audio/amr"),
+    AMR_WB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_WB, R.string.codec_amr_wb, "awb", "audio/amr-wb"),
     MPEG_2_TS(TimeTravelConfig.OUTPUT_FORMAT_MPEG_2_TS, R.string.format_mpeg_2_ts, "ts", "video/mp2t"),
     ;
 

@@ -10,11 +10,6 @@
         <item quantity="many">%d enregistrements supprimés.</item>
         <item quantity="other">%d enregistrements supprimés.</item>
     </plurals>
-    <plurals name="chunks_selected">
-        <item quantity="one">%d sélectionné</item>
-        <item quantity="many">%d sélectionnés</item>
-        <item quantity="other">%d sélectionnés</item>
-    </plurals>
     <plurals name="chunks_deleted">
         <item quantity="one">%d segment supprimé.</item>
         <item quantity="many">%d segments supprimés.</item>

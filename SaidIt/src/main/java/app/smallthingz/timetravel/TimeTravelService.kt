@@ -510,7 +510,7 @@ class TimeTravelService : Service() {
         newFileName: String,
     ) {
         if (useBytes <= 0L) {
-            notifyReceiverFailure(receiver, getString(R.string.custom_export_duration_invalid))
+            notifyReceiverFailure(receiver, getString(R.string.retention_time_invalid))
             return
         }
         val bytesAvailable = availableBufferedSampleBytes()
