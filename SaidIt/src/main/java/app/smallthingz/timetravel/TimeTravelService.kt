@@ -40,9 +40,11 @@ import java.io.PrintWriter
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -112,6 +114,9 @@ class TimeTravelService : Service() {
 
     @Volatile
     private var activeExportFuture: Future<*>? = null
+
+    @Volatile
+    private var activeExportReceiver: AudioFileReceiver? = null
 
     private val audioMemory = AudioMemory()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -525,8 +530,19 @@ class TimeTravelService : Service() {
 
     fun cancelCurrentExport(): Boolean {
         val token = activeExportToken ?: return false
+        val future = activeExportFuture
+        val receiver = activeExportReceiver
         token.cancelled.set(true)
-        activeExportFuture?.cancel(true)
+        if (!token.started.get() && future?.cancel(true) == true) {
+            if (activeExportToken === token) {
+                activeExportToken = null
+                activeExportFuture = null
+                activeExportReceiver = null
+            }
+            notifyReceiverCancelled(receiver)
+            return true
+        }
+        future?.cancel(true)
         return true
     }
 
@@ -558,117 +574,129 @@ class TimeTravelService : Service() {
         )
         val exportToken = ExportCancellationToken(nextExportTokenId.getAndIncrement())
         activeExportToken = exportToken
-        activeExportFuture =
-            exportWorkExecutor.submit {
-                var outTarget: RecordingOutputTarget? = null
-                try {
-                    ensureExportNotCancelled(exportToken)
-                    outTarget =
-                        try {
+        activeExportReceiver = receiver
+        val exportTask =
+            object : FutureTask<Unit>(
+                Callable {
+                    var outTarget: RecordingOutputTarget? = null
+                    try {
+                        ensureExportNotCancelled(exportToken)
+                        outTarget =
+                            try {
                             createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
                         } catch (e: IOException) {
                             Log.e(TAG, "Unable to prepare export file", e)
                             val message = getString(R.string.cant_create_file_generic)
                             showToast(message)
                             notifyReceiverFailure(receiver, message)
-                            return@submit
+                            return@Callable Unit
                         }
-                    var durationMillis = 0L
-                    if (historySnapshot != null && historySnapshot.config == exportConfig) {
-                        liveExportHistory.exportSnapshotOptimized(
-                            snapshot = historySnapshot,
-                            outputTarget = outTarget,
-                            preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
-                            shouldCancel = { exportToken.cancelled.get() },
-                        )
-                        ensureExportNotCancelled(exportToken)
-                        requireExportedOutput(outTarget)
-                        durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
-                    } else {
-                        val readSucceeded =
-                            createAudioFileWriter(outTarget).use { writer ->
-                                val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
-                                    ensureExportNotCancelled(exportToken)
-                                    writer.write(array, offset, count)
-                                    count
-                                }
-                                ensureExportNotCancelled(exportToken)
-                                durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                                didRead
-                            }
-                        if (!readSucceeded) {
-                            throw IOException("Requested PCM range not available in fallback buffer")
-                        }
-                        requireExportedOutput(outTarget)
-                    }
-                    ensureExportNotCancelled(exportToken)
-                    notifyReceiver(
-                        receiver,
-                        buildRecordingEntity(
-                            this@TimeTravelService,
-                            outTarget,
-                            durationMillis,
-                            currentCodecSummary(),
-                        ),
-                    )
-                } catch (cancelled: InterruptedIOException) {
-                    Log.i(TAG, "Export cancelled for ${outTarget?.displayName ?: newFileName}")
-                    deleteOutputTarget(outTarget)
-                    notifyReceiverCancelled(receiver)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Fast export failed for ${outTarget?.displayName ?: newFileName}; falling back to PCM export", e)
-                    deleteIfEmpty(outTarget)
-                    try {
-                        val fallbackTarget = requireNotNull(outTarget)
                         var durationMillis = 0L
-                        val readSucceeded =
-                            createAudioFileWriter(fallbackTarget).use { writer ->
-                                val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
+                        if (historySnapshot != null && historySnapshot.config == exportConfig) {
+                            liveExportHistory.exportSnapshotOptimized(
+                                snapshot = historySnapshot,
+                                outputTarget = outTarget,
+                                preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+                                shouldCancel = { exportToken.cancelled.get() },
+                            )
+                            ensureExportNotCancelled(exportToken)
+                            requireExportedOutput(outTarget)
+                            durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
+                        } else {
+                            val readSucceeded =
+                                createAudioFileWriter(outTarget).use { writer ->
+                                    val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
+                                        ensureExportNotCancelled(exportToken)
+                                        writer.write(array, offset, count)
+                                        count
+                                    }
                                     ensureExportNotCancelled(exportToken)
-                                    writer.write(array, offset, count)
-                                    count
+                                    durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                                    didRead
                                 }
-                                ensureExportNotCancelled(exportToken)
-                                durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                                didRead
+                            if (!readSucceeded) {
+                                throw IOException("Requested PCM range not available in fallback buffer")
                             }
-                        if (!readSucceeded) {
-                            throw IOException("Requested PCM range not available in fallback buffer")
+                            requireExportedOutput(outTarget)
                         }
-                        requireExportedOutput(fallbackTarget)
                         ensureExportNotCancelled(exportToken)
                         notifyReceiver(
                             receiver,
                             buildRecordingEntity(
                                 this@TimeTravelService,
-                                fallbackTarget,
+                                outTarget,
                                 durationMillis,
                                 currentCodecSummary(),
                             ),
                         )
-                    } catch (fallbackCancelled: InterruptedIOException) {
-                        Log.i(TAG, "Fallback export cancelled for ${outTarget?.displayName ?: newFileName}")
+                    } catch (cancelled: InterruptedIOException) {
+                        Log.i(TAG, "Export cancelled for ${outTarget?.displayName ?: newFileName}")
                         deleteOutputTarget(outTarget)
                         notifyReceiverCancelled(receiver)
-                    } catch (fallbackError: Exception) {
-                        Log.e(TAG, "Error while exporting history into ${outTarget?.displayName ?: newFileName}", fallbackError)
-                        val message = getString(R.string.error_during_writing_history_into) + (outTarget?.displayName ?: newFileName)
-                        showToast(message)
-                        notifyReceiverFailure(receiver, message)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Fast export failed for ${outTarget?.displayName ?: newFileName}; falling back to PCM export", e)
                         deleteIfEmpty(outTarget)
+                        try {
+                            val fallbackTarget = requireNotNull(outTarget)
+                            var durationMillis = 0L
+                            val readSucceeded =
+                                createAudioFileWriter(fallbackTarget).use { writer ->
+                                    val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
+                                        ensureExportNotCancelled(exportToken)
+                                        writer.write(array, offset, count)
+                                        count
+                                    }
+                                    ensureExportNotCancelled(exportToken)
+                                    durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                                    didRead
+                                }
+                            if (!readSucceeded) {
+                                throw IOException("Requested PCM range not available in fallback buffer")
+                            }
+                            requireExportedOutput(fallbackTarget)
+                            ensureExportNotCancelled(exportToken)
+                            notifyReceiver(
+                                receiver,
+                                buildRecordingEntity(
+                                    this@TimeTravelService,
+                                    fallbackTarget,
+                                    durationMillis,
+                                    currentCodecSummary(),
+                                ),
+                            )
+                        } catch (fallbackCancelled: InterruptedIOException) {
+                            Log.i(TAG, "Fallback export cancelled for ${outTarget?.displayName ?: newFileName}")
+                            deleteOutputTarget(outTarget)
+                            notifyReceiverCancelled(receiver)
+                        } catch (fallbackError: Exception) {
+                            Log.e(TAG, "Error while exporting history into ${outTarget?.displayName ?: newFileName}", fallbackError)
+                            val message = getString(R.string.error_during_writing_history_into) + (outTarget?.displayName ?: newFileName)
+                            showToast(message)
+                            notifyReceiverFailure(receiver, message)
+                            deleteIfEmpty(outTarget)
+                        }
+                    } finally {
+                        historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
+                        if (exportToken.cancelled.get()) {
+                            deleteOutputTarget(outTarget)
+                        }
+                        if (activeExportToken === exportToken) {
+                            activeExportToken = null
+                            activeExportFuture = null
+                            activeExportReceiver = null
+                        }
+                        Thread.interrupted()
                     }
-                } finally {
-                    historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
-                    if (exportToken.cancelled.get()) {
-                        deleteOutputTarget(outTarget)
-                    }
-                    if (activeExportToken === exportToken) {
-                        activeExportToken = null
-                        activeExportFuture = null
-                    }
-                    Thread.interrupted()
+                    Unit
+                },
+            ) {
+                override fun run() {
+                    exportToken.started.set(true)
+                    super.run()
                 }
             }
+        activeExportFuture = exportTask
+        exportWorkExecutor.execute(exportTask)
     }
 
     fun startRecording(prependedMemorySeconds: Float) {
@@ -1143,7 +1171,7 @@ class TimeTravelService : Service() {
         try {
             audioMemory.fill(filler)
         } catch (e: Exception) {
-            val fileName = recordingTarget?.displayName ?: getString(R.string.recording)
+            val fileName = recordingTarget?.displayName ?: getString(R.string.app_name)
             val errorMessage = getString(R.string.error_during_recording_into) + fileName
             Log.e(TAG, errorMessage, e)
             showToast(errorMessage)
@@ -1700,10 +1728,10 @@ class TimeTravelService : Service() {
         )
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(getString(R.string.recording))
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.notification_running))
             .setSmallIcon(R.drawable.ic_notification_recording)
-            .setTicker(getString(R.string.recording))
+            .setTicker(getString(R.string.app_name))
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setOngoing(true)
@@ -2215,6 +2243,8 @@ class TimeTravelService : Service() {
     )
 
     private data class HistoryReencodeSnapshot(
+        // Captured before re-encode starts so background migration only rewrites chunks
+        // that existed under the old config, while newly written chunks keep flowing.
         val rootDirectory: File,
         val sourceRanges: List<LiveExportHistory.ReencodeSourceRange>,
         val sourcePaths: List<String>,
@@ -2223,6 +2253,9 @@ class TimeTravelService : Service() {
     private data class ExportCancellationToken(
         val id: Long,
         val cancelled: AtomicBoolean = AtomicBoolean(false),
+        // `started` flips in FutureTask.run() before any export work begins so queued
+        // cancellations can be completed synchronously without racing the worker body.
+        val started: AtomicBoolean = AtomicBoolean(false),
     )
 
     enum class ApplySettingsResult {

@@ -2,6 +2,7 @@ package app.smallthingz.timetravel
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.widget.FrameLayout
 import android.widget.TextView
 import java.time.Instant
 import java.time.ZoneId
@@ -12,7 +13,7 @@ internal fun showRecordingInfoDialog(
     context: Context,
     recording: RecordingEntity,
 ) {
-    val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_details, null, false)
+    val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_details, FrameLayout(context), false)
     content.findViewById<TextView>(R.id.recording_details_text).text = buildRecordingDetailsText(context, recording)
 
     ThemedDialog.create(

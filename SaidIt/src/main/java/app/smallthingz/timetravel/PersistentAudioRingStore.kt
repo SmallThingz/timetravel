@@ -195,7 +195,10 @@ internal class PersistentAudioRingStore(
         meta.writeWritePosition(writePosition)
         meta.writeFilledBytes(newFilled)
         meta.writeLastWriteAtMillis(System.currentTimeMillis())
-        maybeForce()
+        val now = SystemClock.uptimeMillis()
+        if (now - lastForcedAtUptimeMillis >= FORCE_INTERVAL_MS) {
+            force()
+        }
     }
 
     @Synchronized
@@ -358,13 +361,6 @@ internal class PersistentAudioRingStore(
             metaMap?.writeWritePosition(0)
             metaMap?.writeFilledBytes(0)
             metaMap?.writeLastWriteAtMillis(0L)
-            force()
-        }
-    }
-
-    private fun maybeForce() {
-        val now = SystemClock.uptimeMillis()
-        if (now - lastForcedAtUptimeMillis >= FORCE_INTERVAL_MS) {
             force()
         }
     }

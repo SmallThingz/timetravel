@@ -8,8 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -22,7 +23,7 @@ internal class RecordingPlayerDialog(
 ) {
     private val appContext = context
     private val handler = Handler(Looper.getMainLooper())
-    private val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_player, null, false)
+    private val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_player, FrameLayout(context), false)
     private val metaText: TextView = content.findViewById(R.id.player_meta_text)
     private val elapsedText: TextView = content.findViewById(R.id.player_elapsed_text)
     private val durationText: TextView = content.findViewById(R.id.player_duration_text)

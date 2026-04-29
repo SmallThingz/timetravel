@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <plurals name="recordings_selected">
-        <item quantity="one">%d개 선택됨</item>
         <item quantity="other">%d개 선택됨</item>
     </plurals>
     <plurals name="recordings_deleted">
-        <item quantity="one">%d개의 녹음을 삭제했습니다.</item>
         <item quantity="other">%d개의 녹음을 삭제했습니다.</item>
     </plurals>
     <plurals name="chunks_deleted">
-        <item quantity="one">%d개의 청크를 삭제했습니다.</item>
         <item quantity="other">%d개의 청크를 삭제했습니다.</item>
     </plurals>
 </resources>

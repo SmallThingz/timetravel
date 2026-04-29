@@ -2717,11 +2717,15 @@ internal class LiveExportHistory(
     }
 
     private data class PreparedSegmentSlice(
+        // Prepared export can spill full slice groups into temp files; callers must know
+        // whether the slice is original history or disposable prepared output.
         val slice: SegmentSlice,
         val deleteAfterUse: Boolean,
     )
 
     private data class MergeLevelNode(
+        // Balanced merge builds one persisted segment per tree level instead of repeatedly
+        // appending onto one ever-growing left branch.
         val segment: Segment,
     )
 
@@ -2778,6 +2782,8 @@ internal class LiveExportHistory(
     )
 
     private data class RecentDebugOperation(
+        // Keep completed ops visible briefly so the debug screen can show recent merges
+        // without racing the next snapshot refresh.
         val operation: DebugOperation,
         val visibleUntilElapsedRealtime: Long,
     )

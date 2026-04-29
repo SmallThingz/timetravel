@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
@@ -337,7 +338,7 @@ class SavedRecordingsFragment : Fragment() {
 
     private fun renameSelectedRecording() {
         val recording = selectedRecordingIds.singleOrNull()?.let(latestRecordingsById::get) ?: return
-        val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_rename_recording, null, false)
+        val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_rename_recording, FrameLayout(requireContext()), false)
         val nameLayout = content.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.rename_recording_layout)
         val nameInput = content.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.rename_recording_input)
         val confirmButton = content.findViewById<View>(R.id.rename_recording_confirm_button)

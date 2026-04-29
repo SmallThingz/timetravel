@@ -2,14 +2,17 @@
 <resources>
     <plurals name="recordings_selected">
         <item quantity="one">%d selezionato</item>
+        <item quantity="many">%d selezionati</item>
         <item quantity="other">%d selezionati</item>
     </plurals>
     <plurals name="recordings_deleted">
         <item quantity="one">%d registrazione eliminata.</item>
+        <item quantity="many">%d registrazioni eliminate.</item>
         <item quantity="other">%d registrazioni eliminate.</item>
     </plurals>
     <plurals name="chunks_deleted">
         <item quantity="one">%d chunk eliminato.</item>
+        <item quantity="many">%d chunk eliminati.</item>
         <item quantity="other">%d chunk eliminati.</item>
     </plurals>
 </resources>

@@ -25,6 +25,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.Space
 import android.widget.TextView
@@ -707,7 +708,7 @@ class TimeTravelFragment : Fragment() {
         }
 
         private fun promptForCustomRange() {
-            val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, null, false)
+            val content = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_custom_duration, FrameLayout(requireContext()), false)
             val prefs = getRecorderPreferences(requireContext())
             val scopeGroup = content.findViewById<MaterialButtonToggleGroup>(R.id.custom_export_scope_group)
             val unitGroup = content.findViewById<MaterialButtonToggleGroup>(R.id.custom_export_unit_group)
@@ -1054,7 +1055,7 @@ class TimeTravelFragment : Fragment() {
         savingSnackbar?.dismiss()
         savingSnackbar = Snackbar.make(root, R.string.saving, Snackbar.LENGTH_INDEFINITE).apply {
             anchor?.let { setAnchorView(it) }
-            setAction(R.string.cancel) {
+            setAction(android.R.string.cancel) {
                 recorder?.cancelCurrentExport()
             }
             show()

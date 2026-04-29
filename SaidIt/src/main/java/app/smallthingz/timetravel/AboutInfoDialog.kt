@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.text.TextUtils
 import android.view.LayoutInflater
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ImageButton
 import android.widget.TextView
@@ -16,7 +17,7 @@ internal object AboutInfoDialog {
     private const val GITHUB_REPO_URL = "https://github.com/SmallThingz/timetravel"
 
     fun show(context: Context) {
-        val content = LayoutInflater.from(context).inflate(R.layout.dialog_about_info, null, false)
+        val content = LayoutInflater.from(context).inflate(R.layout.dialog_about_info, FrameLayout(context), false)
         content.findViewById<ImageView>(R.id.about_icon).setImageResource(R.drawable.ic_app_icon_preview)
         val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.packageManager.getPackageInfo(

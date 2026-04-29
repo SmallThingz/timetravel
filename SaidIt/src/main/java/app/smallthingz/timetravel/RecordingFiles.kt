@@ -531,7 +531,9 @@ fun renameRecordingAsset(
     recording: RecordingEntity,
     requestedBaseName: String,
 ): RecordingEntity? {
-    val displayName = buildRenamedDisplayName(recording.displayName, requestedBaseName)
+    val extension = recording.displayName.substringAfterLast('.', "")
+    val baseName = sanitizeBaseName(requestedBaseName.substringBeforeLast('.', requestedBaseName))
+    val displayName = if (extension.isBlank()) baseName else "$baseName.$extension"
     return when (RecordingStorageType.valueOf(recording.storageType)) {
         RecordingStorageType.FILE -> renameFileRecording(recording, displayName)
         RecordingStorageType.DOCUMENT -> renameDocumentRecording(context, recording, displayName)
@@ -550,7 +552,10 @@ fun copyRecordingToConfiguredDirectory(
     )
 
     return try {
-        openRecordingInputStream(context, recording)?.use { input ->
+        when (RecordingStorageType.valueOf(recording.storageType)) {
+            RecordingStorageType.FILE -> FileInputStream(File(recording.id))
+            RecordingStorageType.DOCUMENT -> context.contentResolver.openInputStream(Uri.parse(recording.id))
+        }?.use { input ->
             when (target.storageType) {
                 RecordingStorageType.FILE -> {
                     FileOutputStream(requireNotNull(target.file)).use { output ->
@@ -629,16 +634,6 @@ fun listCurrentOutputDirectoryRecordings(context: Context): List<RecordingEntity
                 )
             }
             .toList()
-    }
-}
-
-private fun openRecordingInputStream(
-    context: Context,
-    recording: RecordingEntity,
-): InputStream? {
-    return when (RecordingStorageType.valueOf(recording.storageType)) {
-        RecordingStorageType.FILE -> FileInputStream(File(recording.id))
-        RecordingStorageType.DOCUMENT -> context.contentResolver.openInputStream(Uri.parse(recording.id))
     }
 }
 
@@ -764,15 +759,6 @@ private fun sanitizeBaseName(name: String): String {
         .trim()
         .replace(Regex("\\s+"), " ")
     return sanitized.ifEmpty { "TimeTravel" }
-}
-
-private fun buildRenamedDisplayName(
-    existingDisplayName: String,
-    requestedBaseName: String,
-): String {
-    val extension = existingDisplayName.substringAfterLast('.', "")
-    val baseName = sanitizeBaseName(requestedBaseName.substringBeforeLast('.', requestedBaseName))
-    return if (extension.isBlank()) baseName else "$baseName.$extension"
 }
 
 private fun guessMimeType(displayName: String): String {

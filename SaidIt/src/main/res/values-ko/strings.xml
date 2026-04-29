@@ -177,11 +177,9 @@
     <string name="player_failed">녹음을 재생할 수 없습니다.</string>
     <string name="close">닫기</string>
     <plurals name="move_recordings_done">
-        <item quantity="one">%1$d개의 녹음을 이동했습니다.</item>
         <item quantity="other">%1$d개의 녹음을 이동했습니다.</item>
     </plurals>
     <plurals name="move_recordings_removed_missing">
-        <item quantity="one">%1$d개의 누락된 항목을 제거했습니다.</item>
         <item quantity="other">%1$d개의 누락된 항목을 제거했습니다.</item>
     </plurals>
 </resources>

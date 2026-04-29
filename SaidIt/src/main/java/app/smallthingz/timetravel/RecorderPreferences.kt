@@ -147,7 +147,7 @@ enum class RetentionMode(val prefValue: String) {
 
 enum class ExportFormat(
     val prefValue: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes @field:StringRes val labelRes: Int,
     val extension: String,
     val outputMimeType: String,
     val muxerOutputFormat: Int? = null,
@@ -191,7 +191,7 @@ enum class ExportFormat(
 
 enum class ExportCodec(
     val prefValue: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes @field:StringRes val labelRes: Int,
     val encoderMimeType: String? = null,
     val aacProfile: Int? = null,
 ) {
@@ -240,7 +240,7 @@ enum class ExportCodec(
 
 enum class AudioSourceMode(
     val sourceValue: Int,
-    @StringRes val labelRes: Int,
+    @param:StringRes @field:StringRes val labelRes: Int,
 ) {
     VOICE_RECOGNITION(MediaRecorder.AudioSource.VOICE_RECOGNITION, R.string.audio_source_voice_recognition),
     VOICE_COMMUNICATION(MediaRecorder.AudioSource.VOICE_COMMUNICATION, R.string.audio_source_voice_communication),
@@ -280,7 +280,7 @@ enum class AudioSourceMode(
     }
 }
 
-enum class InputRouteMode(val prefValue: String, @StringRes val labelRes: Int) {
+enum class InputRouteMode(val prefValue: String, @param:StringRes @field:StringRes val labelRes: Int) {
     AUTO(TimeTravelConfig.INPUT_ROUTE_AUTO, R.string.input_route_auto),
     BUILTIN_MIC(TimeTravelConfig.INPUT_ROUTE_BUILTIN_MIC, R.string.input_route_builtin_mic),
     ;
@@ -294,7 +294,7 @@ enum class InputRouteMode(val prefValue: String, @StringRes val labelRes: Int) {
 
 enum class ChannelMode(
     val prefValue: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes @field:StringRes val labelRes: Int,
     val channelCount: Int,
     val inputChannelMask: Int,
 ) {
@@ -311,7 +311,7 @@ enum class ChannelMode(
 
 enum class AppThemeMode(
     val prefValue: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes @field:StringRes val labelRes: Int,
     val nightMode: Int,
 ) {
     SYSTEM(TimeTravelConfig.THEME_MODE_SYSTEM, R.string.theme_system, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM),
@@ -328,7 +328,7 @@ enum class AppThemeMode(
 
 enum class AutoMergeMode(
     val prefValue: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes @field:StringRes val labelRes: Int,
 ) {
     OFF(TimeTravelConfig.AUTO_MERGE_MODE_OFF, R.string.auto_merge_mode_off),
     RATIO(TimeTravelConfig.AUTO_MERGE_MODE_RATIO, R.string.auto_merge_mode_ratio),

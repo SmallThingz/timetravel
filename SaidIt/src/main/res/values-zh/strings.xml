@@ -177,11 +177,9 @@
     <string name="player_failed">无法播放录音。</string>
     <string name="close">关闭</string>
     <plurals name="move_recordings_done">
-        <item quantity="one">%1$d 个录音已移动。</item>
         <item quantity="other">%1$d 个录音已移动。</item>
     </plurals>
     <plurals name="move_recordings_removed_missing">
-        <item quantity="one">%1$d 个缺失条目已移除。</item>
         <item quantity="other">%1$d 个缺失条目已移除。</item>
     </plurals>
 </resources>
