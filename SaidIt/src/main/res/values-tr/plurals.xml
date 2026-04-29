@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="recordings_selected">
+        <item quantity="one">%d seçildi</item>
+        <item quantity="other">%d seçildi</item>
+    </plurals>
+    <plurals name="recordings_deleted">
+        <item quantity="one">%d kayıt silindi.</item>
+        <item quantity="other">%d kayıt silindi.</item>
+    </plurals>
+    <plurals name="chunks_deleted">
+        <item quantity="one">%d parça silindi.</item>
+        <item quantity="other">%d parça silindi.</item>
+    </plurals>
+</resources>
