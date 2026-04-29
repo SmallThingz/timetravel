@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="recordings_selected">
+        <item quantity="one">%d dipilih</item>
+        <item quantity="other">%d dipilih</item>
+    </plurals>
+    <plurals name="recordings_deleted">
+        <item quantity="one">%d rekaman dihapus.</item>
+        <item quantity="other">%d rekaman dihapus.</item>
+    </plurals>
+    <plurals name="chunks_deleted">
+        <item quantity="one">%d potongan dihapus.</item>
+        <item quantity="other">%d potongan dihapus.</item>
+    </plurals>
+</resources>
