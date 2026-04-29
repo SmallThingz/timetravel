@@ -154,6 +154,37 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
+    fun rawContainerConstraints_enforceOnlySupportedConfigurations() {
+        assertTrue(isExportConfigurationSupported(ExportFormat.AAC_ADTS, ExportCodec.AAC_LC, 44_100, 1))
+        assertTrue(isExportConfigurationSupported(ExportFormat.MPEG_2_TS, ExportCodec.AAC_LC, 48_000, 2))
+        assertTrue(isExportConfigurationSupported(ExportFormat.AMR_NB_FILE, ExportCodec.AMR_NB, 8_000, 1))
+        assertTrue(isExportConfigurationSupported(ExportFormat.AMR_WB_FILE, ExportCodec.AMR_WB, 16_000, 1))
+
+        assertTrue(!isExportConfigurationSupported(ExportFormat.AAC_ADTS, ExportCodec.AAC_ELD, 44_100, 1))
+        assertTrue(!isExportConfigurationSupported(ExportFormat.MPEG_2_TS, ExportCodec.AAC_LC, 7_000, 2))
+        assertTrue(!isExportConfigurationSupported(ExportFormat.AMR_NB_FILE, ExportCodec.AMR_NB, 16_000, 1))
+        assertTrue(!isExportConfigurationSupported(ExportFormat.AMR_WB_FILE, ExportCodec.AMR_WB, 16_000, 2))
+        assertTrue(!isExportConfigurationSupported(ExportFormat.THREE_GPP, ExportCodec.AMR_NB, 8_000, 2))
+    }
+
+    @Test
+    fun parseAdtsHeader_readsLcRateAndChannels() {
+        val header = buildAdtsHeader(sampleRate = 44_100, channelCount = 2, payloadSize = 256)
+        val parsed = parseAdtsHeader(header)
+
+        assertEquals(2, parsed?.profile)
+        assertEquals(44_100, parsed?.sampleRate)
+        assertEquals(2, parsed?.channelCount)
+    }
+
+    @Test
+    fun detectRawAmrCodec_distinguishesNbAndWbHeaders() {
+        assertEquals(ExportCodec.AMR_NB, detectRawAmrCodec("#!AMR\n".toByteArray(Charsets.US_ASCII)))
+        assertEquals(ExportCodec.AMR_WB, detectRawAmrCodec("#!AMR-WB\n".toByteArray(Charsets.US_ASCII)))
+        assertEquals(null, detectRawAmrCodec("bogus".toByteArray(Charsets.US_ASCII)))
+    }
+
+    @Test
     fun muxedExportLimit_isFourGiBClass() {
         val minExpected = (4L * 1024L * 1024L * 1024L) - (16L * 1024L * 1024L)
         assertTrue(exportFileSizeLimitBytes(ExportFormat.M4A) >= minExpected)

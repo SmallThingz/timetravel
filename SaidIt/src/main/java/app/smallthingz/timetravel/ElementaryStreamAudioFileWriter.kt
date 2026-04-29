@@ -174,6 +174,9 @@ internal class AdtsAudioFileWriter(
 ) {
     init {
         require(codecConfig == ExportCodec.AAC_LC) { "ADTS export supports AAC-LC only" }
+        require(isExportConfigurationSupported(ExportFormat.AAC_ADTS, codecConfig, configuredSampleRate, configuredChannelCount)) {
+            "Unsupported ADTS configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+        }
     }
 
     override fun writeEncodedAccessUnit(
@@ -206,6 +209,10 @@ internal class RawAmrAudioFileWriter(
 ) {
     init {
         require(codecConfig == ExportCodec.AMR_NB || codecConfig == ExportCodec.AMR_WB) { "Raw AMR export requires AMR codec" }
+        val format = if (codecConfig == ExportCodec.AMR_WB) ExportFormat.AMR_WB_FILE else ExportFormat.AMR_NB_FILE
+        require(isExportConfigurationSupported(format, codecConfig, configuredSampleRate, configuredChannelCount)) {
+            "Unsupported AMR configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+        }
         outputStream.write(
             if (codecConfig == ExportCodec.AMR_WB) AMR_WB_MAGIC_HEADER else AMR_NB_MAGIC_HEADER,
         )
@@ -247,6 +254,9 @@ internal class TsAudioFileWriter(
 
     init {
         require(codecConfig == ExportCodec.AAC_LC) { "MPEG-2 TS export supports AAC-LC only" }
+        require(isExportConfigurationSupported(ExportFormat.MPEG_2_TS, codecConfig, configuredSampleRate, configuredChannelCount)) {
+            "Unsupported MPEG-TS configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+        }
     }
 
     override fun writeEncodedAccessUnit(

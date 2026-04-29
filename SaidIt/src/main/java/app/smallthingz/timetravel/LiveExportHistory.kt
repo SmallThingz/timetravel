@@ -19,6 +19,60 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
+internal data class ParsedAdtsHeader(
+    val profile: Int,
+    val sampleRate: Int,
+    val channelCount: Int,
+)
+
+internal fun parseAdtsHeader(
+    header: ByteArray,
+    size: Int = header.size,
+): ParsedAdtsHeader? {
+    if (size < 7) return null
+    val byte0 = header[0].toInt() and 0xFF
+    val byte1 = header[1].toInt() and 0xFF
+    val byte2 = header[2].toInt() and 0xFF
+    val byte3 = header[3].toInt() and 0xFF
+    if (byte0 != 0xFF || (byte1 and 0xF0) != 0xF0) return null
+    val profile = ((byte2 shr 6) and 0x03) + 1
+    val sampleRate = ADTS_SAMPLE_RATES_BY_INDEX[(byte2 shr 2) and 0x0F] ?: return null
+    val channelCount = ((byte2 and 0x01) shl 2) or ((byte3 shr 6) and 0x03)
+    if (channelCount <= 0) return null
+    return ParsedAdtsHeader(profile = profile, sampleRate = sampleRate, channelCount = channelCount)
+}
+
+internal fun detectRawAmrCodec(
+    header: ByteArray,
+    size: Int = header.size,
+): ExportCodec? {
+    if (size <= 0) return null
+    val value = String(header, 0, size, Charsets.US_ASCII)
+    return when {
+        value.startsWith("#!AMR-WB\n") -> ExportCodec.AMR_WB
+        value.startsWith("#!AMR\n") -> ExportCodec.AMR_NB
+        else -> null
+    }
+}
+
+private const val ADTS_LC_PROFILE = 2
+private val ADTS_SAMPLE_RATES_BY_INDEX =
+    mapOf(
+        0 to 96_000,
+        1 to 88_200,
+        2 to 64_000,
+        3 to 48_000,
+        4 to 44_100,
+        5 to 32_000,
+        6 to 24_000,
+        7 to 22_050,
+        8 to 16_000,
+        9 to 12_000,
+        10 to 11_025,
+        11 to 8_000,
+        12 to 7_350,
+    )
+
 internal class LiveExportHistory(
     private val context: Context,
 ) {
@@ -767,7 +821,7 @@ internal class LiveExportHistory(
                             0,
                             sampleSize,
                             outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
-                            extractor.sampleFlags,
+                            mediaCodecBufferFlagsForExtractorSample(extractor.sampleFlags),
                         )
                         muxer.writeSampleData(trackIndex, byteBuffer, bufferInfo)
                         if (!extractor.advance()) {
@@ -1075,7 +1129,7 @@ internal class LiveExportHistory(
                             0,
                             sampleSize,
                             outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
-                            extractor.sampleFlags,
+                            mediaCodecBufferFlagsForExtractorSample(extractor.sampleFlags),
                         )
                         muxer.writeSampleData(trackIndex, byteBuffer, bufferInfo)
                         if (!extractor.advance()) {
@@ -1341,6 +1395,17 @@ internal class LiveExportHistory(
             ExportCodec.AMR_NB -> "#!AMR\n".toByteArray(Charsets.US_ASCII)
             else -> throw IOException("Raw AMR export requires AMR codec")
         }
+    }
+
+    private fun mediaCodecBufferFlagsForExtractorSample(sampleFlags: Int): Int {
+        var flags = 0
+        if ((sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0) {
+            flags = flags or MediaCodec.BUFFER_FLAG_KEY_FRAME
+        }
+        if ((sampleFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME) != 0) {
+            flags = flags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
+        }
+        return flags
     }
 
     private fun canCopyWholeSliceDirectly(
@@ -2145,6 +2210,18 @@ internal class LiveExportHistory(
             return null
         }
 
+        val startedAtMillis = parseStartedAtMillis(file) ?: file.lastModified()
+        val parsedSampleBytes = parseSampleBytes(file)
+        when {
+            currentConfig.format.isRawAacAdts -> {
+                return inspectRawAdtsSegment(file, currentConfig, startedAtMillis, parsedSampleBytes)
+            }
+
+            currentConfig.format.isRawAmr -> {
+                return inspectRawAmrSegment(file, currentConfig, startedAtMillis, parsedSampleBytes)
+            }
+        }
+
         val extractor = MediaExtractor()
         try {
             extractor.setDataSource(file.absolutePath)
@@ -2157,9 +2234,8 @@ internal class LiveExportHistory(
                 return null
             }
 
-            val startedAtMillis = parseStartedAtMillis(file) ?: file.lastModified()
             val sampleBytes =
-                parseSampleBytes(file)
+                parsedSampleBytes
                     ?: if (currentConfig.format.isPcmContainer) {
                         (file.length() - WAV_HEADER_BYTES).coerceAtLeast(0L)
                     } else {
@@ -2177,6 +2253,62 @@ internal class LiveExportHistory(
         }
     }
 
+    private fun inspectRawAdtsSegment(
+        file: File,
+        currentConfig: Config,
+        startedAtMillis: Long,
+        parsedSampleBytes: Long?,
+    ): Segment? {
+        if (currentConfig.codec != ExportCodec.AAC_LC) {
+            return null
+        }
+        RandomAccessFile(file, "r").use { input ->
+            val header = ByteArray(7)
+            val read = input.read(header)
+            val parsedHeader = parseAdtsHeader(header, read)
+            if (
+                parsedHeader == null ||
+                parsedHeader.profile != ADTS_LC_PROFILE ||
+                parsedHeader.sampleRate != currentConfig.sampleRate ||
+                parsedHeader.channelCount != currentConfig.channelCount
+            ) {
+                return null
+            }
+        }
+        val sampleBytes = parsedSampleBytes ?: return null
+        if (sampleBytes <= 0L) {
+            return null
+        }
+        return Segment(file = file, startedAtMillis = startedAtMillis, sampleBytes = sampleBytes)
+    }
+
+    private fun inspectRawAmrSegment(
+        file: File,
+        currentConfig: Config,
+        startedAtMillis: Long,
+        parsedSampleBytes: Long?,
+    ): Segment? {
+        RandomAccessFile(file, "r").use { input ->
+            val header = ByteArray(9)
+            val read = input.read(header)
+            if (detectRawAmrCodec(header, read) != currentConfig.codec) {
+                return null
+            }
+        }
+        if (
+            currentConfig.channelCount != 1 ||
+            (currentConfig.codec == ExportCodec.AMR_NB && currentConfig.sampleRate != 8_000) ||
+            (currentConfig.codec == ExportCodec.AMR_WB && currentConfig.sampleRate != 16_000)
+        ) {
+            return null
+        }
+        val sampleBytes = parsedSampleBytes ?: return null
+        if (sampleBytes <= 0L) {
+            return null
+        }
+        return Segment(file = file, startedAtMillis = startedAtMillis, sampleBytes = sampleBytes)
+    }
+
     private fun matchesConfig(
         format: MediaFormat,
         currentConfig: Config,
@@ -2191,7 +2323,16 @@ internal class LiveExportHistory(
             return false
         }
         val expectedMime = currentConfig.codec.encoderMimeType
-        return expectedMime == null || mime == null || mime == expectedMime
+        if (expectedMime != null && mime != null && mime != expectedMime) {
+            return false
+        }
+        if (currentConfig.codec.isAacFamily) {
+            val aacProfile = format.getIntegerOrNull(MediaFormat.KEY_AAC_PROFILE)
+            if (aacProfile != null && aacProfile != currentConfig.codec.aacProfile) {
+                return false
+            }
+        }
+        return true
     }
 
     private fun durationUsFor(

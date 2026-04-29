@@ -2,9 +2,11 @@
 
 package app.smallthingz.timetravel
 
+import android.Manifest
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -14,6 +16,7 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.PowerManager
 import android.util.Range
 import androidx.annotation.StringRes
@@ -47,7 +50,9 @@ private const val DEFAULT_AUTO_MERGE_EAGER_ENABLED = true
 private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
 private const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
 private val STANDARD_SAMPLE_RATES =
-    intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000)
+    intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350)
+private val AAC_SAMPLE_RATES =
+    setOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350)
 private val codecSupportCache = ConcurrentHashMap<CodecSupportKey, Boolean>()
 private val inputConfigCache = ConcurrentHashMap<InputConfigKey, Boolean>()
 private val sampleRatesCache = ConcurrentHashMap<SampleRatesKey, List<Int>>()
@@ -74,6 +79,9 @@ private var capabilityCacheWarm = false
 private data class CodecCapability(
     val bitrateRangeKbps: IntRange?,
     val advertisedSampleRates: List<Int>,
+    val maxChannelCount: Int,
+    val supportedAacProfiles: Set<Int>,
+    val hasEncoder: Boolean,
 )
 
 private data class CodecSupportKey(
@@ -143,12 +151,13 @@ enum class ExportFormat(
     val extension: String,
     val outputMimeType: String,
     val muxerOutputFormat: Int? = null,
+    val minApi: Int = Build.VERSION_CODES.JELLY_BEAN_MR2,
 ) {
     WAV(TimeTravelConfig.OUTPUT_FORMAT_WAV, R.string.format_wav, "wav", "audio/wav"),
     M4A(TimeTravelConfig.OUTPUT_FORMAT_M4A, R.string.format_m4a, "m4a", "audio/mp4", MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4),
-    THREE_GPP(TimeTravelConfig.OUTPUT_FORMAT_3GP, R.string.format_3gp, "3gp", "audio/3gpp", MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP),
-    OGG(TimeTravelConfig.OUTPUT_FORMAT_OGG, R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG),
-    WEBM(TimeTravelConfig.OUTPUT_FORMAT_WEBM, R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM),
+    THREE_GPP(TimeTravelConfig.OUTPUT_FORMAT_3GP, R.string.format_3gp, "3gp", "audio/3gpp", MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, Build.VERSION_CODES.O),
+    OGG(TimeTravelConfig.OUTPUT_FORMAT_OGG, R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, Build.VERSION_CODES.Q),
+    WEBM(TimeTravelConfig.OUTPUT_FORMAT_WEBM, R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, Build.VERSION_CODES.LOLLIPOP),
     AAC_ADTS(TimeTravelConfig.OUTPUT_FORMAT_AAC_ADTS, R.string.format_aac_adts, "aac", "audio/aac"),
     AMR_NB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_NB, R.string.format_amr_nb_file, "amr", "audio/amr"),
     AMR_WB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_WB, R.string.format_amr_wb_file, "awb", "audio/amr-wb"),
@@ -169,6 +178,9 @@ enum class ExportFormat(
 
     val isTransportStream: Boolean
         get() = this == MPEG_2_TS
+
+    val isRuntimeSupported: Boolean
+        get() = Build.VERSION.SDK_INT >= minApi
 
     companion object {
         fun fromPrefValue(value: String?): ExportFormat {
@@ -835,7 +847,7 @@ fun supportedSampleRates(
         hasBuiltInMic = hasBuiltInMicrophone(context),
     )
     return sampleRatesCache.cached(key) {
-        val advertisedRates = codecAdvertisedSampleRates(codec)
+        val advertisedRates = codecAdvertisedSampleRates(format, codec)
         val detected = advertisedRates.filter { sampleRate ->
             isInputConfigSupported(context, sampleRate, sourceMode, routeMode, channelMode) &&
                 isCodecSupported(format, codec, sampleRate, channelMode)
@@ -983,6 +995,9 @@ fun isInputConfigSupported(
     routeMode: InputRouteMode,
     channelMode: ChannelMode,
 ): Boolean {
+    if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        return false
+    }
     val key = InputConfigKey(
         sampleRate = sampleRate,
         sourceMode = sourceMode,
@@ -1039,12 +1054,27 @@ fun isCodecSupported(
         if (!isCodecCompatibleWithFormat(format, codec)) {
             return@cached false
         }
+        if (!isExportConfigurationSupported(format, codec, sampleRate, channelMode.channelCount)) {
+            return@cached false
+        }
         when {
             codec.isPcm -> format.isPcmContainer
             else -> {
                 try {
+                    val mimeType = requireNotNull(codec.encoderMimeType)
                     val encoderFormat = buildEncoderFormat(codec, sampleRate, channelMode.channelCount, defaultCodecBitrateKbps(codec, sampleRate, channelMode.channelCount))
-                    MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(encoderFormat) != null
+                    MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+                        .asSequence()
+                        .filter { it.isEncoder }
+                        .filter { info -> info.supportedTypes.any { type -> type.equals(mimeType, ignoreCase = true) } }
+                        .any { info ->
+                            val capabilities = runCatching { info.getCapabilitiesForType(mimeType) }.getOrNull() ?: return@any false
+                            val audioCapabilities = capabilities.audioCapabilities ?: return@any false
+                            if (!supportsRequestedChannelCount(audioCapabilities, channelMode.channelCount)) return@any false
+                            if (!supportsRequestedSampleRate(audioCapabilities, sampleRate)) return@any false
+                            if (!supportsRequestedAacProfile(capabilities, codec)) return@any false
+                            MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(encoderFormat) != null
+                        }
                 } catch (_: Throwable) {
                     false
                 }
@@ -1055,17 +1085,18 @@ fun isCodecSupported(
 
 fun supportedFormats(): List<ExportFormat> {
     cachedSupportedFormats?.let { return it }
-    val formats = ExportFormat.entries.filter { supportedCodecs(it).isNotEmpty() }
+    val formats = ExportFormat.entries.filter { it.isRuntimeSupported && supportedCodecs(it).isNotEmpty() }
     cachedSupportedFormats = formats
     return formats
 }
 
 fun supportedCodecs(format: ExportFormat): List<ExportCodec> {
+    if (!format.isRuntimeSupported) return emptyList()
     cachedSupportedCodecsByFormat?.get(format)?.let { return it }
     val all = cachedSupportedCodecsByFormat?.toMutableMap() ?: mutableMapOf()
     val codecs = ExportCodec.entries.filter { codec ->
         isCodecCompatibleWithFormat(format, codec) &&
-            codecAdvertisedSampleRates(codec).any { sampleRate ->
+            codecAdvertisedSampleRates(format, codec).any { sampleRate ->
                 ChannelMode.entries.any { channelMode -> isCodecSupported(format, codec, sampleRate, channelMode) }
             }
     }
@@ -1150,39 +1181,141 @@ fun buildEncoderFormat(
     }
 }
 
+internal fun isExportConfigurationSupported(
+    format: ExportFormat,
+    codec: ExportCodec,
+    sampleRate: Int,
+    channelCount: Int,
+): Boolean {
+    if (sampleRate <= 0 || channelCount <= 0) return false
+    if (!isCodecCompatibleWithFormat(format, codec)) return false
+    exactSupportedSampleRatesFor(format, codec)?.let { if (sampleRate !in it) return false }
+    exactSupportedChannelCountsFor(format, codec)?.let { if (channelCount !in it) return false }
+    return true
+}
+
+private fun supportsRequestedChannelCount(
+    audioCapabilities: MediaCodecInfo.AudioCapabilities,
+    requestedChannelCount: Int,
+): Boolean {
+    return requestedChannelCount in 1..audioCapabilities.maxInputChannelCount.coerceAtLeast(1)
+}
+
+private fun supportsRequestedSampleRate(
+    audioCapabilities: MediaCodecInfo.AudioCapabilities,
+    sampleRate: Int,
+): Boolean {
+    return runCatching { audioCapabilities.isSampleRateSupported(sampleRate) }.getOrDefault(false)
+}
+
+private fun supportsRequestedAacProfile(
+    capabilities: MediaCodecInfo.CodecCapabilities,
+    codec: ExportCodec,
+): Boolean {
+    val requestedProfile = codec.aacProfile ?: return true
+    val supportedProfiles = capabilities.profileLevels.map { it.profile }.toSet()
+    return when {
+        requestedProfile in supportedProfiles -> true
+        supportedProfiles.isEmpty() -> codec == ExportCodec.AAC_LC
+        else -> false
+    }
+}
+
+private fun fallbackAdvertisedSampleRates(
+    codec: ExportCodec,
+    hasEncoder: Boolean,
+): List<Int> {
+    if (!hasEncoder) return emptyList()
+    return when (codec) {
+        ExportCodec.AMR_NB -> listOf(8_000)
+        ExportCodec.AMR_WB -> listOf(16_000)
+        ExportCodec.AAC_LC,
+        ExportCodec.AAC_ELD,
+        ExportCodec.HE_AAC,
+        ExportCodec.HE_AAC_V2,
+        ExportCodec.XHE_AAC,
+        -> AAC_SAMPLE_RATES.toList().sortedDescending()
+        else -> standardSampleRates()
+    }
+}
+
+private fun exactSupportedSampleRatesFor(
+    format: ExportFormat,
+    codec: ExportCodec,
+): Set<Int>? {
+    return when {
+        format.isRawAacAdts || format.isTransportStream -> AAC_SAMPLE_RATES
+        codec == ExportCodec.AMR_NB -> setOf(8_000)
+        codec == ExportCodec.AMR_WB -> setOf(16_000)
+        else -> null
+    }
+}
+
+private fun exactSupportedChannelCountsFor(
+    format: ExportFormat,
+    codec: ExportCodec,
+): Set<Int>? {
+    return when {
+        codec == ExportCodec.AMR_NB || codec == ExportCodec.AMR_WB -> setOf(1)
+        else -> null
+    }
+}
+
 private fun codecCapability(codec: ExportCodec): CodecCapability {
     return codecCapabilityCache.cached(codec) {
         if (codec.isPcm) {
-            return@cached CodecCapability(null, standardSampleRates())
+            return@cached CodecCapability(
+                bitrateRangeKbps = null,
+                advertisedSampleRates = standardSampleRates(),
+                maxChannelCount = ChannelMode.entries.maxOf { it.channelCount },
+                supportedAacProfiles = emptySet(),
+                hasEncoder = true,
+            )
         }
-        val mimeType = codec.encoderMimeType ?: return@cached CodecCapability(null, standardSampleRates())
+        val mimeType = codec.encoderMimeType
+            ?: return@cached CodecCapability(null, emptyList(), 0, emptySet(), false)
         val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         var bitrateRange: IntRange? = null
         val sampleRates = linkedSetOf<Int>()
+        var maxChannelCount = 0
+        val supportedAacProfiles = linkedSetOf<Int>()
+        var hasEncoder = false
         codecList.codecInfos
             .asSequence()
             .filter { it.isEncoder }
             .filter { info -> info.supportedTypes.any { it.equals(mimeType, ignoreCase = true) } }
             .forEach { info ->
+                hasEncoder = true
                 val capabilities =
                     runCatching { info.getCapabilitiesForType(mimeType) }.getOrNull()
                         ?: return@forEach
                 val audioCapabilities = capabilities.audioCapabilities ?: return@forEach
                 bitrateRange = mergeBitrateRanges(bitrateRange, audioCapabilities.getBitrateRange())
+                maxChannelCount = maxOf(maxChannelCount, audioCapabilities.maxInputChannelCount.coerceAtLeast(1))
                 val discreteRates = audioCapabilities.supportedSampleRates
                 if (discreteRates != null) {
-                    discreteRates.filterTo(sampleRates) { it in STANDARD_SAMPLE_RATES }
+                    discreteRates.filterTo(sampleRates) { it in codecProbeSampleRates(codec) }
                 } else {
-                    STANDARD_SAMPLE_RATES.forEach { rate ->
+                    codecProbeSampleRates(codec).forEach { rate ->
                         if (audioCapabilities.isSampleRateSupported(rate)) {
                             sampleRates += rate
                         }
                     }
                 }
+                if (codec.isAacFamily) {
+                    capabilities.profileLevels.forEach { supportedAacProfiles += it.profile }
+                }
             }
+        val advertisedSampleRates =
+            sampleRates.toList()
+                .sortedDescending()
+                .ifEmpty { fallbackAdvertisedSampleRates(codec, hasEncoder) }
         CodecCapability(
             bitrateRangeKbps = bitrateRange,
-            advertisedSampleRates = sampleRates.toList().sortedDescending().ifEmpty { standardSampleRates() },
+            advertisedSampleRates = advertisedSampleRates,
+            maxChannelCount = maxChannelCount.coerceAtLeast(1),
+            supportedAacProfiles = supportedAacProfiles,
+            hasEncoder = hasEncoder,
         )
     }
 }
@@ -1195,7 +1328,27 @@ private fun mergeBitrateRanges(
     return if (existing == null) normalized else minOf(existing.first, normalized.first)..maxOf(existing.last, normalized.last)
 }
 
-private fun codecAdvertisedSampleRates(codec: ExportCodec): List<Int> = codecCapability(codec).advertisedSampleRates
+private fun codecAdvertisedSampleRates(
+    format: ExportFormat,
+    codec: ExportCodec,
+): List<Int> {
+    val constrainedRates = exactSupportedSampleRatesFor(format, codec)
+    val codecRates = codecCapability(codec).advertisedSampleRates
+    return when {
+        constrainedRates == null -> codecRates
+        codecRates.isEmpty() -> constrainedRates.toList().sortedDescending()
+        else -> codecRates.filter { it in constrainedRates }
+    }
+}
+
+private fun codecProbeSampleRates(codec: ExportCodec): IntArray {
+    return when {
+        codec.isAacFamily -> AAC_SAMPLE_RATES.toIntArray()
+        codec == ExportCodec.AMR_NB -> intArrayOf(8_000)
+        codec == ExportCodec.AMR_WB -> intArrayOf(16_000)
+        else -> STANDARD_SAMPLE_RATES
+    }
+}
 
 fun orderSampleRatesByPreference(
     sampleRates: List<Int>,
