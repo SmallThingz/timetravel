@@ -1054,6 +1054,9 @@ class TimeTravelFragment : Fragment() {
         savingSnackbar?.dismiss()
         savingSnackbar = Snackbar.make(root, R.string.saving, Snackbar.LENGTH_INDEFINITE).apply {
             anchor?.let { setAnchorView(it) }
+            setAction(R.string.cancel) {
+                recorder?.cancelCurrentExport()
+            }
             show()
         }
     }
@@ -1171,6 +1174,14 @@ class TimeTravelFragment : Fragment() {
             }
             Toast.makeText(activity, if (message.isBlank()) activity.getString(R.string.save_failed) else message, Toast.LENGTH_SHORT)
                 .show()
+        }
+
+        override fun fileCancelled() {
+            if (view == null || !isAdded || !this@TimeTravelFragment::recordMaxButton.isInitialized) {
+                isSaving = false
+            } else {
+                setSavingInProgress(false)
+            }
         }
     }
 }

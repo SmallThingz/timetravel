@@ -13,11 +13,14 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 internal data class ParsedAdtsHeader(
     val profile: Int,
@@ -476,7 +479,11 @@ internal class LiveExportHistory(
                         startedAtMillis = task.startedAtMillis,
                     )
             }
-            exportSnapshot(task.snapshot, task.outputTarget)
+            mergeSnapshotBalanced(
+                snapshot = task.snapshot,
+                outputTarget = task.outputTarget,
+                preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+            )
             mergedFile = requireNotNull(task.outputTarget.file)
             true
         } catch (e: Exception) {
@@ -495,18 +502,21 @@ internal class LiveExportHistory(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
         preferredParallelism: Int = DEFAULT_EXPORT_COMPACTION_PARALLELISM,
+        shouldCancel: () -> Boolean = { false },
     ) {
+        ensureExportNotCancelled(shouldCancel)
         if (!supportsPreparedExportOptimization(snapshot.config.format)) {
-            exportSnapshot(snapshot, outputTarget)
+            exportSnapshot(snapshot, outputTarget, shouldCancel)
             return
         }
-        val preparedSession = prepareSnapshotForStreamingExport(snapshot, preferredParallelism)
+        val preparedSession = prepareSnapshotForStreamingExport(snapshot, preferredParallelism, shouldCancel)
         if (preparedSession == null) {
-            exportSnapshot(snapshot, outputTarget)
+            exportSnapshot(snapshot, outputTarget, shouldCancel)
             return
         }
         try {
-            exportPreparedSnapshot(snapshot.config, preparedSession.parts, outputTarget)
+            ensureExportNotCancelled(shouldCancel)
+            exportPreparedSnapshot(snapshot.config, preparedSession.parts, outputTarget, shouldCancel)
         } finally {
             preparedSession.close()
         }
@@ -516,21 +526,23 @@ internal class LiveExportHistory(
     fun exportSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean = { false },
     ) {
+        ensureExportNotCancelled(shouldCancel)
         if (snapshot.slices.size == 1) {
             val only = snapshot.slices.single()
             if (only.skipSampleBytes == 0L && only.takeSampleBytes == only.segment.sampleBytes && canCopyWholeSliceDirectly(only.segment, snapshot.config)) {
-                copyWholeFile(only.segment.file, outputTarget)
+                copyWholeFile(only.segment.file, outputTarget, shouldCancel)
                 return
             }
         }
 
         when {
-            snapshot.config.format.isPcmContainer -> exportWaveSnapshot(snapshot, outputTarget)
-            snapshot.config.format.usesMuxer -> exportEncodedSnapshot(snapshot, outputTarget)
-            snapshot.config.format.isRawAacAdts -> exportAdtsSnapshot(snapshot, outputTarget)
-            snapshot.config.format.isRawAmr -> exportRawAmrSnapshot(snapshot, outputTarget)
-            snapshot.config.format.isTransportStream -> exportTransportStreamSnapshot(snapshot, outputTarget)
+            snapshot.config.format.isPcmContainer -> exportWaveSnapshot(snapshot, outputTarget, shouldCancel)
+            snapshot.config.format.usesMuxer -> exportEncodedSnapshot(snapshot, outputTarget, shouldCancel)
+            snapshot.config.format.isRawAacAdts -> exportAdtsSnapshot(snapshot, outputTarget, shouldCancel)
+            snapshot.config.format.isRawAmr -> exportRawAmrSnapshot(snapshot, outputTarget, shouldCancel)
+            snapshot.config.format.isTransportStream -> exportTransportStreamSnapshot(snapshot, outputTarget, shouldCancel)
             else -> throw IOException("Unsupported history export format ${snapshot.config.format.prefValue}")
         }
     }
@@ -553,6 +565,7 @@ internal class LiveExportHistory(
     private fun prepareSnapshotForStreamingExport(
         snapshot: Snapshot,
         preferredParallelism: Int,
+        shouldCancel: () -> Boolean,
     ): PreparedExportSession? {
         val plan = synchronized(this) { buildPreparedExportPlanLocked(snapshot) } ?: return null
         val compactedPartCount = plan.parts.count { it is PreparedExportPlanPart.Compacted }
@@ -567,7 +580,7 @@ internal class LiveExportHistory(
                     is PreparedExportPlanPart.Direct -> PreparedExportPart.Direct(part.slice)
                     is PreparedExportPlanPart.Compacted -> PreparedExportPart.Compacted(
                         group = part.group,
-                        future = submitPreparedCompactionJob(executor, part.group),
+                        future = submitPreparedCompactionJob(executor, part.group, shouldCancel),
                     )
                 }
             }
@@ -684,6 +697,7 @@ internal class LiveExportHistory(
     private fun submitPreparedCompactionJob(
         executor: java.util.concurrent.ExecutorService,
         group: RegionalCompactionGroup,
+        shouldCancel: () -> Boolean,
     ): Future<CompletedRegionalCompaction?> {
         synchronized(this) {
             debugOperations[group.operationId] =
@@ -698,7 +712,12 @@ internal class LiveExportHistory(
         return executor.submit(
             Callable {
                 try {
-                    exportSnapshot(group.snapshot, group.outputTarget)
+                    mergeSnapshotBalanced(
+                        snapshot = group.snapshot,
+                        outputTarget = group.outputTarget,
+                        preferredParallelism = group.snapshot.slices.size / 2,
+                        shouldCancel = shouldCancel,
+                    )
                     val file = group.outputTarget.file
                     if (file == null || !file.isFile || file.length() <= 0L) {
                         null
@@ -723,13 +742,14 @@ internal class LiveExportHistory(
         currentConfig: Config,
         parts: List<PreparedExportPart>,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         when {
-            currentConfig.format.isPcmContainer -> exportPreparedWaveSnapshot(currentConfig, parts, outputTarget)
-            currentConfig.format.usesMuxer -> exportPreparedEncodedSnapshot(currentConfig, parts, outputTarget)
-            currentConfig.format.isRawAacAdts -> exportPreparedAdtsSnapshot(currentConfig, parts, outputTarget)
-            currentConfig.format.isRawAmr -> exportPreparedRawAmrSnapshot(currentConfig, parts, outputTarget)
-            currentConfig.format.isTransportStream -> exportPreparedTransportStreamSnapshot(currentConfig, parts, outputTarget)
+            currentConfig.format.isPcmContainer -> exportPreparedWaveSnapshot(currentConfig, parts, outputTarget, shouldCancel)
+            currentConfig.format.usesMuxer -> exportPreparedEncodedSnapshot(currentConfig, parts, outputTarget, shouldCancel)
+            currentConfig.format.isRawAacAdts -> exportPreparedAdtsSnapshot(currentConfig, parts, outputTarget, shouldCancel)
+            currentConfig.format.isRawAmr -> exportPreparedRawAmrSnapshot(currentConfig, parts, outputTarget, shouldCancel)
+            currentConfig.format.isTransportStream -> exportPreparedTransportStreamSnapshot(currentConfig, parts, outputTarget, shouldCancel)
             else -> throw IOException("Unsupported history export format ${currentConfig.format.prefValue}")
         }
     }
@@ -738,14 +758,17 @@ internal class LiveExportHistory(
         currentConfig: Config,
         parts: List<PreparedExportPart>,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         WavAudioFileWriter(context, outputTarget, currentConfig.sampleRate, currentConfig.channelCount).use { writer ->
             val buffer = ByteArray(COPY_BUFFER_BYTES)
-            forEachPreparedExportSlice(parts) { prepared ->
+            forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
+                ensureExportNotCancelled(shouldCancel)
                 RandomAccessFile(prepared.slice.segment.file, "r").use { input ->
                     input.seek(WAV_HEADER_BYTES + prepared.slice.skipSampleBytes)
                     var remaining = prepared.slice.takeSampleBytes
                     while (remaining > 0L) {
+                        ensureExportNotCancelled(shouldCancel)
                         val requested = minOf(buffer.size.toLong(), remaining).toInt()
                         val read = input.read(buffer, 0, requested)
                         if (read <= 0) {
@@ -763,6 +786,7 @@ internal class LiveExportHistory(
         currentConfig: Config,
         parts: List<PreparedExportPart>,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         var muxer: MediaMuxer? = null
@@ -773,7 +797,8 @@ internal class LiveExportHistory(
 
         try {
             muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(currentConfig.format.muxerOutputFormat))
-            forEachPreparedExportSlice(parts) { prepared ->
+            forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
+                ensureExportNotCancelled(shouldCancel)
                 val slice = prepared.slice
                 val extractor = MediaExtractor()
                 try {
@@ -795,6 +820,7 @@ internal class LiveExportHistory(
 
                     var firstWrittenSampleTimeUs = Long.MIN_VALUE
                     while (true) {
+                        ensureExportNotCancelled(shouldCancel)
                         val sampleTimeUs = extractor.sampleTime
                         if (sampleTimeUs < 0L) {
                             break
@@ -846,6 +872,7 @@ internal class LiveExportHistory(
         currentConfig: Config,
         parts: List<PreparedExportPart>,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         require(currentConfig.codec == ExportCodec.AAC_LC) { "ADTS snapshot export supports AAC-LC only" }
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
@@ -853,12 +880,13 @@ internal class LiveExportHistory(
         val adtsHeader = ByteArray(7)
         val scratch = ByteArray(COPY_BUFFER_BYTES)
         try {
-            forEachPreparedExportSlice(parts) { prepared ->
+            forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
+                ensureExportNotCancelled(shouldCancel)
                 val slice = prepared.slice
                 if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
-                    copyWholeFileToStream(slice.segment.file, outputStream, scratch)
+                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, shouldCancel = shouldCancel)
                 } else {
-                    exportEncodedSliceBuffers(currentConfig, slice) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
+                    exportEncodedSliceBuffers(currentConfig, slice, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
                         fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
                         outputStream.write(adtsHeader, 0, adtsHeader.size)
                         writeByteBufferToStream(data, sampleSize, outputStream, scratch)
@@ -876,6 +904,7 @@ internal class LiveExportHistory(
         currentConfig: Config,
         parts: List<PreparedExportPart>,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
@@ -883,12 +912,13 @@ internal class LiveExportHistory(
         val scratch = ByteArray(COPY_BUFFER_BYTES)
         try {
             outputStream.write(header)
-            forEachPreparedExportSlice(parts) { prepared ->
+            forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
+                ensureExportNotCancelled(shouldCancel)
                 val slice = prepared.slice
                 if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
-                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, skipBytes = header.size.toLong())
+                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, skipBytes = header.size.toLong(), shouldCancel = shouldCancel)
                 } else {
-                    exportEncodedSliceBuffers(currentConfig, slice) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
+                    exportEncodedSliceBuffers(currentConfig, slice, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
                         writeByteBufferToStream(data, sampleSize, outputStream, scratch)
                     }
                 }
@@ -904,6 +934,7 @@ internal class LiveExportHistory(
         currentConfig: Config,
         parts: List<PreparedExportPart>,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         require(currentConfig.codec == ExportCodec.AAC_LC) { "TS snapshot export supports AAC-LC only" }
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
@@ -911,16 +942,17 @@ internal class LiveExportHistory(
         val scratch = ByteArray(COPY_BUFFER_BYTES)
         try {
             var packetizer: MpegTsAacPacketizer? = null
-            forEachPreparedExportSlice(parts) { prepared ->
+            forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
+                ensureExportNotCancelled(shouldCancel)
                 val slice = prepared.slice
                 if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
-                    copyWholeFileToStream(slice.segment.file, outputStream, scratch)
+                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, shouldCancel = shouldCancel)
                 } else {
                     val activePacketizer =
                         packetizer ?: MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount).also {
                             packetizer = it
                         }
-                    exportEncodedSliceBuffers(currentConfig, slice) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, presentationTimeUs: Long ->
+                    exportEncodedSliceBuffers(currentConfig, slice, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, presentationTimeUs: Long ->
                         activePacketizer.writeAccessUnit(data, sampleSize, presentationTimeUs)
                     }
                 }
@@ -934,20 +966,16 @@ internal class LiveExportHistory(
 
     private fun forEachPreparedExportSlice(
         parts: List<PreparedExportPart>,
+        shouldCancel: () -> Boolean,
         consumer: (PreparedSegmentSlice) -> Unit,
     ) {
         parts.forEach { part ->
+            ensureExportNotCancelled(shouldCancel)
             val resolved =
                 when (part) {
                     is PreparedExportPart.Direct -> listOf(PreparedSegmentSlice(part.slice, deleteAfterUse = false))
                     is PreparedExportPart.Compacted -> {
-                        val completed =
-                            try {
-                                part.future.get()
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Prepared export compaction wait failed", e)
-                                null
-                            }
+                        val completed = awaitPreparedCompaction(part.future, shouldCancel)
                         if (completed != null) {
                             listOf(
                                 PreparedSegmentSlice(
@@ -983,14 +1011,17 @@ internal class LiveExportHistory(
     private fun exportWaveSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         WavAudioFileWriter(context, outputTarget, snapshot.config.sampleRate, snapshot.config.channelCount).use { writer ->
             val buffer = ByteArray(COPY_BUFFER_BYTES)
             snapshot.slices.forEach { slice ->
+                ensureExportNotCancelled(shouldCancel)
                 RandomAccessFile(slice.segment.file, "r").use { input ->
                     input.seek(WAV_HEADER_BYTES + slice.skipSampleBytes)
                     var remaining = slice.takeSampleBytes
                     while (remaining > 0L) {
+                        ensureExportNotCancelled(shouldCancel)
                         val requested = minOf(buffer.size.toLong(), remaining).toInt()
                         val read = input.read(buffer, 0, requested)
                         if (read <= 0) {
@@ -1007,6 +1038,7 @@ internal class LiveExportHistory(
     private fun exportEncodedSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         val currentConfig = snapshot.config
         val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
@@ -1019,6 +1051,7 @@ internal class LiveExportHistory(
         try {
             muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(currentConfig.format.muxerOutputFormat))
             snapshot.slices.forEach { slice ->
+                ensureExportNotCancelled(shouldCancel)
                 val extractor = MediaExtractor()
                 try {
                     extractor.setDataSource(slice.segment.file.absolutePath)
@@ -1039,6 +1072,7 @@ internal class LiveExportHistory(
 
                     var firstWrittenSampleTimeUs = Long.MIN_VALUE
                     while (true) {
+                        ensureExportNotCancelled(shouldCancel)
                         val sampleTimeUs = extractor.sampleTime
                         if (sampleTimeUs < 0L) {
                             break
@@ -1089,6 +1123,7 @@ internal class LiveExportHistory(
     private fun exportAdtsSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         val currentConfig = snapshot.config
         require(currentConfig.codec == ExportCodec.AAC_LC) { "ADTS snapshot export supports AAC-LC only" }
@@ -1098,10 +1133,11 @@ internal class LiveExportHistory(
         val scratch = ByteArray(COPY_BUFFER_BYTES)
         try {
             snapshot.slices.forEach { slice ->
+                ensureExportNotCancelled(shouldCancel)
                 if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
-                    copyWholeFileToStream(slice.segment.file, outputStream, scratch)
+                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, shouldCancel = shouldCancel)
                 } else {
-                    exportEncodedSliceBuffers(currentConfig, slice) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
+                    exportEncodedSliceBuffers(currentConfig, slice, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
                         fillAdtsHeader(adtsHeader, currentConfig.sampleRate, currentConfig.channelCount, sampleSize)
                         outputStream.write(adtsHeader, 0, adtsHeader.size)
                         writeByteBufferToStream(data, sampleSize, outputStream, scratch)
@@ -1118,6 +1154,7 @@ internal class LiveExportHistory(
     private fun exportRawAmrSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         val currentConfig = snapshot.config
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
@@ -1127,10 +1164,11 @@ internal class LiveExportHistory(
         try {
             outputStream.write(header)
             snapshot.slices.forEach { slice ->
+                ensureExportNotCancelled(shouldCancel)
                 if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes && canCopyWholeSliceDirectly(slice.segment, currentConfig)) {
-                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, skipBytes = header.size.toLong())
+                    copyWholeFileToStream(slice.segment.file, outputStream, scratch, skipBytes = header.size.toLong(), shouldCancel = shouldCancel)
                 } else {
-                    exportEncodedSliceBuffers(currentConfig, slice) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
+                    exportEncodedSliceBuffers(currentConfig, slice, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, _: Long ->
                         writeByteBufferToStream(data, sampleSize, outputStream, scratch)
                     }
                 }
@@ -1145,6 +1183,7 @@ internal class LiveExportHistory(
     private fun exportTransportStreamSnapshot(
         snapshot: Snapshot,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean,
     ) {
         val currentConfig = snapshot.config
         require(currentConfig.codec == ExportCodec.AAC_LC) { "TS snapshot export supports AAC-LC only" }
@@ -1153,7 +1192,7 @@ internal class LiveExportHistory(
         val scratch = ByteArray(COPY_BUFFER_BYTES)
         try {
             val packetizer = MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount)
-            forEachEncodedSliceBuffer(snapshot) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, presentationTimeUs: Long ->
+            forEachEncodedSliceBuffer(snapshot, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, presentationTimeUs: Long ->
                 packetizer.writeAccessUnit(data, sampleSize, presentationTimeUs)
             }
             outputStream.flush()
@@ -1166,6 +1205,7 @@ internal class LiveExportHistory(
     private fun exportEncodedSliceBuffers(
         currentConfig: Config,
         slice: SegmentSlice,
+        shouldCancel: () -> Boolean,
         consumer: (SegmentSlice, ByteBuffer, Int, Long) -> Unit,
     ) {
         val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
@@ -1185,6 +1225,7 @@ internal class LiveExportHistory(
 
             var firstWrittenSampleTimeUs = Long.MIN_VALUE
             while (true) {
+                ensureExportNotCancelled(shouldCancel)
                 val sampleTimeUs = extractor.sampleTime
                 if (sampleTimeUs < 0L) {
                     break
@@ -1220,12 +1261,14 @@ internal class LiveExportHistory(
 
     private fun forEachEncodedSliceBuffer(
         snapshot: Snapshot,
+        shouldCancel: () -> Boolean,
         consumer: (SegmentSlice, ByteBuffer, Int, Long) -> Unit,
     ) {
         val currentConfig = snapshot.config
         val byteBuffer = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
         var outputBaseTimeUs = 0L
         snapshot.slices.forEach { slice ->
+            ensureExportNotCancelled(shouldCancel)
             val extractor = MediaExtractor()
             try {
                 extractor.setDataSource(slice.segment.file.absolutePath)
@@ -1242,6 +1285,7 @@ internal class LiveExportHistory(
 
                 var firstWrittenSampleTimeUs = Long.MIN_VALUE
                 while (true) {
+                    ensureExportNotCancelled(shouldCancel)
                     val sampleTimeUs = extractor.sampleTime
                     if (sampleTimeUs < 0L) {
                         break
@@ -1282,17 +1326,33 @@ internal class LiveExportHistory(
     private fun copyWholeFile(
         source: File,
         outputTarget: RecordingOutputTarget,
+        shouldCancel: () -> Boolean = { false },
     ) {
+        val scratch = ByteArray(COPY_BUFFER_BYTES)
         when (outputTarget.storageType) {
             RecordingStorageType.FILE -> {
                 FileOutputStream(requireNotNull(outputTarget.file)).use { output ->
-                    source.inputStream().use { input -> input.copyTo(output, COPY_BUFFER_BYTES) }
+                    source.inputStream().use { input ->
+                        while (true) {
+                            ensureExportNotCancelled(shouldCancel)
+                            val read = input.read(scratch)
+                            if (read <= 0) break
+                            output.write(scratch, 0, read)
+                        }
+                    }
                 }
             }
 
             RecordingStorageType.DOCUMENT -> {
                 context.contentResolver.openOutputStream(requireNotNull(outputTarget.uri), "w")?.use { output ->
-                    source.inputStream().use { input -> input.copyTo(output, COPY_BUFFER_BYTES) }
+                    source.inputStream().use { input ->
+                        while (true) {
+                            ensureExportNotCancelled(shouldCancel)
+                            val read = input.read(scratch)
+                            if (read <= 0) break
+                            output.write(scratch, 0, read)
+                        }
+                    }
                 } ?: throw IOException("Unable to open export output stream")
             }
         }
@@ -1303,12 +1363,14 @@ internal class LiveExportHistory(
         outputStream: BufferedOutputStream,
         scratch: ByteArray,
         skipBytes: Long = 0L,
+        shouldCancel: () -> Boolean = { false },
     ) {
         RandomAccessFile(source, "r").use { input ->
             if (skipBytes > 0L) {
                 input.seek(skipBytes)
             }
             while (true) {
+                ensureExportNotCancelled(shouldCancel)
                 val read = input.read(scratch)
                 if (read <= 0) {
                     break
@@ -1323,6 +1385,163 @@ internal class LiveExportHistory(
             ExportCodec.AMR_WB -> AMR_WB_MAGIC_HEADER
             ExportCodec.AMR_NB -> AMR_NB_MAGIC_HEADER
             else -> throw IOException("Raw AMR export requires AMR codec")
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun mergeSnapshotBalanced(
+        snapshot: Snapshot,
+        outputTarget: RecordingOutputTarget,
+        preferredParallelism: Int,
+        shouldCancel: () -> Boolean = { false },
+    ) {
+        ensureExportNotCancelled(shouldCancel)
+        ensureHistoryRootExists()
+        val fullSlices = snapshot.slices.all { it.skipSampleBytes == 0L && it.takeSampleBytes == it.segment.sampleBytes }
+        if (!fullSlices || snapshot.slices.size < MIN_COMPACTION_SEGMENTS) {
+            exportSnapshot(snapshot, outputTarget, shouldCancel)
+            return
+        }
+
+        val parallelism = minOf(preferredParallelism.coerceAtLeast(1), MAX_EXPORT_COMPACTION_PARALLELISM)
+        if (parallelism <= 1) {
+            exportSnapshot(snapshot, outputTarget, shouldCancel)
+            return
+        }
+
+        val executor = Executors.newFixedThreadPool(parallelism)
+        val tempFiles = ArrayList<File>()
+        var tempOutputInstalled = false
+        try {
+            var level =
+                snapshot.slices.map { slice ->
+                    MergeLevelNode(
+                        segment = slice.segment,
+                    )
+                }
+            while (level.size > 1) {
+                ensureExportNotCancelled(shouldCancel)
+                if (level.size == 2) {
+                    exportSnapshot(buildMergeSnapshot(snapshot.config, level[0], level[1]), outputTarget, shouldCancel)
+                    tempOutputInstalled = true
+                    return
+                }
+
+                val nextLevel = arrayOfNulls<MergeLevelNode>((level.size + 1) / 2)
+                val futures = ArrayList<Future<Pair<Int, MergeLevelNode>>>(level.size / 2)
+                var index = 0
+                while (index < level.size) {
+                    val slot = index / 2
+                    val left = level[index]
+                    val right = level.getOrNull(index + 1)
+                    if (right == null) {
+                        nextLevel[slot] = left
+                        index += 1
+                        continue
+                    }
+
+                    val totalSampleBytes = left.segment.sampleBytes + right.segment.sampleBytes
+                    val startedAtMillis = left.segment.startedAtMillis
+                    val tempFile = File(historyRoot, "pair-compact-$startedAtMillis-${System.nanoTime()}.${snapshot.config.format.extension}.tmp")
+                    tempFiles += tempFile
+                    val tempTarget = RecordingOutputTarget(
+                        id = tempFile.absolutePath,
+                        displayName = tempFile.name,
+                        mimeType = snapshot.config.format.outputMimeType,
+                        storageType = RecordingStorageType.FILE,
+                        directoryId = historyRoot.absolutePath,
+                        startedAtMillis = startedAtMillis,
+                        file = tempFile,
+                    )
+                    futures += executor.submit(
+                        Callable {
+                            ensureExportNotCancelled(shouldCancel)
+                            exportSnapshot(buildMergeSnapshot(snapshot.config, left, right), tempTarget, shouldCancel)
+                            ensureExportNotCancelled(shouldCancel)
+                            Pair(
+                                slot,
+                                MergeLevelNode(
+                                    segment = Segment(
+                                        file = tempFile,
+                                        startedAtMillis = startedAtMillis,
+                                        sampleBytes = totalSampleBytes,
+                                    ),
+                                ),
+                            )
+                        },
+                    )
+                    index += 2
+                }
+
+                futures.forEach { future ->
+                    val (slot, mergedNode) =
+                        try {
+                            future.get()
+                        } catch (e: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            throw InterruptedIOException("Export cancelled")
+                        }
+                    nextLevel[slot] = mergedNode
+                }
+                level = nextLevel.filterNotNull()
+            }
+
+            val finalNode = level.singleOrNull()
+            if (finalNode != null) {
+                copyWholeFile(finalNode.segment.file, outputTarget, shouldCancel)
+                tempOutputInstalled = true
+            }
+        } finally {
+            executor.shutdownNow()
+            if (!tempOutputInstalled) {
+                outputTarget.file?.takeIf { it.isFile && it.length() == 0L }?.delete()
+            }
+            tempFiles.forEach { file ->
+                if (file != outputTarget.file) {
+                    file.delete()
+                }
+            }
+        }
+    }
+
+    private fun buildMergeSnapshot(
+        config: Config,
+        left: MergeLevelNode,
+        right: MergeLevelNode,
+    ): Snapshot {
+        val slices =
+            listOf(
+                SegmentSlice(left.segment, 0L, left.segment.sampleBytes),
+                SegmentSlice(right.segment, 0L, right.segment.sampleBytes),
+            )
+        val totalSampleBytes = slices.sumOf { it.takeSampleBytes }
+        return Snapshot(config = config, slices = slices, requestedSampleBytes = totalSampleBytes)
+    }
+
+    @Throws(InterruptedIOException::class)
+    private fun ensureExportNotCancelled(shouldCancel: () -> Boolean) {
+        if (Thread.currentThread().isInterrupted || shouldCancel()) {
+            throw InterruptedIOException("Export cancelled")
+        }
+    }
+
+    private fun awaitPreparedCompaction(
+        future: Future<CompletedRegionalCompaction?>,
+        shouldCancel: () -> Boolean,
+    ): CompletedRegionalCompaction? {
+        while (true) {
+            ensureExportNotCancelled(shouldCancel)
+            try {
+                return future.get(25L, TimeUnit.MILLISECONDS)
+            } catch (_: TimeoutException) {
+                Unit
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw InterruptedIOException("Export cancelled")
+            } catch (e: Exception) {
+                Log.w(TAG, "Prepared export compaction wait failed", e)
+                return null
+            }
         }
     }
 
@@ -1777,7 +1996,11 @@ internal class LiveExportHistory(
                     executor.submit(
                         Callable {
                             try {
-                                exportSnapshot(group.snapshot, group.outputTarget)
+                                mergeSnapshotBalanced(
+                                    snapshot = group.snapshot,
+                                    outputTarget = group.outputTarget,
+                                    preferredParallelism = group.snapshot.slices.size / 2,
+                                )
                                 val file = group.outputTarget.file
                                 if (file == null || !file.isFile || file.length() <= 0L) {
                                     null
@@ -2498,6 +2721,10 @@ internal class LiveExportHistory(
         val deleteAfterUse: Boolean,
     )
 
+    private data class MergeLevelNode(
+        val segment: Segment,
+    )
+
     private data class RegionalCompactionGroup(
         val operationId: String,
         val startSliceIndex: Int,
@@ -2635,7 +2862,11 @@ internal class LiveExportHistory(
                         startedAtMillis = task.startedAtMillis,
                     )
             }
-            exportSnapshot(task.snapshot, task.outputTarget)
+            mergeSnapshotBalanced(
+                snapshot = task.snapshot,
+                outputTarget = task.outputTarget,
+                preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+            )
             mergedFile = requireNotNull(task.outputTarget.file)
             true
         } catch (e: Exception) {
@@ -2666,7 +2897,11 @@ internal class LiveExportHistory(
                                 startedAtMillis = task.startedAtMillis,
                             )
                     }
-                    exportSnapshot(task.snapshot, task.outputTarget)
+                    mergeSnapshotBalanced(
+                        snapshot = task.snapshot,
+                        outputTarget = task.outputTarget,
+                        preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+                    )
                     mergedFile = requireNotNull(task.outputTarget.file)
                     true
                 } catch (e: Exception) {

@@ -35,13 +35,16 @@ import java.io.FileDescriptor
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.io.PrintWriter
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 @SuppressLint("ImplicitSamInstance")
@@ -103,6 +106,12 @@ class TimeTravelService : Service() {
     @Volatile
     private var historyReencodeVisibleUntilElapsedRealtime = 0L
 
+    @Volatile
+    private var activeExportToken: ExportCancellationToken? = null
+
+    @Volatile
+    private var activeExportFuture: Future<*>? = null
+
     private val audioMemory = AudioMemory()
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -110,6 +119,7 @@ class TimeTravelService : Service() {
     private lateinit var audioHandler: Handler
     private lateinit var exportThread: HandlerThread
     private lateinit var exportHandler: Handler
+    private lateinit var exportWorkExecutor: ExecutorService
     private lateinit var persistentAudioRingStore: PersistentAudioRingStore
     private lateinit var liveExportHistory: LiveExportHistory
 
@@ -149,6 +159,12 @@ class TimeTravelService : Service() {
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
         exportHandler = Handler(exportThread.looper)
+        exportWorkExecutor = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "timeTravelExportWork").apply {
+                priority = Thread.NORM_PRIORITY
+                isDaemon = true
+            }
+        }
         exportHandler.post(historyCompactor)
         audioHandler.post {
             restorePersistedBufferIfNeeded()
@@ -168,6 +184,9 @@ class TimeTravelService : Service() {
 
         if (::exportHandler.isInitialized) {
             exportHandler.removeCallbacks(historyCompactor)
+        }
+        if (::exportWorkExecutor.isInitialized) {
+            exportWorkExecutor.shutdownNow()
         }
         liveExportHistory.closePreservingHistory()
         persistentAudioRingStore.close()
@@ -503,6 +522,13 @@ class TimeTravelService : Service() {
         }
     }
 
+    fun cancelCurrentExport(): Boolean {
+        val token = activeExportToken ?: return false
+        token.cancelled.set(true)
+        activeExportFuture?.cancel(true)
+        return true
+    }
+
     private fun exportBufferedRange(
         skipBytes: Long,
         useBytes: Long,
@@ -539,59 +565,40 @@ class TimeTravelService : Service() {
             requestedSampleBytes = useBytes,
             reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
         )
-        exportHandler.post {
-            try {
-                var durationMillis = 0L
-                if (historySnapshot != null && historySnapshot.config == exportConfig) {
-                    liveExportHistory.exportSnapshotOptimized(
-                        snapshot = historySnapshot,
-                        outputTarget = outTarget,
-                        preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
-                    )
-                    requireExportedOutput(outTarget)
-                    durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
-                } else {
-                    val readSucceeded =
-                        createAudioFileWriter(outTarget).use { writer ->
-                            val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
-                                writer.write(array, offset, count)
-                                count
-                            }
-                            durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                            didRead
-                        }
-                    if (!readSucceeded) {
-                        throw IOException("Requested PCM range not available in fallback buffer")
-                    }
-                    requireExportedOutput(outTarget)
-                }
-                notifyReceiver(
-                    receiver,
-                    buildRecordingEntity(
-                        this@TimeTravelService,
-                        outTarget,
-                        durationMillis,
-                        currentCodecSummary(),
-                    ),
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
-                deleteIfEmpty(outTarget)
+        val exportToken = ExportCancellationToken(nextExportTokenId.getAndIncrement())
+        activeExportToken = exportToken
+        activeExportFuture =
+            exportWorkExecutor.submit {
                 try {
+                    ensureExportNotCancelled(exportToken)
                     var durationMillis = 0L
-                    val readSucceeded =
-                        createAudioFileWriter(outTarget).use { writer ->
-                            val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
-                                writer.write(array, offset, count)
-                                count
+                    if (historySnapshot != null && historySnapshot.config == exportConfig) {
+                        liveExportHistory.exportSnapshotOptimized(
+                            snapshot = historySnapshot,
+                            outputTarget = outTarget,
+                            preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+                            shouldCancel = { exportToken.cancelled.get() },
+                        )
+                        ensureExportNotCancelled(exportToken)
+                        requireExportedOutput(outTarget)
+                        durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
+                    } else {
+                        val readSucceeded =
+                            createAudioFileWriter(outTarget).use { writer ->
+                                val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
+                                    ensureExportNotCancelled(exportToken)
+                                    writer.write(array, offset, count)
+                                    count
+                                }
+                                ensureExportNotCancelled(exportToken)
+                                durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                                didRead
                             }
-                            durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                            didRead
+                        if (!readSucceeded) {
+                            throw IOException("Requested PCM range not available in fallback buffer")
                         }
-                    if (!readSucceeded) {
-                        throw IOException("Requested PCM range not available in fallback buffer")
+                        requireExportedOutput(outTarget)
                     }
-                    requireExportedOutput(outTarget)
                     notifyReceiver(
                         receiver,
                         buildRecordingEntity(
@@ -601,17 +608,59 @@ class TimeTravelService : Service() {
                             currentCodecSummary(),
                         ),
                     )
-                } catch (fallbackError: Exception) {
-                    Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
-                    val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
-                    showToast(message)
-                    notifyReceiverFailure(receiver, message)
+                } catch (cancelled: InterruptedIOException) {
+                    Log.i(TAG, "Export cancelled for ${outTarget.displayName}")
+                    deleteOutputTarget(outTarget)
+                    notifyReceiverCancelled(receiver)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
                     deleteIfEmpty(outTarget)
+                    try {
+                        var durationMillis = 0L
+                        val readSucceeded =
+                            createAudioFileWriter(outTarget).use { writer ->
+                                val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
+                                    ensureExportNotCancelled(exportToken)
+                                    writer.write(array, offset, count)
+                                    count
+                                }
+                                ensureExportNotCancelled(exportToken)
+                                durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                                didRead
+                            }
+                        if (!readSucceeded) {
+                            throw IOException("Requested PCM range not available in fallback buffer")
+                        }
+                        requireExportedOutput(outTarget)
+                        notifyReceiver(
+                            receiver,
+                            buildRecordingEntity(
+                                this@TimeTravelService,
+                                outTarget,
+                                durationMillis,
+                                currentCodecSummary(),
+                            ),
+                        )
+                    } catch (fallbackCancelled: InterruptedIOException) {
+                        Log.i(TAG, "Fallback export cancelled for ${outTarget.displayName}")
+                        deleteOutputTarget(outTarget)
+                        notifyReceiverCancelled(receiver)
+                    } catch (fallbackError: Exception) {
+                        Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
+                        val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
+                        showToast(message)
+                        notifyReceiverFailure(receiver, message)
+                        deleteIfEmpty(outTarget)
+                    }
+                } finally {
+                    historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
+                    if (activeExportToken === exportToken) {
+                        activeExportToken = null
+                        activeExportFuture = null
+                    }
+                    Thread.interrupted()
                 }
-            } finally {
-                historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
             }
-        }
     }
 
     fun startRecording(prependedMemorySeconds: Float) {
@@ -847,6 +896,18 @@ class TimeTravelService : Service() {
         mainHandler.post { receiver.fileFailed(message) }
     }
 
+    private fun notifyReceiverCancelled(receiver: AudioFileReceiver?) {
+        receiver ?: return
+        mainHandler.post { receiver.fileCancelled() }
+    }
+
+    @Throws(InterruptedIOException::class)
+    private fun ensureExportNotCancelled(token: ExportCancellationToken) {
+        if (token.cancelled.get()) {
+            throw InterruptedIOException("Export cancelled")
+        }
+    }
+
     private val effectiveOutputFormat: ExportFormat
         get() = if (outputFormat in supportedFormats()) outputFormat else supportedFormats().firstOrNull() ?: ExportFormat.WAV
 
@@ -885,11 +946,18 @@ class TimeTravelService : Service() {
             return
         }
         if (resolveOutputTargetSize(this, target) == 0L) {
-            when (target.storageType) {
-                RecordingStorageType.FILE -> target.file?.delete()
-                RecordingStorageType.DOCUMENT -> {
-                    androidx.documentfile.provider.DocumentFile.fromSingleUri(this, requireNotNull(target.uri))?.delete()
-                }
+            deleteOutputTarget(target)
+        }
+    }
+
+    private fun deleteOutputTarget(target: RecordingOutputTarget?) {
+        if (target == null) {
+            return
+        }
+        when (target.storageType) {
+            RecordingStorageType.FILE -> target.file?.delete()
+            RecordingStorageType.DOCUMENT -> {
+                androidx.documentfile.provider.DocumentFile.fromSingleUri(this, requireNotNull(target.uri))?.delete()
             }
         }
     }
@@ -2038,6 +2106,8 @@ class TimeTravelService : Service() {
         fun fileReady(recording: RecordingEntity)
 
         fun fileFailed(message: String) = Unit
+
+        fun fileCancelled() = Unit
     }
 
     interface StateCallback {
@@ -2135,6 +2205,11 @@ class TimeTravelService : Service() {
         val sourcePaths: List<String>,
     )
 
+    private data class ExportCancellationToken(
+        val id: Long,
+        val cancelled: AtomicBoolean = AtomicBoolean(false),
+    )
+
     enum class ApplySettingsResult {
         APPLIED_NOW,
         REENCODE_REQUIRED,
@@ -2165,6 +2240,7 @@ class TimeTravelService : Service() {
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
         const val HISTORY_COMPACTION_IDLE_DELAY_MS = 1_500L
         const val DEBUG_ACTION_PREFIX = "app.smallthingz.timetravel.debug."
+        val nextExportTokenId = AtomicLong(1L)
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
         const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
         const val ACTION_DEBUG_CLEAR_BUFFER = "${DEBUG_ACTION_PREFIX}CLEAR_BUFFER"
