@@ -7,6 +7,7 @@ import android.os.ParcelFileDescriptor
 import java.io.BufferedOutputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
 
 internal abstract class MediaCodecElementaryAudioFileWriter(
     context: Context,
@@ -21,6 +22,7 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
     protected val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
     protected val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), OUTPUT_BUFFER_BYTES)
     private var closed = false
+    protected val ioScratch = ByteArray(OUTPUT_BUFFER_BYTES)
 
     private var writtenSampleBytes = 0L
 
@@ -80,7 +82,8 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
     protected open fun onOutputFormatChanged(outputFormat: MediaFormat) = Unit
 
     protected abstract fun writeEncodedAccessUnit(
-        bytes: ByteArray,
+        buffer: ByteBuffer,
+        size: Int,
         presentationTimeUs: Long,
     )
 
@@ -128,9 +131,7 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
                     if (bufferInfo.size > 0) {
                         outputBuffer.position(bufferInfo.offset)
                         outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                        val encoded = ByteArray(bufferInfo.size)
-                        outputBuffer.get(encoded)
-                        writeEncodedAccessUnit(encoded, bufferInfo.presentationTimeUs)
+                        writeEncodedAccessUnit(outputBuffer.slice(), bufferInfo.size, bufferInfo.presentationTimeUs)
                     }
                     codec.releaseOutputBuffer(outputIndex, false)
                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -172,6 +173,8 @@ internal class AdtsAudioFileWriter(
     channelCount = configuredChannelCount,
     bitrateKbps = bitrateKbps,
 ) {
+    private val adtsHeaderScratch = ByteArray(ADTS_HEADER_SIZE)
+
     init {
         require(codecConfig == ExportCodec.AAC_LC) { "ADTS export supports AAC-LC only" }
         require(isExportConfigurationSupported(ExportFormat.AAC_ADTS, codecConfig, configuredSampleRate, configuredChannelCount)) {
@@ -180,11 +183,13 @@ internal class AdtsAudioFileWriter(
     }
 
     override fun writeEncodedAccessUnit(
-        bytes: ByteArray,
+        buffer: ByteBuffer,
+        size: Int,
         presentationTimeUs: Long,
     ) {
-        outputStream.write(buildAdtsHeader(configuredSampleRate, configuredChannelCount, bytes.size))
-        outputStream.write(bytes)
+        fillAdtsHeader(adtsHeaderScratch, configuredSampleRate, configuredChannelCount, size)
+        outputStream.write(adtsHeaderScratch, 0, adtsHeaderScratch.size)
+        writeByteBufferToStream(buffer, size, outputStream, ioScratch)
     }
 
     override fun sampleRate(): Int = configuredSampleRate
@@ -219,10 +224,11 @@ internal class RawAmrAudioFileWriter(
     }
 
     override fun writeEncodedAccessUnit(
-        bytes: ByteArray,
+        buffer: ByteBuffer,
+        size: Int,
         presentationTimeUs: Long,
     ) {
-        outputStream.write(bytes)
+        writeByteBufferToStream(buffer, size, outputStream, ioScratch)
     }
 
     override fun sampleRate(): Int = configuredSampleRate
@@ -260,25 +266,16 @@ internal class TsAudioFileWriter(
     }
 
     override fun writeEncodedAccessUnit(
-        bytes: ByteArray,
+        buffer: ByteBuffer,
+        size: Int,
         presentationTimeUs: Long,
     ) {
-        packetizer.writeAccessUnit(bytes, presentationTimeUs)
+        packetizer.writeAccessUnit(buffer, size, presentationTimeUs)
     }
 
     override fun sampleRate(): Int = configuredSampleRate
 
     override fun channelCount(): Int = configuredChannelCount
-}
-
-internal fun buildAdtsHeader(
-    sampleRate: Int,
-    channelCount: Int,
-    payloadSize: Int,
-): ByteArray {
-    return ByteArray(ADTS_HEADER_SIZE).also { header ->
-        fillAdtsHeader(header, sampleRate, channelCount, payloadSize)
-    }
 }
 
 internal fun fillAdtsHeader(
@@ -310,10 +307,12 @@ internal class MpegTsAacPacketizer(
     private var audioCounter = 0
     private var tablesWritten = false
     private val adtsHeaderScratch = ByteArray(ADTS_HEADER_SIZE)
+    private val pesHeaderScratch = ByteArray(PES_HEADER_SIZE)
+    private val ptsScratch = ByteArray(PTS_FIELD_SIZE)
+    private val packetScratch = ByteArray(TS_PACKET_SIZE) { 0xFF.toByte() }
 
     fun writeAccessUnit(
-        bytes: ByteArray,
-        offset: Int,
+        buffer: ByteBuffer,
         size: Int,
         presentationTimeUs: Long,
     ) {
@@ -324,30 +323,10 @@ internal class MpegTsAacPacketizer(
         }
 
         fillAdtsHeader(adtsHeaderScratch, sampleRate, channelCount, size)
-        val pts = encodePts(presentationTimeUs.coerceAtLeast(0L))
-        val pesHeader = ByteArray(14).apply {
-            this[0] = 0x00
-            this[1] = 0x00
-            this[2] = 0x01
-            this[3] = 0xC0.toByte()
-            val pesPacketLength = (ADTS_HEADER_SIZE + size + 8).coerceAtMost(0xFFFF)
-            this[4] = ((pesPacketLength shr 8) and 0xFF).toByte()
-            this[5] = (pesPacketLength and 0xFF).toByte()
-            this[6] = 0x80.toByte()
-            this[7] = 0x80.toByte()
-            this[8] = 0x05
-            System.arraycopy(pts, 0, this, 9, pts.size)
-        }
-        packetizePayload(AUDIO_PID, pesHeader, 0, pesHeader.size)
+        fillPesHeader(pesHeaderScratch, presentationTimeUs.coerceAtLeast(0L), size)
+        packetizePayload(AUDIO_PID, pesHeaderScratch, pesHeaderScratch.size)
         packetizePayload(AUDIO_PID, adtsHeaderScratch, 0, adtsHeaderScratch.size)
-        packetizePayload(AUDIO_PID, bytes, offset, size)
-    }
-
-    fun writeAccessUnit(
-        bytes: ByteArray,
-        presentationTimeUs: Long,
-    ) {
-        writeAccessUnit(bytes, 0, bytes.size, presentationTimeUs)
+        packetizePayload(AUDIO_PID, buffer, size)
     }
 
     private fun writePsiPacket(
@@ -355,15 +334,15 @@ internal class MpegTsAacPacketizer(
         section: ByteArray,
         pat: Boolean,
     ) {
-        val packet = ByteArray(TS_PACKET_SIZE) { 0xFF.toByte() }
-        packet[0] = 0x47
-        packet[1] = (0x40 or ((pid shr 8) and 0x1F)).toByte()
-        packet[2] = (pid and 0xFF).toByte()
+        resetPacketScratch()
+        packetScratch[0] = 0x47
+        packetScratch[1] = (0x40 or ((pid shr 8) and 0x1F)).toByte()
+        packetScratch[2] = (pid and 0xFF).toByte()
         val continuity = if (pat) patCounter++ and 0x0F else pmtCounter++ and 0x0F
-        packet[3] = (0x10 or continuity).toByte()
-        packet[4] = 0x00
-        System.arraycopy(section, 0, packet, 5, section.size)
-        outputStream.write(packet)
+        packetScratch[3] = (0x10 or continuity).toByte()
+        packetScratch[4] = 0x00
+        System.arraycopy(section, 0, packetScratch, 5, section.size)
+        outputStream.write(packetScratch, 0, packetScratch.size)
     }
 
     private fun packetizePayload(
@@ -377,33 +356,72 @@ internal class MpegTsAacPacketizer(
         var firstPacket = true
         while (offset < endOffset) {
             val remaining = endOffset - offset
-            val packet = ByteArray(TS_PACKET_SIZE) { 0xFF.toByte() }
-            packet[0] = 0x47
-            packet[1] = ((((if (firstPacket) 0x40 else 0x00) or ((pid shr 8) and 0x1F))) and 0xFF).toByte()
-            packet[2] = (pid and 0xFF).toByte()
+            resetPacketScratch()
+            packetScratch[0] = 0x47
+            packetScratch[1] = ((((if (firstPacket) 0x40 else 0x00) or ((pid shr 8) and 0x1F))) and 0xFF).toByte()
+            packetScratch[2] = (pid and 0xFF).toByte()
             val continuity = audioCounter++ and 0x0F
 
             val useAdaptation = remaining < TS_PAYLOAD_SIZE
-            packet[3] = ((if (useAdaptation) 0x30 else 0x10) or continuity).toByte()
+            packetScratch[3] = ((if (useAdaptation) 0x30 else 0x10) or continuity).toByte()
 
             var payloadOffset = 4
             if (useAdaptation) {
                 val adaptationLength = TS_PAYLOAD_SIZE - remaining - 1
-                packet[payloadOffset] = adaptationLength.toByte()
+                packetScratch[payloadOffset] = adaptationLength.toByte()
                 payloadOffset += 1
                 if (adaptationLength > 0) {
-                    packet[payloadOffset] = 0x00
+                    packetScratch[payloadOffset] = 0x00
                     payloadOffset += 1
                     for (index in 1 until adaptationLength) {
-                        packet[payloadOffset++] = 0xFF.toByte()
+                        packetScratch[payloadOffset++] = 0xFF.toByte()
                     }
                 }
             }
 
-            val chunkSize = minOf(payload.size - offset, TS_PACKET_SIZE - payloadOffset)
-            System.arraycopy(payload, offset, packet, payloadOffset, chunkSize)
-            outputStream.write(packet)
+            val chunkSize = minOf(remaining, TS_PACKET_SIZE - payloadOffset)
+            System.arraycopy(payload, offset, packetScratch, payloadOffset, chunkSize)
+            outputStream.write(packetScratch, 0, packetScratch.size)
             offset += chunkSize
+            firstPacket = false
+        }
+    }
+
+    private fun packetizePayload(
+        pid: Int,
+        payload: ByteBuffer,
+        payloadSize: Int,
+    ) {
+        var remaining = payloadSize
+        var firstPacket = true
+        while (remaining > 0) {
+            resetPacketScratch()
+            packetScratch[0] = 0x47
+            packetScratch[1] = ((((if (firstPacket) 0x40 else 0x00) or ((pid shr 8) and 0x1F))) and 0xFF).toByte()
+            packetScratch[2] = (pid and 0xFF).toByte()
+            val continuity = audioCounter++ and 0x0F
+
+            val useAdaptation = remaining < TS_PAYLOAD_SIZE
+            packetScratch[3] = ((if (useAdaptation) 0x30 else 0x10) or continuity).toByte()
+
+            var payloadOffset = 4
+            if (useAdaptation) {
+                val adaptationLength = TS_PAYLOAD_SIZE - remaining - 1
+                packetScratch[payloadOffset] = adaptationLength.toByte()
+                payloadOffset += 1
+                if (adaptationLength > 0) {
+                    packetScratch[payloadOffset] = 0x00
+                    payloadOffset += 1
+                    for (index in 1 until adaptationLength) {
+                        packetScratch[payloadOffset++] = 0xFF.toByte()
+                    }
+                }
+            }
+
+            val chunkSize = minOf(remaining, TS_PACKET_SIZE - payloadOffset)
+            payload.get(packetScratch, payloadOffset, chunkSize)
+            outputStream.write(packetScratch, 0, packetScratch.size)
+            remaining -= chunkSize
             firstPacket = false
         }
     }
@@ -442,15 +460,41 @@ internal class MpegTsAacPacketizer(
         return appendMpegCrc(section)
     }
 
-    private fun encodePts(ptsUs: Long): ByteArray {
+    private fun fillPesHeader(
+        target: ByteArray,
+        presentationTimeUs: Long,
+        accessUnitSize: Int,
+    ) {
+        require(target.size >= PES_HEADER_SIZE) { "PES header target too small" }
+        fillPts(ptsScratch, presentationTimeUs)
+        target[0] = 0x00
+        target[1] = 0x00
+        target[2] = 0x01
+        target[3] = 0xC0.toByte()
+        val pesPacketLength = (ADTS_HEADER_SIZE + accessUnitSize + 8).coerceAtMost(0xFFFF)
+        target[4] = ((pesPacketLength shr 8) and 0xFF).toByte()
+        target[5] = (pesPacketLength and 0xFF).toByte()
+        target[6] = 0x80.toByte()
+        target[7] = 0x80.toByte()
+        target[8] = 0x05
+        System.arraycopy(ptsScratch, 0, target, 9, ptsScratch.size)
+    }
+
+    private fun fillPts(
+        target: ByteArray,
+        ptsUs: Long,
+    ) {
+        require(target.size >= PTS_FIELD_SIZE) { "PTS target too small" }
         val pts90k = ptsUs * 90L / 1000L
-        return byteArrayOf(
-            (((pts90k shr 29) and 0x0E) or 0x21).toByte(),
-            ((pts90k shr 22) and 0xFF).toByte(),
-            ((((pts90k shr 14) and 0xFE) or 0x01)).toByte(),
-            ((pts90k shr 7) and 0xFF).toByte(),
-            ((((pts90k shl 1) and 0xFE) or 0x01)).toByte(),
-        )
+        target[0] = (((pts90k shr 29) and 0x0E) or 0x21).toByte()
+        target[1] = ((pts90k shr 22) and 0xFF).toByte()
+        target[2] = (((pts90k shr 14) and 0xFE) or 0x01).toByte()
+        target[3] = ((pts90k shr 7) and 0xFF).toByte()
+        target[4] = (((pts90k shl 1) and 0xFE) or 0x01).toByte()
+    }
+
+    private fun resetPacketScratch() {
+        packetScratch.fill(0xFF.toByte())
     }
 
     private fun appendMpegCrc(section: ByteArray): ByteArray {
@@ -482,9 +526,26 @@ internal class MpegTsAacPacketizer(
     private companion object {
         const val TS_PACKET_SIZE = 188
         const val TS_PAYLOAD_SIZE = 184
+        const val PES_HEADER_SIZE = 14
+        const val PTS_FIELD_SIZE = 5
         const val PAT_PID = 0x0000
         const val PMT_PID = 0x0100
         const val AUDIO_PID = 0x0101
+    }
+}
+
+internal fun writeByteBufferToStream(
+    buffer: ByteBuffer,
+    size: Int,
+    outputStream: BufferedOutputStream,
+    scratch: ByteArray,
+) {
+    var remaining = size
+    while (remaining > 0) {
+        val chunkSize = minOf(remaining, scratch.size)
+        buffer.get(scratch, 0, chunkSize)
+        outputStream.write(scratch, 0, chunkSize)
+        remaining -= chunkSize
     }
 }
 

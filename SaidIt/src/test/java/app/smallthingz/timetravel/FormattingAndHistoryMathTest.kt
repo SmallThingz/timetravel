@@ -182,7 +182,8 @@ class FormattingAndHistoryMathTest {
 
     @Test
     fun parseAdtsHeader_readsLcRateAndChannels() {
-        val header = buildAdtsHeader(sampleRate = 44_100, channelCount = 2, payloadSize = 256)
+        val header = ByteArray(7)
+        fillAdtsHeader(header, sampleRate = 44_100, channelCount = 2, payloadSize = 256)
         val parsed = parseAdtsHeader(header)
 
         assertEquals(2, parsed?.profile)
