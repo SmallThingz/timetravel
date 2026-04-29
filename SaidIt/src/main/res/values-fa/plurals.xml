@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="recordings_selected">
+        <item quantity="one">%d مورد انتخاب شد</item>
+        <item quantity="other">%d مورد انتخاب شد</item>
+    </plurals>
+    <plurals name="recordings_deleted">
+        <item quantity="one">%d ضبط حذف شد.</item>
+        <item quantity="other">%d ضبط حذف شد.</item>
+    </plurals>
+    <plurals name="chunks_deleted">
+        <item quantity="one">%d تکه حذف شد.</item>
+        <item quantity="other">%d تکه حذف شد.</item>
+    </plurals>
+</resources>
