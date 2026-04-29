@@ -53,10 +53,10 @@ class TimeTravelService : Service() {
     private var fillRate = 96_000
 
     @Volatile
-    private var audioSource = AudioSourceMode.MIC.sourceValue
+    private var audioSource = AudioSourceMode.defaultMode().sourceValue
 
     @Volatile
-    private var sourceMode = AudioSourceMode.MIC
+    private var sourceMode = AudioSourceMode.defaultMode()
 
     @Volatile
     private var channelMode = ChannelMode.MONO

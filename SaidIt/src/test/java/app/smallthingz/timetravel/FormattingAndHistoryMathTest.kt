@@ -154,6 +154,19 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
+    fun audioSourceMode_prefersVoiceModesBeforeMicAndUnprocessed() {
+        val ordered = AudioSourceMode.availableModes()
+
+        assertEquals(AudioSourceMode.VOICE_RECOGNITION, AudioSourceMode.defaultMode())
+        assertTrue(ordered.indexOf(AudioSourceMode.VOICE_RECOGNITION) < ordered.indexOf(AudioSourceMode.MIC))
+        assertTrue(ordered.indexOf(AudioSourceMode.VOICE_COMMUNICATION) < ordered.indexOf(AudioSourceMode.UNPROCESSED))
+        assertTrue(ordered.contains(AudioSourceMode.VOICE_CALL))
+        assertTrue(ordered.contains(AudioSourceMode.VOICE_UPLINK))
+        assertTrue(ordered.contains(AudioSourceMode.VOICE_DOWNLINK))
+        assertTrue(ordered.contains(AudioSourceMode.REMOTE_SUBMIX))
+    }
+
+    @Test
     fun rawContainerConstraints_enforceOnlySupportedConfigurations() {
         assertTrue(isExportConfigurationSupported(ExportFormat.AAC_ADTS, ExportCodec.AAC_LC, 44_100, 1))
         assertTrue(isExportConfigurationSupported(ExportFormat.MPEG_2_TS, ExportCodec.AAC_LC, 48_000, 2))

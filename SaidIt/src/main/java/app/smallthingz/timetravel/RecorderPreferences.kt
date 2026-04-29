@@ -242,20 +242,41 @@ enum class AudioSourceMode(
     val sourceValue: Int,
     @StringRes val labelRes: Int,
 ) {
+    VOICE_RECOGNITION(MediaRecorder.AudioSource.VOICE_RECOGNITION, R.string.audio_source_voice_recognition),
+    VOICE_COMMUNICATION(MediaRecorder.AudioSource.VOICE_COMMUNICATION, R.string.audio_source_voice_communication),
+    VOICE_PERFORMANCE(MediaRecorder.AudioSource.VOICE_PERFORMANCE, R.string.audio_source_voice_performance),
+    CAMCORDER(MediaRecorder.AudioSource.CAMCORDER, R.string.audio_source_camcorder),
     DEFAULT(MediaRecorder.AudioSource.DEFAULT, R.string.audio_source_default),
     MIC(MediaRecorder.AudioSource.MIC, R.string.audio_source_mic),
-    VOICE_RECOGNITION(MediaRecorder.AudioSource.VOICE_RECOGNITION, R.string.audio_source_voice_recognition),
-    CAMCORDER(MediaRecorder.AudioSource.CAMCORDER, R.string.audio_source_camcorder),
     UNPROCESSED(MediaRecorder.AudioSource.UNPROCESSED, R.string.audio_source_unprocessed),
-    VOICE_PERFORMANCE(MediaRecorder.AudioSource.VOICE_PERFORMANCE, R.string.audio_source_voice_performance),
+    VOICE_CALL(MediaRecorder.AudioSource.VOICE_CALL, R.string.audio_source_voice_call),
+    VOICE_UPLINK(MediaRecorder.AudioSource.VOICE_UPLINK, R.string.audio_source_voice_uplink),
+    VOICE_DOWNLINK(MediaRecorder.AudioSource.VOICE_DOWNLINK, R.string.audio_source_voice_downlink),
+    REMOTE_SUBMIX(MediaRecorder.AudioSource.REMOTE_SUBMIX, R.string.audio_source_remote_submix),
     ;
 
     companion object {
+        private val preferredOrder = listOf(
+            VOICE_RECOGNITION,
+            VOICE_COMMUNICATION,
+            VOICE_PERFORMANCE,
+            CAMCORDER,
+            DEFAULT,
+            MIC,
+            UNPROCESSED,
+            VOICE_CALL,
+            VOICE_UPLINK,
+            VOICE_DOWNLINK,
+            REMOTE_SUBMIX,
+        )
+
+        fun defaultMode(): AudioSourceMode = preferredOrder.first()
+
         fun fromSourceValue(value: Int): AudioSourceMode {
-            return entries.firstOrNull { it.sourceValue == value } ?: MIC
+            return entries.firstOrNull { it.sourceValue == value } ?: defaultMode()
         }
 
-        fun availableModes(): List<AudioSourceMode> = entries
+        fun availableModes(): List<AudioSourceMode> = preferredOrder
     }
 }
 
@@ -561,7 +582,7 @@ fun getConfiguredAudioSourceMode(context: Context): AudioSourceMode {
     return AudioSourceMode.fromSourceValue(
         getRecorderPreferences(context).getInt(
             TimeTravelConfig.AUDIO_SOURCE_KEY,
-            AudioSourceMode.MIC.sourceValue,
+            AudioSourceMode.defaultMode().sourceValue,
         ),
     )
 }
@@ -928,7 +949,7 @@ fun supportedAudioSourceModes(
             }
         }
     }
-    return if (modes.isNotEmpty()) modes else listOf(AudioSourceMode.MIC)
+    return if (modes.isNotEmpty()) modes else listOf(AudioSourceMode.defaultMode())
 }
 
 fun supportedChannelModes(
