@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="recording_saved">Salvato</string>
     <string name="notification_channel_name">Acquisizione in background</string>
@@ -6,11 +6,9 @@
     <string name="error_during_writing_history_into">Errore durante la scrittura della cronologia audio: </string>
     <string name="error_during_recording_into">Errore durante la registrazione: </string>
     <string name="cant_create_file_generic">Impossibile creare il file.</string>
-
     <string name="buffer_active_summary">ACCESO</string>
     <string name="buffer_inactive_summary">SPENTO</string>
     <string name="clear_buffer">Svuota</string>
-
     <string name="record_all_memory">Esporta tutto</string>
     <string name="custom_time">Esportazione personalizzata</string>
     <string name="custom_export_duration_hint">12:30</string>
@@ -31,7 +29,6 @@
     <string name="done">Fatto</string>
     <string name="export">Esporta</string>
     <string name="no_app_available">Nessuna app compatibile disponibile.</string>
-
     <string name="undo">Annulla</string>
     <string name="theme_title">Tema</string>
     <string name="theme_system">Sistema</string>
@@ -107,7 +104,6 @@
     <string name="unsupported_config_message">Non supportato.</string>
     <string name="audio_input_init_failed">Impossibile avviare il microfono.</string>
     <string name="custom_memory_size_invalid">Inserisci un numero valido.</string>
-
     <string name="permission_required">Autorizzazione richiesta</string>
     <string name="permission_required_message">È richiesto l\'accesso al microfono.</string>
     <string name="recordings_empty_title">Nessuna clip salvata</string>
@@ -135,16 +131,54 @@
     <string name="player_seek_forward">Avanti di 10 secondi</string>
     <string name="player_failed">Impossibile riprodurre la registrazione.</string>
     <string name="close">Chiudi</string>
-
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d registrazione spostata.</item>
         <item quantity="many">%1$d registrazioni spostate.</item>
         <item quantity="other">%1$d registrazioni spostate.</item>
     </plurals>
-
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">%1$d voce mancante rimossa.</item>
         <item quantity="many">%1$d voci mancanti rimosse.</item>
         <item quantity="other">%1$d voci mancanti rimosse.</item>
     </plurals>
+    <string name="reencode_history">Ricodifica cronologia</string>
+    <string name="reencode_history_progress">Ricodifica in corso %1$d%%</string>
+    <string name="reencode_history_done">Cronologia ricodificata.</string>
+    <string name="reencode_history_failed">Impossibile ricodificare la cronologia.</string>
+    <string name="custom_export_mode_range">Intervallo</string>
+    <string name="custom_export_mode_past">Passato</string>
+    <string name="custom_export_unit_size">Dimensione</string>
+    <string name="custom_export_size_invalid">Usa un valore in MiB come 12.0.</string>
+    <string name="format_label">Formato</string>
+    <string name="format_wav">WAV</string>
+    <string name="format_m4a">M4A</string>
+    <string name="format_3gp">3GP</string>
+    <string name="format_ogg">Ogg</string>
+    <string name="format_webm">WebM</string>
+    <string name="format_aac_adts">AAC ADTS</string>
+    <string name="format_mpeg_2_ts">MPEG-TS</string>
+    <string name="codec_pcm_16">PCM 16 bit</string>
+    <string name="codec_aac_eld">AAC-ELD</string>
+    <string name="codec_opus">Opus</string>
+    <string name="codec_vorbis">Vorbis</string>
+    <string name="codec_flac">FLAC</string>
+    <string name="debug_settings_title">Debug</string>
+    <string name="debug_chunks_tab_summary">Mostra lo strumento di ispezione dei chunk e delle fusioni nelle schede in basso.</string>
+    <string name="settings_saved_reencode_history">Salvato. Ricodifica la cronologia per esportare di nuovo.</string>
+    <string name="chunks_empty">Nessun chunk ancora.</string>
+    <string name="chunks_title">Anello dei chunk</string>
+    <string name="chunks_title_active">Anello dei chunk · attivo</string>
+    <string name="chunks_operations_empty">Nessuna operazione attiva.</string>
+    <string name="chunks_section_operations">Operazioni</string>
+    <string name="chunks_section_chunks">Chunk</string>
+    <string name="chunks_active">Attivo</string>
+    <string name="chunks_operation_background_merge">Unione in background</string>
+    <string name="chunks_operation_export_merge">Unione di esportazione</string>
+    <string name="chunks_operation_history_reencode">Ricodifica cronologia</string>
+    <string name="chunks_action_merge">Unisci</string>
+    <string name="chunks_merge_done">Chunk unito.</string>
+    <string name="chunks_merge_failed">Impossibile unire il chunk.</string>
+    <string name="chunks_export_done">Chunk esportato.</string>
+    <string name="chunks_export_failed">Impossibile esportare il chunk.</string>
+    <string name="chunks_delete_failed">Impossibile eliminare il chunk.</string>
 </resources>

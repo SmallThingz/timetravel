@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="recording_saved">Salvo</string>
     <string name="notification_channel_name">Captura em segundo plano</string>
@@ -6,11 +6,9 @@
     <string name="error_during_writing_history_into">Erro ao gravar o histórico de áudio: </string>
     <string name="error_during_recording_into">Erro ao gravar: </string>
     <string name="cant_create_file_generic">Não foi possível criar o arquivo.</string>
-
     <string name="buffer_active_summary">LIGADO</string>
     <string name="buffer_inactive_summary">DESLIGADO</string>
     <string name="clear_buffer">Limpar</string>
-
     <string name="record_all_memory">Exportar tudo</string>
     <string name="custom_time">Exportação personalizada</string>
     <string name="custom_export_duration_hint">12:30</string>
@@ -31,7 +29,6 @@
     <string name="done">Concluir</string>
     <string name="export">Exportar</string>
     <string name="no_app_available">Nenhum aplicativo compatível disponível.</string>
-
     <string name="undo">Desfazer</string>
     <string name="theme_title">Tema</string>
     <string name="theme_system">Sistema</string>
@@ -107,7 +104,6 @@
     <string name="unsupported_config_message">Não suportado.</string>
     <string name="audio_input_init_failed">Não foi possível iniciar o microfone.</string>
     <string name="custom_memory_size_invalid">Insira um número válido.</string>
-
     <string name="permission_required">Permissão necessária</string>
     <string name="permission_required_message">É necessário acesso ao microfone.</string>
     <string name="recordings_empty_title">Nenhum clipe salvo</string>
@@ -135,16 +131,54 @@
     <string name="player_seek_forward">Avançar 10 segundos</string>
     <string name="player_failed">Não foi possível reproduzir a gravação.</string>
     <string name="close">Fechar</string>
-
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d gravação movida.</item>
         <item quantity="many">%1$d gravações movidas.</item>
         <item quantity="other">%1$d gravações movidas.</item>
     </plurals>
-
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">%1$d entrada ausente removida.</item>
         <item quantity="many">%1$d entradas ausentes removidas.</item>
         <item quantity="other">%1$d entradas ausentes removidas.</item>
     </plurals>
+    <string name="reencode_history">Recodificar histórico</string>
+    <string name="reencode_history_progress">Recodificando %1$d%%</string>
+    <string name="reencode_history_done">Histórico recodificado.</string>
+    <string name="reencode_history_failed">Não foi possível recodificar o histórico.</string>
+    <string name="custom_export_mode_range">Intervalo</string>
+    <string name="custom_export_mode_past">Passado</string>
+    <string name="custom_export_unit_size">Tamanho</string>
+    <string name="custom_export_size_invalid">Use um valor em MiB como 12.0.</string>
+    <string name="format_label">Formato</string>
+    <string name="format_wav">WAV</string>
+    <string name="format_m4a">M4A</string>
+    <string name="format_3gp">3GP</string>
+    <string name="format_ogg">Ogg</string>
+    <string name="format_webm">WebM</string>
+    <string name="format_aac_adts">AAC ADTS</string>
+    <string name="format_mpeg_2_ts">MPEG-TS</string>
+    <string name="codec_pcm_16">PCM 16 bits</string>
+    <string name="codec_aac_eld">AAC-ELD</string>
+    <string name="codec_opus">Opus</string>
+    <string name="codec_vorbis">Vorbis</string>
+    <string name="codec_flac">FLAC</string>
+    <string name="debug_settings_title">Depuração</string>
+    <string name="debug_chunks_tab_summary">Mostrar inspetor de chunks e mesclagens ao vivo nas abas inferiores.</string>
+    <string name="settings_saved_reencode_history">Salvo. Recodifique o histórico para exportar novamente.</string>
+    <string name="chunks_empty">Ainda não há chunks.</string>
+    <string name="chunks_title">Anel de chunks</string>
+    <string name="chunks_title_active">Anel de chunks · ativo</string>
+    <string name="chunks_operations_empty">Nenhuma operação ativa.</string>
+    <string name="chunks_section_operations">Operações</string>
+    <string name="chunks_section_chunks">Chunks</string>
+    <string name="chunks_active">Ativo</string>
+    <string name="chunks_operation_background_merge">Mesclagem em segundo plano</string>
+    <string name="chunks_operation_export_merge">Mesclagem de exportação</string>
+    <string name="chunks_operation_history_reencode">Recodificação do histórico</string>
+    <string name="chunks_action_merge">Mesclar</string>
+    <string name="chunks_merge_done">Chunk mesclado.</string>
+    <string name="chunks_merge_failed">Não foi possível mesclar o chunk.</string>
+    <string name="chunks_export_done">Chunk exportado.</string>
+    <string name="chunks_export_failed">Não foi possível exportar o chunk.</string>
+    <string name="chunks_delete_failed">Não foi possível excluir o chunk.</string>
 </resources>

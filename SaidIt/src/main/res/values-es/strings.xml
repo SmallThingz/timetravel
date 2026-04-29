@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="recording_saved">Guardado</string>
     <string name="notification_channel_name">Captura en segundo plano</string>
@@ -6,11 +6,9 @@
     <string name="error_during_writing_history_into">Error al escribir el historial de audio: </string>
     <string name="error_during_recording_into">Error al grabar: </string>
     <string name="cant_create_file_generic">No se pudo crear el archivo.</string>
-
     <string name="buffer_active_summary">ACTIVO</string>
     <string name="buffer_inactive_summary">APAGADO</string>
     <string name="clear_buffer">Borrar</string>
-
     <string name="record_all_memory">Exportar todo</string>
     <string name="custom_time">Exportar personalizado</string>
     <string name="custom_export_duration_hint">12:30</string>
@@ -35,7 +33,6 @@
     <string name="done">Listo</string>
     <string name="export">Exportar</string>
     <string name="no_app_available">No hay una app compatible disponible.</string>
-
     <string name="undo">Deshacer</string>
     <string name="theme_title">Tema</string>
     <string name="theme_system">Sistema</string>
@@ -125,7 +122,6 @@
     <string name="unsupported_config_message">No compatible.</string>
     <string name="audio_input_init_failed">No se pudo iniciar el micrófono.</string>
     <string name="custom_memory_size_invalid">Introduce un número válido.</string>
-
     <string name="permission_required">Permiso requerido</string>
     <string name="permission_required_message">Se requiere acceso al micrófono.</string>
     <string name="recordings_empty_title">No hay clips guardados</string>
@@ -157,16 +153,32 @@
     <string name="player_seek_forward">Avanzar 10 segundos</string>
     <string name="player_failed">No se pudo reproducir la grabación.</string>
     <string name="close">Cerrar</string>
-
     <plurals name="move_recordings_done">
         <item quantity="one">Se movió %1$d grabación.</item>
         <item quantity="many">Se movieron %1$d grabaciones.</item>
         <item quantity="other">Se movieron %1$d grabaciones.</item>
     </plurals>
-
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">Se eliminó %1$d entrada faltante.</item>
         <item quantity="many">Se eliminaron %1$d entradas faltantes.</item>
         <item quantity="other">Se eliminaron %1$d entradas faltantes.</item>
     </plurals>
+    <string name="debug_settings_title">Depuración</string>
+    <string name="debug_chunks_tab_summary">Mostrar el inspector de bloques y fusiones en las pestañas inferiores.</string>
+    <string name="chunks_empty">Aún no hay bloques.</string>
+    <string name="chunks_title">Anillo de bloques</string>
+    <string name="chunks_title_active">Anillo de bloques · activo</string>
+    <string name="chunks_operations_empty">No hay operaciones activas.</string>
+    <string name="chunks_section_operations">Operaciones</string>
+    <string name="chunks_section_chunks">Bloques</string>
+    <string name="chunks_active">Activo</string>
+    <string name="chunks_operation_background_merge">Fusión en segundo plano</string>
+    <string name="chunks_operation_export_merge">Fusión de exportación</string>
+    <string name="chunks_operation_history_reencode">Recodificación del historial</string>
+    <string name="chunks_action_merge">Fusionar</string>
+    <string name="chunks_merge_done">Bloque fusionado.</string>
+    <string name="chunks_merge_failed">No se pudo fusionar el bloque.</string>
+    <string name="chunks_export_done">Bloque exportado.</string>
+    <string name="chunks_export_failed">No se pudo exportar el bloque.</string>
+    <string name="chunks_delete_failed">No se pudo eliminar el bloque.</string>
 </resources>

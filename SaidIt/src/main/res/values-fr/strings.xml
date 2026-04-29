@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="recording_saved">Enregistré</string>
     <string name="notification_channel_name">Capture en arrière-plan</string>
@@ -6,11 +6,9 @@
     <string name="error_during_writing_history_into">Erreur lors de l’écriture de l’historique audio : </string>
     <string name="error_during_recording_into">Erreur pendant l’enregistrement : </string>
     <string name="cant_create_file_generic">Impossible de créer le fichier.</string>
-
     <string name="buffer_active_summary">ON</string>
     <string name="buffer_inactive_summary">OFF</string>
     <string name="clear_buffer">Effacer</string>
-
     <string name="record_all_memory">Exporter tout</string>
     <string name="custom_time">Exporter personnalisé</string>
     <string name="custom_export_duration_hint">12:30</string>
@@ -35,7 +33,6 @@
     <string name="done">OK</string>
     <string name="export">Exporter</string>
     <string name="no_app_available">Aucune application compatible disponible.</string>
-
     <string name="undo">Annuler</string>
     <string name="theme_title">Thème</string>
     <string name="theme_system">Système</string>
@@ -125,7 +122,6 @@
     <string name="unsupported_config_message">Non pris en charge.</string>
     <string name="audio_input_init_failed">Impossible de démarrer le microphone.</string>
     <string name="custom_memory_size_invalid">Entrez un nombre valide.</string>
-
     <string name="permission_required">Autorisation requise</string>
     <string name="permission_required_message">L’accès au microphone est requis.</string>
     <string name="recordings_empty_title">Aucun clip enregistré</string>
@@ -157,16 +153,32 @@
     <string name="player_seek_forward">Avancer de 10 secondes</string>
     <string name="player_failed">Impossible de lire l’enregistrement.</string>
     <string name="close">Fermer</string>
-
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d enregistrement déplacé.</item>
         <item quantity="many">%1$d enregistrements déplacés.</item>
         <item quantity="other">%1$d enregistrements déplacés.</item>
     </plurals>
-
     <plurals name="move_recordings_removed_missing">
         <item quantity="one">%1$d entrée manquante supprimée.</item>
         <item quantity="many">%1$d entrées manquantes supprimées.</item>
         <item quantity="other">%1$d entrées manquantes supprimées.</item>
     </plurals>
+    <string name="debug_settings_title">Débogage</string>
+    <string name="debug_chunks_tab_summary">Afficher l’inspecteur des segments et des fusions dans les onglets du bas.</string>
+    <string name="chunks_empty">Aucun segment pour le moment.</string>
+    <string name="chunks_title">Anneau des segments</string>
+    <string name="chunks_title_active">Anneau des segments · actif</string>
+    <string name="chunks_operations_empty">Aucune opération active.</string>
+    <string name="chunks_section_operations">Opérations</string>
+    <string name="chunks_section_chunks">Segments</string>
+    <string name="chunks_active">Actif</string>
+    <string name="chunks_operation_background_merge">Fusion en arrière-plan</string>
+    <string name="chunks_operation_export_merge">Fusion d’export</string>
+    <string name="chunks_operation_history_reencode">Réencodage de l’historique</string>
+    <string name="chunks_action_merge">Fusionner</string>
+    <string name="chunks_merge_done">Segment fusionné.</string>
+    <string name="chunks_merge_failed">Impossible de fusionner le segment.</string>
+    <string name="chunks_export_done">Segment exporté.</string>
+    <string name="chunks_export_failed">Impossible d’exporter le segment.</string>
+    <string name="chunks_delete_failed">Impossible de supprimer le segment.</string>
 </resources>
