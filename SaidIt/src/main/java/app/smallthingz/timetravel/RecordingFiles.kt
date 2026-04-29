@@ -514,8 +514,15 @@ fun deleteRecordingAsset(
     recording: RecordingEntity,
 ): Boolean {
     return when (RecordingStorageType.valueOf(recording.storageType)) {
-        RecordingStorageType.FILE -> File(recording.id).delete()
-        RecordingStorageType.DOCUMENT -> DocumentFile.fromSingleUri(context, Uri.parse(recording.id))?.delete() == true
+        RecordingStorageType.FILE -> {
+            val file = File(recording.id)
+            !file.exists() || file.delete()
+        }
+
+        RecordingStorageType.DOCUMENT -> {
+            val document = DocumentFile.fromSingleUri(context, Uri.parse(recording.id))
+            document == null || !document.exists() || document.delete()
+        }
     }
 }
 
