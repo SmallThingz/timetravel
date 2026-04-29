@@ -417,7 +417,9 @@ internal class PersistentAudioRingStore(
         // without needing any schema object allocation or parsing.
         const val META_FILE_BYTES = 512
         const val IO_CHUNK_SIZE = 64 * 1024
-        const val FORCE_INTERVAL_MS = 250L
+        // This cache is best-effort resilience, not the canonical live history store.
+        // Batching force calls cuts background CPU and I/O substantially.
+        const val FORCE_INTERVAL_MS = 2_000L
 
         const val MAGIC = 0x54544246
         const val VERSION = 1

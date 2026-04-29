@@ -118,6 +118,17 @@ class TimeTravelService : Service() {
     @Volatile
     private var activeExportReceiver: AudioFileReceiver? = null
 
+    @Volatile
+    private var cachedRetentionSampleBytes = 0L
+
+    @Volatile
+    private var cachedWorkingMemorySizeBytes = 0L
+
+    @Volatile
+    private var cachedPersistentPcmSizeBytes = 0L
+
+    private var historyCompactionIdleDelayMs = HISTORY_COMPACTION_MIN_IDLE_DELAY_MS
+
     private val audioMemory = AudioMemory()
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -148,9 +159,12 @@ class TimeTravelService : Service() {
                 return
             }
             if (compacted) {
+                historyCompactionIdleDelayMs = HISTORY_COMPACTION_MIN_IDLE_DELAY_MS
                 exportHandler.post(this)
             } else {
-                exportHandler.postDelayed(this, HISTORY_COMPACTION_IDLE_DELAY_MS)
+                historyCompactionIdleDelayMs =
+                    (historyCompactionIdleDelayMs * 2L).coerceAtMost(HISTORY_COMPACTION_MAX_IDLE_DELAY_MS)
+                exportHandler.postDelayed(this, historyCompactionIdleDelayMs)
             }
         }
     }
@@ -171,7 +185,7 @@ class TimeTravelService : Service() {
                 isDaemon = true
             }
         }
-        exportHandler.post(historyCompactor)
+        scheduleHistoryCompaction(immediate = true)
         audioHandler.post {
             restorePersistedBufferIfNeeded()
         }
@@ -308,7 +322,52 @@ class TimeTravelService : Service() {
         outputCodec = selectedCodec
         outputBitrateKbps = getConfiguredCodecBitrateKbps(this, outputCodec, sampleRate, channelMode.channelCount)
         inputRouteMode = selectedRouteMode
+        refreshCachedBufferSizing()
         updateLiveExportHistoryConfiguration()
+    }
+
+    private fun refreshCachedBufferSizing() {
+        val bitrateKbps = configuredCodecBitrateKbps()
+        cachedRetentionSampleBytes =
+            getConfiguredMemorySizeBytes(
+                context = this,
+                sampleRate = sampleRate,
+                channelMode = channelMode,
+                format = effectiveOutputFormat,
+                codec = effectiveOutputCodec,
+                bitrateKbps = bitrateKbps,
+            )
+        cachedWorkingMemorySizeBytes =
+            getConfiguredWorkingMemorySizeBytes(
+                context = this,
+                sampleRate = sampleRate,
+                channelMode = channelMode,
+                format = effectiveOutputFormat,
+                codec = effectiveOutputCodec,
+                bitrateKbps = bitrateKbps,
+            )
+        cachedPersistentPcmSizeBytes =
+            getConfiguredPersistentPcmSizeBytes(
+                context = this,
+                sampleRate = sampleRate,
+                channelMode = channelMode,
+                format = effectiveOutputFormat,
+                codec = effectiveOutputCodec,
+                bitrateKbps = bitrateKbps,
+            )
+    }
+
+    private fun scheduleHistoryCompaction(immediate: Boolean) {
+        if (!::exportHandler.isInitialized) {
+            return
+        }
+        exportHandler.removeCallbacks(historyCompactor)
+        if (immediate) {
+            historyCompactionIdleDelayMs = HISTORY_COMPACTION_MIN_IDLE_DELAY_MS
+            exportHandler.post(historyCompactor)
+        } else {
+            exportHandler.postDelayed(historyCompactor, historyCompactionIdleDelayMs)
+        }
     }
 
     private fun resolveOperationalConfiguration(
@@ -1030,36 +1089,15 @@ class TimeTravelService : Service() {
     }
 
     private fun configuredRetentionSampleBytes(): Long {
-        return getConfiguredMemorySizeBytes(
-            context = this,
-            sampleRate = sampleRate,
-            channelMode = channelMode,
-            format = effectiveOutputFormat,
-            codec = effectiveOutputCodec,
-            bitrateKbps = configuredCodecBitrateKbps(),
-        )
+        return cachedRetentionSampleBytes
     }
 
     private fun configuredWorkingMemorySizeBytes(): Long {
-        return getConfiguredWorkingMemorySizeBytes(
-            context = this,
-            sampleRate = sampleRate,
-            channelMode = channelMode,
-            format = effectiveOutputFormat,
-            codec = effectiveOutputCodec,
-            bitrateKbps = configuredCodecBitrateKbps(),
-        )
+        return cachedWorkingMemorySizeBytes
     }
 
     private fun configuredPersistentPcmSizeBytes(): Long {
-        return getConfiguredPersistentPcmSizeBytes(
-            context = this,
-            sampleRate = sampleRate,
-            channelMode = channelMode,
-            format = effectiveOutputFormat,
-            codec = effectiveOutputCodec,
-            bitrateKbps = configuredCodecBitrateKbps(),
-        )
+        return cachedPersistentPcmSizeBytes
     }
 
     private fun availableBufferedSampleBytes(): Long {
@@ -1142,7 +1180,10 @@ class TimeTravelService : Service() {
             writer.write(array, offset, read)
         }
         if (read > 0) {
-            liveExportHistory.append(array, offset, read, System.currentTimeMillis())
+            val sealedSegment = liveExportHistory.append(array, offset, read, System.currentTimeMillis())
+            if (sealedSegment) {
+                scheduleHistoryCompaction(immediate = true)
+            }
             if (isDiskBufferCacheEnabled(this@TimeTravelService)) {
                 persistentAudioRingStore.append(
                     array = array,
@@ -1423,6 +1464,9 @@ class TimeTravelService : Service() {
         }
         val codec = effectiveOutputCodec
         val retentionBytes = memorySizeOverride ?: configuredRetentionSampleBytes()
+        if (memorySizeOverride != null) {
+            cachedRetentionSampleBytes = retentionBytes
+        }
         liveExportHistory.updateConfiguration(
             format = effectiveOutputFormat,
             codec = codec,
@@ -1960,10 +2004,13 @@ class TimeTravelService : Service() {
         val chunk = ByteArray(64 * 1024)
         var remaining = totalBytes
         var endedAtMillis = System.currentTimeMillis() - (seconds * 1000f).toLong()
+        var shouldCompactHistory = false
         while (remaining > 0L) {
             val count = minOf(chunk.size.toLong(), remaining).toInt()
             audioMemory.write(chunk, 0, count)
-            liveExportHistory.append(chunk, 0, count, endedAtMillis)
+            if (liveExportHistory.append(chunk, 0, count, endedAtMillis)) {
+                shouldCompactHistory = true
+            }
             if (isDiskBufferCacheEnabled(this)) {
                 persistentAudioRingStore.append(
                     array = chunk,
@@ -1976,6 +2023,9 @@ class TimeTravelService : Service() {
             }
             remaining -= count.toLong()
             endedAtMillis += maxOf(1L, count.toLong() * 1000L / maxOf(fillRate, 1))
+        }
+        if (shouldCompactHistory) {
+            scheduleHistoryCompaction(immediate = true)
         }
         state = STATE_PAUSED
         updateWakeLockState()
@@ -2286,7 +2336,8 @@ class TimeTravelService : Service() {
         const val REENCODE_CODEC_TIMEOUT_US = 10_000L
         const val REENCODE_WAV_HEADER_BYTES = 44L
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
-        const val HISTORY_COMPACTION_IDLE_DELAY_MS = 1_500L
+        const val HISTORY_COMPACTION_MIN_IDLE_DELAY_MS = 1_500L
+        const val HISTORY_COMPACTION_MAX_IDLE_DELAY_MS = 30_000L
         const val DEBUG_ACTION_PREFIX = "app.smallthingz.timetravel.debug."
         val nextExportTokenId = AtomicLong(1L)
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"

@@ -137,22 +137,24 @@ internal class LiveExportHistory(
         offset: Int,
         count: Int,
         endedAtMillis: Long,
-    ) {
+    ): Boolean {
         if (count <= 0) {
-            return
+            return false
         }
-        val currentConfig = config ?: return
+        val currentConfig = config ?: return false
         ensureWriterLocked(
             startedAtMillis = nextSegmentStartMillis ?: (endedAtMillis - currentConfig.bytesToDurationMillis(count.toLong())).coerceAtLeast(0L),
         )
-        val writer = currentWriter ?: return
+        val writer = currentWriter ?: return false
         writer.write(array, offset, count)
         currentSegment?.sampleBytes = writer.totalSampleBytesWritten.toLong()
         val current = currentSegment
         if (current != null && currentConfig.bytesToDurationMillis(current.sampleBytes) >= segmentDurationMillis) {
             nextSegmentStartMillis = current.startedAtMillis + currentConfig.bytesToDurationMillis(current.sampleBytes)
             closeCurrentSegmentLocked()
+            return true
         }
+        return false
     }
 
     @Synchronized
