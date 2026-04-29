@@ -42,6 +42,14 @@ object RecordingRepository {
         }
     }
 
+    suspend fun forget(context: Context, recordingId: String) {
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                RecordingDatabase.getInstance(context).recordingDao().deleteById(recordingId)
+            }
+        }
+    }
+
     suspend fun rename(
         context: Context,
         recording: RecordingEntity,

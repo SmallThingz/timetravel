@@ -46,6 +46,7 @@ import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.runBlocking
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelService : Service() {
@@ -550,16 +551,6 @@ class TimeTravelService : Service() {
             channelCount = channelMode.channelCount,
             bitrateKbps = getConfiguredCodecBitrateKbps(this@TimeTravelService, exportCodec, sampleRate, channelMode.channelCount),
         )
-
-        val outTarget = try {
-            createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
-        } catch (e: IOException) {
-            Log.e(TAG, "Unable to prepare export file", e)
-            val message = getString(R.string.cant_create_file_generic)
-            showToast(message)
-            notifyReceiverFailure(receiver, message)
-            return
-        }
         val historySnapshot = liveExportHistory.snapshotForRange(
             skipSampleBytes = skipBytes,
             requestedSampleBytes = useBytes,
@@ -569,8 +560,19 @@ class TimeTravelService : Service() {
         activeExportToken = exportToken
         activeExportFuture =
             exportWorkExecutor.submit {
+                var outTarget: RecordingOutputTarget? = null
                 try {
                     ensureExportNotCancelled(exportToken)
+                    outTarget =
+                        try {
+                            createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
+                        } catch (e: IOException) {
+                            Log.e(TAG, "Unable to prepare export file", e)
+                            val message = getString(R.string.cant_create_file_generic)
+                            showToast(message)
+                            notifyReceiverFailure(receiver, message)
+                            return@submit
+                        }
                     var durationMillis = 0L
                     if (historySnapshot != null && historySnapshot.config == exportConfig) {
                         liveExportHistory.exportSnapshotOptimized(
@@ -599,6 +601,7 @@ class TimeTravelService : Service() {
                         }
                         requireExportedOutput(outTarget)
                     }
+                    ensureExportNotCancelled(exportToken)
                     notifyReceiver(
                         receiver,
                         buildRecordingEntity(
@@ -609,16 +612,17 @@ class TimeTravelService : Service() {
                         ),
                     )
                 } catch (cancelled: InterruptedIOException) {
-                    Log.i(TAG, "Export cancelled for ${outTarget.displayName}")
+                    Log.i(TAG, "Export cancelled for ${outTarget?.displayName ?: newFileName}")
                     deleteOutputTarget(outTarget)
                     notifyReceiverCancelled(receiver)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Fast export failed for ${outTarget.displayName}; falling back to PCM export", e)
+                    Log.e(TAG, "Fast export failed for ${outTarget?.displayName ?: newFileName}; falling back to PCM export", e)
                     deleteIfEmpty(outTarget)
                     try {
+                        val fallbackTarget = requireNotNull(outTarget)
                         var durationMillis = 0L
                         val readSucceeded =
-                            createAudioFileWriter(outTarget).use { writer ->
+                            createAudioFileWriter(fallbackTarget).use { writer ->
                                 val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
                                     ensureExportNotCancelled(exportToken)
                                     writer.write(array, offset, count)
@@ -631,29 +635,33 @@ class TimeTravelService : Service() {
                         if (!readSucceeded) {
                             throw IOException("Requested PCM range not available in fallback buffer")
                         }
-                        requireExportedOutput(outTarget)
+                        requireExportedOutput(fallbackTarget)
+                        ensureExportNotCancelled(exportToken)
                         notifyReceiver(
                             receiver,
                             buildRecordingEntity(
                                 this@TimeTravelService,
-                                outTarget,
+                                fallbackTarget,
                                 durationMillis,
                                 currentCodecSummary(),
                             ),
                         )
                     } catch (fallbackCancelled: InterruptedIOException) {
-                        Log.i(TAG, "Fallback export cancelled for ${outTarget.displayName}")
+                        Log.i(TAG, "Fallback export cancelled for ${outTarget?.displayName ?: newFileName}")
                         deleteOutputTarget(outTarget)
                         notifyReceiverCancelled(receiver)
                     } catch (fallbackError: Exception) {
-                        Log.e(TAG, "Error while exporting history into ${outTarget.displayName}", fallbackError)
-                        val message = getString(R.string.error_during_writing_history_into) + outTarget.displayName
+                        Log.e(TAG, "Error while exporting history into ${outTarget?.displayName ?: newFileName}", fallbackError)
+                        val message = getString(R.string.error_during_writing_history_into) + (outTarget?.displayName ?: newFileName)
                         showToast(message)
                         notifyReceiverFailure(receiver, message)
                         deleteIfEmpty(outTarget)
                     }
                 } finally {
                     historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
+                    if (exportToken.cancelled.get()) {
+                        deleteOutputTarget(outTarget)
+                    }
                     if (activeExportToken === exportToken) {
                         activeExportToken = null
                         activeExportFuture = null
@@ -959,6 +967,13 @@ class TimeTravelService : Service() {
             RecordingStorageType.DOCUMENT -> {
                 androidx.documentfile.provider.DocumentFile.fromSingleUri(this, requireNotNull(target.uri))?.delete()
             }
+        }
+        runCatching {
+            runBlocking {
+                RecordingRepository.forget(this@TimeTravelService, target.id)
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to forget deleted export target ${target.id}", error)
         }
     }
 
