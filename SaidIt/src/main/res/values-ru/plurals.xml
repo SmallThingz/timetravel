@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="recordings_selected">
+        <item quantity="one">%d выбрано</item>
+        <item quantity="few">%d выбрано</item>
+        <item quantity="many">%d выбрано</item>
+        <item quantity="other">%d выбрано</item>
+    </plurals>
+    <plurals name="recordings_deleted">
+        <item quantity="one">Удалена %d запись.</item>
+        <item quantity="few">Удалено %d записи.</item>
+        <item quantity="many">Удалено %d записей.</item>
+        <item quantity="other">Удалено %d записей.</item>
+    </plurals>
+    <plurals name="chunks_deleted">
+        <item quantity="one">Удалён %d сегмент.</item>
+        <item quantity="few">Удалено %d сегмента.</item>
+        <item quantity="many">Удалено %d сегментов.</item>
+        <item quantity="other">Удалено %d сегментов.</item>
+    </plurals>
+</resources>
