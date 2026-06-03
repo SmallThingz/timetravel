@@ -49,6 +49,9 @@ private const val MAX_AUTO_MERGE_CUSTOM_SIZE_MIB = 4096.0
 private const val DEFAULT_AUTO_MERGE_EAGER_ENABLED = true
 private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
 private const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
+private const val CAPABILITY_WARM_THREAD_NAME = "timetravel-capability-warm"
+private const val DURATION_SEPARATOR = ":"
+private const val SAMPLE_RATE_LABEL_SUFFIX_KHZ = " kHz"
 
 private val STANDARD_SAMPLE_RATES =
     intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350)
@@ -62,7 +65,7 @@ private val channelModesCache = ConcurrentHashMap<ChannelModesKey, List<ChannelM
 private val codecCapabilityCache = ConcurrentHashMap<ExportCodec, CodecCapability>()
 private val capabilityWarmLock = Any()
 private val capabilityWarmExecutor = Executors.newSingleThreadExecutor { runnable ->
-    Thread(runnable, "timetravel-capability-warm").apply {
+    Thread(runnable, CAPABILITY_WARM_THREAD_NAME).apply {
         isDaemon = true
         priority = Thread.MIN_PRIORITY
     }
@@ -168,22 +171,22 @@ enum class ExportFormat(
     val prefValue: String get() = name.lowercase()
 
     val extension: String get() = when (this) {
-        THREE_GPP -> "3gp"
-        AAC_ADTS -> "aac"
-        AMR_NB_FILE -> "amr"
-        AMR_WB_FILE -> "awb"
-        MPEG_2_TS -> "ts"
+        THREE_GPP -> EXTENSION_3GP
+        AAC_ADTS -> EXTENSION_AAC
+        AMR_NB_FILE -> EXTENSION_AMR
+        AMR_WB_FILE -> EXTENSION_AWB
+        MPEG_2_TS -> EXTENSION_TS
         else -> name.lowercase()
     }
 
     val outputMimeType: String get() = when (this) {
-        M4A -> "audio/mp4"
-        THREE_GPP -> "audio/3gpp"
-        AAC_ADTS -> "audio/aac"
-        AMR_NB_FILE -> "audio/amr"
-        AMR_WB_FILE -> "audio/amr-wb"
-        MPEG_2_TS -> "video/mp2t"
-        else -> "audio/${name.lowercase()}"
+        M4A -> MIME_AUDIO_MP4
+        THREE_GPP -> MIME_AUDIO_3GPP
+        AAC_ADTS -> MIME_AUDIO_AAC
+        AMR_NB_FILE -> MIME_AUDIO_AMR
+        AMR_WB_FILE -> MIME_AUDIO_AMR_WB
+        MPEG_2_TS -> MIME_VIDEO_MP2T
+        else -> "$MIME_AUDIO_FALLBACK_PREFIX${name.lowercase()}"
     }
 
     val isPcmContainer: Boolean
@@ -205,6 +208,20 @@ enum class ExportFormat(
         get() = Build.VERSION.SDK_INT >= minApi
 
     companion object {
+        const val MIME_AUDIO_MP4 = "audio/mp4"
+        const val MIME_AUDIO_3GPP = "audio/3gpp"
+        const val MIME_AUDIO_AAC = "audio/aac"
+        const val MIME_AUDIO_AMR = "audio/amr"
+        const val MIME_AUDIO_AMR_WB = "audio/amr-wb"
+        const val MIME_VIDEO_MP2T = "video/mp2t"
+        const val MIME_AUDIO_FALLBACK_PREFIX = "audio/"
+
+        const val EXTENSION_3GP = "3gp"
+        const val EXTENSION_AAC = "aac"
+        const val EXTENSION_AMR = "amr"
+        const val EXTENSION_AWB = "awb"
+        const val EXTENSION_TS = "ts"
+
         private val byPrefValue = entries.associateBy { it.prefValue }
 
         fun fromPrefValue(value: String?): ExportFormat {

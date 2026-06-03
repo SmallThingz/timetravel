@@ -17,6 +17,7 @@ internal class WavAudioFileWriter(
     private val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
     private val channel: FileChannel = outputStream.channel
     private val headerBuffer = ByteBuffer.allocate(HEADER_SIZE)
+    private var writeBuffer: ByteBuffer? = null
 
     override var totalSampleBytesWritten: Long = 0
         private set
@@ -30,7 +31,11 @@ internal class WavAudioFileWriter(
         offset: Int,
         count: Int,
     ) {
-        val buffer = ByteBuffer.wrap(bytes, offset, count)
+        val buffer = if (writeBuffer?.array() === bytes) writeBuffer!! else {
+            ByteBuffer.wrap(bytes).also { writeBuffer = it }
+        }
+        buffer.position(offset)
+        buffer.limit(offset + count)
         while (buffer.hasRemaining()) {
             channel.write(buffer)
         }

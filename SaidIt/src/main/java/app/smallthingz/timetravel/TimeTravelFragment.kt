@@ -420,7 +420,11 @@ class TimeTravelFragment : Fragment() {
         val overExportLimit = currentBytes > exportLimitBytes
         when (retentionMode) {
             RetentionMode.TIME -> {
-                historySize.text = "%s / %s".format(formatShortTimer(displayedCurrentSeconds.toFloat()), formatShortTimer(displayedLimitSeconds.toFloat()))
+                historySize.text = buildString {
+                    append(formatShortTimer(displayedCurrentSeconds.toFloat()))
+                    append(" / ")
+                    append(formatShortTimer(displayedLimitSeconds.toFloat()))
+                }
                 formatSummary.text =
                     if (overExportLimit) {
                         getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
@@ -430,7 +434,11 @@ class TimeTravelFragment : Fragment() {
             }
 
             RetentionMode.SIZE -> {
-                historySize.text = "%s / %s".format(formatShortFileSize(currentBytes), formatShortFileSize(configuredLimitBytes))
+                historySize.text = buildString {
+                    append(formatShortFileSize(currentBytes))
+                    append(" / ")
+                    append(formatShortFileSize(configuredLimitBytes))
+                }
                 formatSummary.text =
                     if (overExportLimit) {
                         getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))

@@ -132,7 +132,7 @@ internal class AudioMemory {
         offset = 0
         currentWasFilled = false
         filling = false
-        for (i in filled.indices) free.addLast(filled[i])
+        var i = 0; val fs = filled.size; while (i < fs) { free.addLast(filled[i]); i++ }
         filled.clear()
     }
 

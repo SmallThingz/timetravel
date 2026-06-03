@@ -993,21 +993,21 @@ class SettingsActivity : AppCompatActivity() {
             AutoMergeMode.RATIO -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_ratio_value_label)
                 autoMergeValueLayout.helperText = getString(R.string.auto_merge_ratio_supporting)
-                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789")
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance(DIGITS_NUMERIC)
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER
                 autoMergeValueInput.setText(autoMergeDivisorValue.toString())
             }
             AutoMergeMode.CUSTOM_TIME -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_time_value_label)
                 autoMergeValueLayout.helperText = getString(R.string.retention_time_invalid)
-                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789:")
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance(DIGITS_NUMERIC_COLON)
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 autoMergeValueInput.setText(formatDurationInput(autoMergeCustomSecondsValue))
             }
             AutoMergeMode.CUSTOM_SIZE -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_size_value_label)
                 autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_size_invalid)
-                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789.,")
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance(DIGITS_NUMERIC_DECIMAL)
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
                 autoMergeValueInput.setText(formatRetentionSizeMib(autoMergeCustomSizeMibValue))
             }
@@ -1422,15 +1422,15 @@ class SettingsActivity : AppCompatActivity() {
                 )
             }
             add(
-                Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL").apply {
+                Intent(ACTION_ADVANCED_POWER_USAGE).apply {
                     data = Uri.parse("package:$packageName")
-                    putExtra("package_name", packageName)
-                    putExtra("packageName", packageName)
+                    putExtra(EXTRA_PACKAGE_NAME_LEGACY, packageName)
+                    putExtra(EXTRA_PACKAGE_NAME, packageName)
                 },
             )
             add(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package", packageName, null)
+                    data = Uri.fromParts(URI_SCHEME_PACKAGE, packageName, null)
                 },
             )
             add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
@@ -1520,6 +1520,13 @@ class SettingsActivity : AppCompatActivity() {
 
     private companion object {
         const val BYTES_IN_MEGABYTE = 1024L * 1024L
+        const val DIGITS_NUMERIC = "0123456789"
+        const val DIGITS_NUMERIC_COLON = "0123456789:"
+        const val DIGITS_NUMERIC_DECIMAL = "0123456789.,"
+        const val ACTION_ADVANCED_POWER_USAGE = "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL"
+        const val EXTRA_PACKAGE_NAME_LEGACY = "package_name"
+        const val EXTRA_PACKAGE_NAME = "packageName"
+        const val URI_SCHEME_PACKAGE = "package"
     }
     private fun updateUndoButton(enabled: Boolean) {
         undoButton.isEnabled = enabled

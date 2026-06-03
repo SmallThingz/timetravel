@@ -176,7 +176,7 @@ internal class LiveExportHistory(
 
     @Synchronized
     fun countRetainedSampleBytes(): Long {
-        var sum = 0L; for (s in segments) sum += s.sampleBytes
+        var sum = 0L; var i = 0; val size = segments.size; while (i < size) { sum += segments[i].sampleBytes; i++ }
         return sum + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
     }
 
@@ -217,9 +217,8 @@ internal class LiveExportHistory(
                     segment.file.delete()
                 }
             }
-        nextSegmentStartMillis = segments.lastOrNull()?.let { segment ->
-            expectedConfig.bytesToDurationMillis(segment.sampleBytes) + segment.startedAtMillis
-        }
+        val lastSegment = segments.lastOrNull()
+        nextSegmentStartMillis = if (lastSegment != null) expectedConfig.bytesToDurationMillis(lastSegment.sampleBytes) + lastSegment.startedAtMillis else null
         pruneLocked()
         return true
     }
@@ -231,8 +230,8 @@ internal class LiveExportHistory(
     ): HistoryReencodeSourceSnapshot? {
         val currentConfig = config ?: return null
         if (currentWriter != null) {
-            currentSegment?.let { segment ->
-                nextSegmentStartMillis = segment.startedAtMillis + currentConfig.bytesToDurationMillis(segment.sampleBytes)
+            if (currentSegment != null) {
+                nextSegmentStartMillis = currentSegment!!.startedAtMillis + currentConfig.bytesToDurationMillis(currentSegment!!.sampleBytes)
             }
             closeCurrentSegmentLocked()
         }
@@ -385,7 +384,7 @@ internal class LiveExportHistory(
         reopenForContinuedCapture: Boolean,
     ): Snapshot? {
         var totalSampleBytes = (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
-        for (s in segments) totalSampleBytes += s.sampleBytes
+        var _i = 0; val _sz = segments.size; while (_i < _sz) { totalSampleBytes += segments[_i].sampleBytes; _i++ }
         val skipBytes = (totalSampleBytes - requestedSampleBytes.coerceAtLeast(0L)).coerceAtLeast(0L)
         return snapshotForRange(skipBytes, requestedSampleBytes.coerceAtLeast(0L), reopenForContinuedCapture)
     }
@@ -411,7 +410,7 @@ internal class LiveExportHistory(
             return null
         }
 
-        var totalSampleBytes = 0L; for (s in segments) totalSampleBytes += s.sampleBytes
+        var totalSampleBytes = 0L; var _j = 0; val _sz2 = segments.size; while (_j < _sz2) { totalSampleBytes += segments[_j].sampleBytes; _j++ }
         if (totalSampleBytes <= 0L) {
             if (reopenForContinuedCapture) {
                 ensureWriterLocked(System.currentTimeMillis())
@@ -664,7 +663,7 @@ internal class LiveExportHistory(
             if (bufferedSlices.isEmpty()) {
                 bufferedStartIndex = index
             }
-            bufferedSlices += slice.copy()
+            bufferedSlices += slice
             bufferedSampleBytes += slice.takeSampleBytes
             if (bufferedSampleBytes == targetSampleBytes) {
                 flushBuffered()
@@ -1878,7 +1877,7 @@ internal class LiveExportHistory(
         if (sliceCount < MIN_COMPACTION_SEGMENTS) {
             return null
         }
-        val slices = snapshot.slices.subList(runStartInclusive, runEndExclusive).map { it.copy() }
+        val slices = snapshot.slices.subList(runStartInclusive, runEndExclusive)
         val totalSampleBytes = slices.sumOf { it.takeSampleBytes }
         if (totalSampleBytes <= 0L) {
             return null
@@ -2295,7 +2294,7 @@ internal class LiveExportHistory(
         if (retentionBytes <= 0L) {
             return
         }
-        var totalBytes = (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L); for (s in segments) totalBytes += s.sampleBytes
+        var totalBytes = (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L); var _k = 0; val _sz3 = segments.size; while (_k < _sz3) { totalBytes += segments[_k].sampleBytes; _k++ }
         while (segments.size > 1 && totalBytes > retentionBytes) {
             val oldest = segments.first()
             if (pinnedFiles.containsKey(oldest.file.absolutePath)) {
@@ -2305,10 +2304,8 @@ internal class LiveExportHistory(
             totalBytes -= oldest.sampleBytes
             oldest.file.delete()
         }
-        currentSegment?.let { segment ->
-            if (segment.sampleBytes > 0L) {
-                nextSegmentStartMillis = segment.startedAtMillis + currentConfig.bytesToDurationMillis(segment.sampleBytes)
-            }
+        if (currentSegment != null && currentSegment!!.sampleBytes > 0L) {
+            nextSegmentStartMillis = currentSegment!!.startedAtMillis + currentConfig.bytesToDurationMillis(currentSegment!!.sampleBytes)
         }
     }
 

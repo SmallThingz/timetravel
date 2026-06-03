@@ -131,7 +131,7 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
                     if (bufferInfo.size > 0) {
                         outputBuffer.position(bufferInfo.offset)
                         outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                        writeEncodedAccessUnit(outputBuffer.slice(), bufferInfo.size, bufferInfo.presentationTimeUs)
+                        writeEncodedAccessUnit(outputBuffer, bufferInfo.size, bufferInfo.presentationTimeUs)
                     }
                     codec.releaseOutputBuffer(outputIndex, false)
                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -285,8 +285,7 @@ internal fun fillAdtsHeader(
     payloadSize: Int,
 ) {
     require(target.size >= ADTS_HEADER_SIZE) { "ADTS header target too small" }
-    val sampleRateIndex = AAC_SAMPLE_RATE_INDICES[sampleRate]
-        ?: throw IOException("Unsupported ADTS sample rate: $sampleRate")
+    val sampleRateIndex = aacSampleRateIndex(sampleRate)
     val frameLength = payloadSize + ADTS_HEADER_SIZE
     target[0] = 0xFF.toByte()
     target[1] = 0xF1.toByte()
@@ -551,19 +550,9 @@ internal fun writeByteBufferToStream(
 
 private const val ADTS_HEADER_SIZE = 7
 private const val AAC_LC_PROFILE = 2
-private val AAC_SAMPLE_RATE_INDICES =
-    mapOf(
-        96_000 to 0,
-        88_200 to 1,
-        64_000 to 2,
-        48_000 to 3,
-        44_100 to 4,
-        32_000 to 5,
-        24_000 to 6,
-        22_050 to 7,
-        16_000 to 8,
-        12_000 to 9,
-        11_025 to 10,
-        8_000 to 11,
-        7_350 to 12,
-    )
+private fun aacSampleRateIndex(sampleRate: Int): Int = when (sampleRate) {
+    96_000 -> 0; 88_200 -> 1; 64_000 -> 2; 48_000 -> 3; 44_100 -> 4
+    32_000 -> 5; 24_000 -> 6; 22_050 -> 7; 16_000 -> 8; 12_000 -> 9
+    11_025 -> 10; 8_000 -> 11; 7_350 -> 12
+    else -> throw IOException("Unsupported ADTS sample rate: $sampleRate")
+}
