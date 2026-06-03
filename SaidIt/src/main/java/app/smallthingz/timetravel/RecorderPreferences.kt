@@ -505,7 +505,7 @@ fun defaultAutoMergeCustomSeconds(): Int {
 
 fun getConfiguredOutputFormat(context: Context): ExportFormat {
     val prefs = getRecorderPreferences(context)
-    val storedFormat = prefs.getString(TimeTravelConfig.OUTPUT_FORMAT_KEY, null)
+    val storedFormat = prefs.getString(TimeTravelConfig.OUTPUT_FORMAT_KEY, TimeTravelConfig.DEFAULT_OUTPUT_FORMAT)
     if (storedFormat != null) {
         return ExportFormat.fromPrefValue(storedFormat)
     }
@@ -519,7 +519,7 @@ fun getConfiguredOutputFormat(context: Context): ExportFormat {
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {
     val prefs = getRecorderPreferences(context)
-    val storedCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.OUTPUT_CODEC_WAV))
+    val storedCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.DEFAULT_OUTPUT_CODEC))
     val preferredFormat = getConfiguredOutputFormat(context)
     val preferred = getPreferredOutputCodec(preferredFormat)
     return if (isCodecCompatibleWithFormat(preferredFormat, storedCodec)) storedCodec else preferred
@@ -596,7 +596,7 @@ fun getConfiguredInputRouteMode(context: Context): InputRouteMode {
 
 fun getConfiguredChannelMode(context: Context): ChannelMode {
     return ChannelMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.CHANNEL_MODE_KEY, TimeTravelConfig.CHANNEL_MODE_MONO),
+        getRecorderPreferences(context).getString(TimeTravelConfig.CHANNEL_MODE_KEY, TimeTravelConfig.DEFAULT_CHANNEL_MODE),
     )
 }
 
