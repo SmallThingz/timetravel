@@ -59,8 +59,8 @@ internal class WavAudioFileWriter(
         headerBuffer.putInt(chunkSize.toInt())
         headerBuffer.put(WAVE_BYTES)
         headerBuffer.put(FMT_BYTES)
-        headerBuffer.putInt(16)
-        headerBuffer.putShort(1)
+        headerBuffer.putInt(SUBCHUNK1_SIZE)
+        headerBuffer.putShort(AUDIO_FORMAT_PCM)
         headerBuffer.putShort(channelCount.toShort())
         headerBuffer.putInt(sampleRate)
         headerBuffer.putInt(byteRate)
@@ -78,6 +78,8 @@ internal class WavAudioFileWriter(
     private companion object {
         const val BITS_PER_SAMPLE = 16
         const val HEADER_SIZE = 44
+        const val SUBCHUNK1_SIZE = 16
+        const val AUDIO_FORMAT_PCM: Short = 1
         private val RIFF_BYTES = byteArrayOf(0x52, 0x49, 0x46, 0x46)
         private val WAVE_BYTES = byteArrayOf(0x57, 0x41, 0x56, 0x45)
         private val FMT_BYTES = byteArrayOf(0x66, 0x6D, 0x74, 0x20)

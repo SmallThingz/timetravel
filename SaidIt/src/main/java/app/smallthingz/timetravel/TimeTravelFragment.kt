@@ -745,9 +745,12 @@ class TimeTravelFragment : Fragment() {
             val pastTimeConfirmButton = content.findViewById<View>(R.id.custom_past_time_confirm_button)
             val pastSizeConfirmButton = content.findViewById<View>(R.id.custom_past_size_confirm_button)
 
-            listOf(startTimeField, endTimeField, startSizeField, endSizeField, pastTimeField, pastSizeField).forEach {
-                it.setSelectAllOnFocus(true)
-            }
+            startTimeField.setSelectAllOnFocus(true)
+            endTimeField.setSelectAllOnFocus(true)
+            startSizeField.setSelectAllOnFocus(true)
+            endSizeField.setSelectAllOnFocus(true)
+            pastTimeField.setSelectAllOnFocus(true)
+            pastSizeField.setSelectAllOnFocus(true)
             startTimeField.setText("0:00")
             endTimeField.setText(formatDurationInput(lastMemorizedSeconds.coerceAtLeast(0f).roundToInt()))
             val currentBytes = currentBufferExportBytes()
@@ -819,7 +822,12 @@ class TimeTravelFragment : Fragment() {
                 val startSizeBytes = parseSizeInputMib(startSizeField.text?.toString().orEmpty())
                 val endSizeBytes = parseSizeInputMib(endSizeField.text?.toString().orEmpty())
                 val pastSizeBytes = parseSizeInputMib(pastSizeField.text?.toString().orEmpty())
-                listOf(startTimeLayout, endTimeLayout, startSizeLayout, endSizeLayout, pastTimeLayout, pastSizeLayout).forEach { it.error = null }
+                startTimeLayout.error = null
+                endTimeLayout.error = null
+                startSizeLayout.error = null
+                endSizeLayout.error = null
+                pastTimeLayout.error = null
+                pastSizeLayout.error = null
 
                 val rangeMode = currentModeKey() == CustomExportMode.RANGE
                 val timeUnit = currentUnitKey() == CustomExportUnit.TIME
@@ -1145,7 +1153,7 @@ class TimeTravelFragment : Fragment() {
 
     class NotifyFileReceiver(private val context: Context) : TimeTravelService.AudioFileReceiver {
         override fun fileReady(recording: RecordingEntity) {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val saved = RecordingRepository.register(context, recording)
                 if (
                     ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
