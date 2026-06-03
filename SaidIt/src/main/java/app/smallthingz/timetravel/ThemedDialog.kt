@@ -135,6 +135,7 @@ internal object ThemedDialog {
                             layoutParams = LinearLayout.LayoutParams(dp(dialogContext, 40), dp(dialogContext, 40)).apply {
                                 marginStart = if (headerAccessory == null) 0 else dp(dialogContext, headerCloseSpacingDp)
                             }
+                            tag = CLOSE_BUTTON_TAG
                             visibility = if (showCloseButton) View.VISIBLE else View.GONE
                             setOnClickListener { dialog.dismiss() }
                         },
@@ -155,7 +156,8 @@ internal object ThemedDialog {
                 topMargin = dp(dialogContext, 12)
             }
         }
-        val closeButton = (surface.getChildAt(0) as LinearLayout).getChildAt(2) as ImageButton
+        val closeButton = (surface.getChildAt(0) as? LinearLayout)?.findViewWithTag<ImageButton>(CLOSE_BUTTON_TAG)
+            ?: error("Close button not found")
         val negativeButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
@@ -189,6 +191,8 @@ internal object ThemedDialog {
         )
         return Handle(dialog, actionRow, closeButton, negativeButton, positiveButton)
     }
+
+    private const val CLOSE_BUTTON_TAG = "themed_dialog_close"
 
     private fun dp(
         context: Context,

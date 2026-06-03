@@ -1105,7 +1105,8 @@ class TimeTravelService : Service() {
         when (target.storageType) {
             RecordingStorageType.FILE -> target.file?.delete()
             RecordingStorageType.DOCUMENT -> {
-                androidx.documentfile.provider.DocumentFile.fromSingleUri(this, requireNotNull(target.uri))?.delete()
+                val uri = target.uri ?: return
+                androidx.documentfile.provider.DocumentFile.fromSingleUri(this, uri)?.delete()
             }
         }
         runCatching {
@@ -2211,7 +2212,7 @@ class TimeTravelService : Service() {
             this,
             1,
             restartServiceIntent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         (getSystemService(ALARM_SERVICE) as? AlarmManager)?.setAndAllowWhileIdle(

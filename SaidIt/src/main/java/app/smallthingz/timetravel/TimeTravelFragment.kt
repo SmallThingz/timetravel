@@ -841,7 +841,11 @@ class TimeTravelFragment : Fragment() {
                         endTimeLayout.error = getString(R.string.retention_time_invalid)
                         return false
                     }
-                    if (endSeconds <= startSeconds || startSeconds > currentSeconds || endSeconds > currentSeconds) {
+                    if (startSeconds > currentSeconds) {
+                        startTimeLayout.error = getString(R.string.custom_export_range_invalid)
+                        return false
+                    }
+                    if (endSeconds <= startSeconds || endSeconds > currentSeconds) {
                         endTimeLayout.error = getString(R.string.custom_export_range_invalid)
                         return false
                     }
@@ -858,7 +862,11 @@ class TimeTravelFragment : Fragment() {
                         endSizeLayout.error = getString(R.string.custom_export_size_invalid)
                         return false
                     }
-                    if (endSizeBytes <= startSizeBytes || startSizeBytes > currentBytes || endSizeBytes > currentBytes) {
+                    if (startSizeBytes > currentBytes) {
+                        startSizeLayout.error = getString(R.string.custom_export_range_invalid)
+                        return false
+                    }
+                    if (endSizeBytes <= startSizeBytes || endSizeBytes > currentBytes) {
                         endSizeLayout.error = getString(R.string.custom_export_range_invalid)
                         return false
                     }
