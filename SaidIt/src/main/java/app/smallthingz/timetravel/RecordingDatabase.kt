@@ -35,6 +35,8 @@ interface RecordingDao {
     suspend fun deleteById(id: String)
 
     suspend fun deleteByIds(ids: List<String>)
+
+    suspend fun hasMovableRecordings(targetDirectoryId: String): Boolean
 }
 
 class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper(
@@ -134,6 +136,13 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
             if (ids.isEmpty()) return
             val placeholders = ids.joinToString(",") { "?" }
             writableDatabase.delete(TABLE_RECORDINGS, "$COLUMN_ID IN ($placeholders)", ids.toTypedArray())
+        }
+
+        override suspend fun hasMovableRecordings(targetDirectoryId: String): Boolean {
+            return readableDatabase.rawQuery(
+                "SELECT 1 FROM $TABLE_RECORDINGS WHERE $COLUMN_DIRECTORY_ID != ? LIMIT 1",
+                arrayOf(targetDirectoryId),
+            ).use { it.moveToFirst() }
         }
     }
 

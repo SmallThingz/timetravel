@@ -102,8 +102,8 @@ internal class LiveExportHistory(
     private var currentSegment: Segment? = null
     private var nextSegmentStartMillis: Long? = null
     private var compactionInFlight = false
-    private val exportScratchArray = ByteArray(COPY_BUFFER_BYTES)
-    private val exportScratchDirect = ByteBuffer.allocateDirect(COPY_BUFFER_BYTES)
+    private val exportScratchArray: ThreadLocal<ByteArray> = ThreadLocal.withInitial { ByteArray(COPY_BUFFER_BYTES) }
+    private val exportScratchDirect: ThreadLocal<ByteBuffer> = ThreadLocal.withInitial { ByteBuffer.allocateDirect(COPY_BUFFER_BYTES) }
 
     @Synchronized
     fun updateConfiguration(
@@ -777,7 +777,7 @@ internal class LiveExportHistory(
         shouldCancel: () -> Boolean,
     ) {
         WavAudioFileWriter(context, outputTarget, currentConfig.sampleRate, currentConfig.channelCount).use { writer ->
-            val buffer = exportScratchArray
+            val buffer = exportScratchArray.get()
             forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
                 ensureExportNotCancelled(shouldCancel)
                 RandomAccessFile(prepared.slice.segment.file, "r").use { input ->
@@ -850,8 +850,8 @@ internal class LiveExportHistory(
                             break
                         }
 
-                        exportScratchDirect.clear()
-                        val sampleSize = extractor.readSampleData(exportScratchDirect, 0)
+                        exportScratchDirect.get().clear()
+                        val sampleSize = extractor.readSampleData(exportScratchDirect.get(), 0)
                         if (sampleSize <= 0) {
                             break
                         }
@@ -864,7 +864,7 @@ internal class LiveExportHistory(
                             outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
                             mediaCodecBufferFlagsForExtractorSample(extractor.sampleFlags),
                         )
-                        muxer.writeSampleData(trackIndex, exportScratchDirect, bufferInfo)
+                        muxer.writeSampleData(trackIndex, exportScratchDirect.get(), bufferInfo)
                         if (!extractor.advance()) {
                             break
                         }
@@ -893,7 +893,7 @@ internal class LiveExportHistory(
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         val adtsHeader = ByteArray(7)
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         try {
             forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
                 ensureExportNotCancelled(shouldCancel)
@@ -924,7 +924,7 @@ internal class LiveExportHistory(
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         val header = rawAmrMagicHeader(currentConfig.codec)
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         try {
             outputStream.write(header)
             forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
@@ -954,7 +954,7 @@ internal class LiveExportHistory(
         require(currentConfig.codec == ExportCodec.AAC_LC) { "TS snapshot export supports AAC-LC only" }
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         try {
             var packetizer: MpegTsAacPacketizer? = null
             forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
@@ -1029,7 +1029,7 @@ internal class LiveExportHistory(
         shouldCancel: () -> Boolean,
     ) {
         WavAudioFileWriter(context, outputTarget, snapshot.config.sampleRate, snapshot.config.channelCount).use { writer ->
-            val buffer = exportScratchArray
+            val buffer = exportScratchArray.get()
             val slices = snapshot.slices
             var sliceIdx = 0
             while (sliceIdx < slices.size) {
@@ -1105,8 +1105,8 @@ internal class LiveExportHistory(
                             break
                         }
 
-                        exportScratchDirect.clear()
-                        val sampleSize = extractor.readSampleData(exportScratchDirect, 0)
+                        exportScratchDirect.get().clear()
+                        val sampleSize = extractor.readSampleData(exportScratchDirect.get(), 0)
                         if (sampleSize <= 0) {
                             break
                         }
@@ -1119,7 +1119,7 @@ internal class LiveExportHistory(
                             outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
                             mediaCodecBufferFlagsForExtractorSample(extractor.sampleFlags),
                         )
-                        muxer.writeSampleData(trackIndex, exportScratchDirect, bufferInfo)
+                        muxer.writeSampleData(trackIndex, exportScratchDirect.get(), bufferInfo)
                         if (!extractor.advance()) {
                             break
                         }
@@ -1148,7 +1148,7 @@ internal class LiveExportHistory(
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         val adtsHeader = ByteArray(7)
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         try {
             val slices = snapshot.slices
             var sliceIdx = 0
@@ -1182,7 +1182,7 @@ internal class LiveExportHistory(
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
         val header = rawAmrMagicHeader(currentConfig.codec)
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         try {
             outputStream.write(header)
             val slices = snapshot.slices
@@ -1215,7 +1215,7 @@ internal class LiveExportHistory(
         require(currentConfig.codec == ExportCodec.AAC_LC) { "TS snapshot export supports AAC-LC only" }
         val parcelFileDescriptor = openWritableParcelFileDescriptor(context, outputTarget)
         val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), COPY_BUFFER_BYTES)
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         try {
             val packetizer = MpegTsAacPacketizer(outputStream, currentConfig.sampleRate, currentConfig.channelCount)
             forEachEncodedSliceBuffer(snapshot, shouldCancel) { _: SegmentSlice, data: ByteBuffer, sampleSize: Int, presentationTimeUs: Long ->
@@ -1234,7 +1234,7 @@ internal class LiveExportHistory(
         shouldCancel: () -> Boolean,
         consumer: (SegmentSlice, ByteBuffer, Int, Long) -> Unit,
     ) {
-        val byteBuffer = exportScratchDirect.duplicate()
+        val byteBuffer = exportScratchDirect.get().duplicate()
         val extractor = MediaExtractor()
         try {
             extractor.setDataSource(slice.segment.file.absolutePath)
@@ -1291,7 +1291,7 @@ internal class LiveExportHistory(
         consumer: (SegmentSlice, ByteBuffer, Int, Long) -> Unit,
     ) {
         val currentConfig = snapshot.config
-        val byteBuffer = exportScratchDirect.duplicate()
+        val byteBuffer = exportScratchDirect.get().duplicate()
         var outputBaseTimeUs = 0L
         val slices = snapshot.slices
         var sliceIdx = 0
@@ -1360,7 +1360,7 @@ internal class LiveExportHistory(
         outputTarget: RecordingOutputTarget,
         shouldCancel: () -> Boolean = { false },
     ) {
-        val scratch = exportScratchArray
+        val scratch = exportScratchArray.get()
         when (outputTarget.storageType) {
             RecordingStorageType.FILE -> {
                 FileInputStream(source).channel.use { srcChannel ->

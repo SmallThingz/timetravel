@@ -20,10 +20,12 @@ internal fun Activity.applyTimeTravelSystemBars() {
     val surfaceColor = MaterialColors.getColor(window.decorView, com.google.android.material.R.attr.colorSurface)
     val useDarkSystemIcons = ColorUtils.calculateLuminance(surfaceColor) > 0.5
 
-    @Suppress("DEPRECATION")
-    window.statusBarColor = surfaceColor
-    @Suppress("DEPRECATION")
-    window.navigationBarColor = surfaceColor
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        @Suppress("DEPRECATION")
+        window.statusBarColor = surfaceColor
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = surfaceColor
+    }
 
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = useDarkSystemIcons

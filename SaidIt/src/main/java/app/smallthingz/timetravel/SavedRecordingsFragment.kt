@@ -393,9 +393,20 @@ private class SavedRecordingAdapter(
     private var selectedIds: Set<String> = emptySet()
 
     fun updateSelection(selection: Set<String>) {
+        val oldSelected = selectedIds
         selectedIds = selection.toSet()
         if (itemCount > 0) {
-            notifyItemRangeChanged(0, itemCount, PAYLOAD_SELECTION)
+            val changedPositions = (0 until itemCount).filter { i ->
+                val item = getItem(i)
+                if (item is SavedRecordingListItem.Recording) {
+                    (item.recording.id in oldSelected) != (item.recording.id in selectedIds)
+                } else false
+            }
+            if (changedPositions.size.toFloat() / itemCount < 0.5f) {
+                changedPositions.forEach { notifyItemChanged(it, PAYLOAD_SELECTION) }
+            } else {
+                notifyItemRangeChanged(0, itemCount, PAYLOAD_SELECTION)
+            }
         }
     }
 

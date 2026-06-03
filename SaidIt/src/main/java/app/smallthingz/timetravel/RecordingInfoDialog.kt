@@ -9,6 +9,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private val DATE_FORMATTER = DateTimeFormatter.ofPattern(TimeTravelConfig.FORMAT_DATE_INFO, Locale.getDefault())
+
 internal fun showRecordingInfoDialog(
     context: Context,
     recording: RecordingEntity,
@@ -29,8 +31,7 @@ internal fun buildRecordingDetailsText(
     context: Context,
     recording: RecordingEntity,
 ): String {
-    val startedAt = DateTimeFormatter.ofPattern(TimeTravelConfig.FORMAT_DATE_INFO, Locale.getDefault())
-        .format(Instant.ofEpochMilli(recording.startedAtMillis).atZone(ZoneId.systemDefault()))
+    val startedAt = DATE_FORMATTER.format(Instant.ofEpochMilli(recording.startedAtMillis).atZone(ZoneId.systemDefault()))
     return buildString {
         appendLine("${context.getString(R.string.recording_details_name)} ${recording.displayName}")
         appendLine("${context.getString(R.string.recording_details_started)} $startedAt")

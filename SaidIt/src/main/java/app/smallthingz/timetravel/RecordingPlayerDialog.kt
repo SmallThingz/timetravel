@@ -21,7 +21,7 @@ internal class RecordingPlayerDialog(
     private val recording: RecordingEntity,
     private val onPlaybackFailed: () -> Unit,
 ) {
-    private val appContext = context
+    private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_player, FrameLayout(context), false)
     private val metaText: TextView = content.findViewById(R.id.player_meta_text)
@@ -66,7 +66,7 @@ internal class RecordingPlayerDialog(
                 }
                 return
             }
-            val position = runCatching { player.currentPosition.coerceAtLeast(0) }.getOrDefault(0)
+            val position = try { player.currentPosition.coerceAtLeast(0) } catch (_: IllegalStateException) { 0 }
             seekBar.progress = position
             elapsedText.text = formatPlaybackTime(position)
             if (player.isPlaying && !released) {
@@ -146,6 +146,11 @@ internal class RecordingPlayerDialog(
             updateToggleButton(true)
             scheduleProgressUpdate()
         }
+        player.setOnSeekCompleteListener {
+            if (released) return@setOnSeekCompleteListener
+            seekBar.progress = it.currentPosition.coerceAtLeast(0)
+            elapsedText.text = formatPlaybackTime(it.currentPosition.coerceAtLeast(0))
+        }
         player.setOnCompletionListener {
             updateToggleButton(false)
             handler.removeCallbacks(progressUpdater)
@@ -174,11 +179,9 @@ internal class RecordingPlayerDialog(
     private fun seekBy(deltaMs: Int) {
         val player = mediaPlayer ?: return
         if (!prepared) return
-        val currentPosition = runCatching { player.currentPosition }.getOrDefault(0)
+        val currentPosition = try { player.currentPosition } catch (_: IllegalStateException) { 0 }
         val targetPosition = (currentPosition + deltaMs).coerceIn(0, seekBar.max)
         player.seekTo(targetPosition)
-        seekBar.progress = targetPosition
-        elapsedText.text = formatPlaybackTime(targetPosition)
         scheduleProgressUpdate()
     }
 

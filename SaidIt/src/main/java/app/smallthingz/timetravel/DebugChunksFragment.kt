@@ -54,9 +54,12 @@ class DebugChunksFragment : Fragment() {
     private val timeFormatter = SimpleDateFormat(TimeTravelConfig.FORMAT_DATE_DEBUG, Locale.US)
     private val dateBuffer = Date()
     private val debugCallback = object : TimeTravelService.ChunkDebugCallback {
+        private val weakFragment = java.lang.ref.WeakReference(this@DebugChunksFragment)
+
         override fun snapshot(data: TimeTravelService.ChunkDebugSnapshot) {
-            if (!isAdded || view == null) return
-            renderSnapshot(data)
+            val fragment = weakFragment.get() ?: return
+            if (!fragment.isAdded || fragment.view == null) return
+            fragment.renderSnapshot(data)
         }
     }
 

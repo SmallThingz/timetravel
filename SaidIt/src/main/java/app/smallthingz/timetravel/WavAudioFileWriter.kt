@@ -17,13 +17,18 @@ internal class WavAudioFileWriter(
     private val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
     private val channel: FileChannel = outputStream.channel
     private val headerBuffer = ByteBuffer.allocate(HEADER_SIZE)
-    private var writeBuffer: ByteBuffer? = null
-
+    @Volatile
     override var totalSampleBytesWritten: Long = 0
         private set
 
     init {
-        writeHeader(dataSize = 0)
+        try {
+            writeHeader(dataSize = 0)
+        } catch (e: Exception) {
+            outputStream.channel.close()
+            runCatching { parcelFileDescriptor.close() }
+            throw e
+        }
     }
 
     override fun write(
@@ -31,22 +36,23 @@ internal class WavAudioFileWriter(
         offset: Int,
         count: Int,
     ) {
-        val buffer = if (writeBuffer?.array() === bytes) writeBuffer!! else {
-            ByteBuffer.wrap(bytes).also { writeBuffer = it }
-        }
-        buffer.position(offset)
-        buffer.limit(offset + count)
-        while (buffer.hasRemaining()) {
+        var written = 0
+        while (written < count) {
+            val buffer = ByteBuffer.wrap(bytes, offset + written, count - written)
             channel.write(buffer)
+            written += count - written
         }
         totalSampleBytesWritten += count.toLong()
     }
 
     override fun close() {
-        writeHeader(totalSampleBytesWritten)
-        channel.truncate(HEADER_SIZE + totalSampleBytesWritten)
-        outputStream.close()
-        parcelFileDescriptor.close()
+        try {
+            writeHeader(totalSampleBytesWritten)
+            channel.truncate(HEADER_SIZE + totalSampleBytesWritten)
+        } finally {
+            outputStream.channel.close()
+            runCatching { parcelFileDescriptor.close() }
+        }
     }
 
     private fun writeHeader(dataSize: Long) {
@@ -70,9 +76,7 @@ internal class WavAudioFileWriter(
         headerBuffer.putInt(dataSize.toInt())
         headerBuffer.flip()
         channel.position(0L)
-        while (headerBuffer.hasRemaining()) {
-            channel.write(headerBuffer)
-        }
+        channel.write(headerBuffer)
     }
 
     private companion object {

@@ -3,14 +3,11 @@ package app.smallthingz.timetravel
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
-import kotlin.math.floor
 
-private val sizeFormatter: ThreadLocal<DecimalFormat> = ThreadLocal.withInitial {
-    DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
-}
+private val sizeFormatter = DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
 
 fun formatShortTimer(seconds: Float): String {
-    val totalSeconds = floor(seconds).toInt().coerceAtLeast(0)
+    val totalSeconds = seconds.toInt().coerceAtLeast(0)
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val secs = totalSeconds % 60
@@ -32,7 +29,7 @@ private fun pad2(value: Int): String {
 
 fun formatShortFileSize(size: Long): String {
     val mebibytes = size.coerceAtLeast(0L) / (1024.0 * 1024.0)
-    return "${sizeFormatter.get()!!.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
+    return "${sizeFormatter.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
 }
 
 fun formatSavedRecordingDuration(durationMillis: Long): String {

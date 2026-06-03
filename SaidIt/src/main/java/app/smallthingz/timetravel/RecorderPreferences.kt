@@ -74,8 +74,7 @@ private val capabilityWarmScheduled = AtomicBoolean(false)
 
 @Volatile
 private var cachedSupportedFormats: List<ExportFormat>? = null
-@Volatile
-private var cachedSupportedCodecsByFormat: Map<ExportFormat, List<ExportCodec>>? = null
+private val cachedSupportedCodecsByFormat = ConcurrentHashMap<ExportFormat, List<ExportCodec>>()
 
 @Volatile
 private var capabilityCacheWarm = false
@@ -724,9 +723,11 @@ fun getConfiguredSampleRate(
     channelMode: ChannelMode = getConfiguredChannelMode(context),
 ): Int {
     val prefs = getRecorderPreferences(context)
-    val preferred = getPreferredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
-    val requested = prefs.getInt(PrefKey.SAMPLE_RATE, preferred)
-    return requested.takeIf { it > 0 } ?: preferred
+    if (prefs.contains(PrefKey.SAMPLE_RATE)) {
+        val requested = prefs.getInt(PrefKey.SAMPLE_RATE, 0)
+        if (requested > 0) return requested
+    }
+    return getPreferredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
 }
 
 fun getConfiguredMemorySizeBytes(
@@ -1240,16 +1241,14 @@ fun supportedFormats(): List<ExportFormat> {
 
 fun supportedCodecs(format: ExportFormat): List<ExportCodec> {
     if (!format.isRuntimeSupported) return emptyList()
-    cachedSupportedCodecsByFormat?.get(format)?.let { return it }
-    val all = cachedSupportedCodecsByFormat?.toMutableMap() ?: mutableMapOf()
+    cachedSupportedCodecsByFormat[format]?.let { return it }
     val codecs = ExportCodec.entries.filter { codec ->
         isCodecCompatibleWithFormat(format, codec) &&
             codecAdvertisedSampleRates(format, codec).any { sampleRate ->
                 ChannelMode.entries.any { channelMode -> isCodecSupported(format, codec, sampleRate, channelMode) }
             }
     }
-    all[format] = codecs
-    cachedSupportedCodecsByFormat = all
+    cachedSupportedCodecsByFormat[format] = codecs
     return codecs
 }
 

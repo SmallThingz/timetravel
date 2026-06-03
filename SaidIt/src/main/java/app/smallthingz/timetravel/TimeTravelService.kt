@@ -171,6 +171,7 @@ class TimeTravelService : Service() {
 
     private var statePollListeningEnabled = false
     private var statePollRecording = false
+    @Volatile
     private var statePollCallback: StateCallback? = null
     private var statePollConfiguredRetentionBytes = 0L
     private var statePollRetainedBytes = 0L

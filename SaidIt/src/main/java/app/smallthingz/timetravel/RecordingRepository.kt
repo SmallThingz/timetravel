@@ -14,7 +14,6 @@ object RecordingRepository {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
                 syncConfiguredDirectory(context)
-                pruneMissingLocked(context)
                 RecordingDatabase.getInstance(context).recordingDao().listAll()
             }
         }
@@ -81,7 +80,7 @@ object RecordingRepository {
             mutex.withLock {
                 syncConfiguredDirectory(context)
                 pruneMissingLocked(context)
-                RecordingDatabase.getInstance(context).recordingDao().listAll().any { it.directoryId != targetDirectoryId }
+                RecordingDatabase.getInstance(context).recordingDao().hasMovableRecordings(targetDirectoryId)
             }
         }
     }

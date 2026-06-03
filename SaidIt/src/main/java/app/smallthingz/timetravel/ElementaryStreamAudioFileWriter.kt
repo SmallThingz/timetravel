@@ -17,13 +17,14 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
     channelCount: Int,
     bitrateKbps: Int?,
 ) : AudioFileWriter {
-    private val codec: MediaCodec
+    protected val codec: MediaCodec
     private val bufferInfo = MediaCodec.BufferInfo()
     protected val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
     protected val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), OUTPUT_BUFFER_BYTES)
     private var closed = false
     protected val ioScratch = ByteArray(OUTPUT_BUFFER_BYTES)
 
+    @Volatile
     private var writtenSampleBytes = 0L
 
     override val totalSampleBytesWritten: Long
@@ -77,6 +78,13 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
             runCatching { outputStream.close() }
             runCatching { parcelFileDescriptor.close() }
         }
+    }
+
+    protected fun cleanupResources() {
+        runCatching { codec.stop() }
+        codec.release()
+        runCatching { outputStream.close() }
+        runCatching { parcelFileDescriptor.close() }
     }
 
     protected open fun onOutputFormatChanged(outputFormat: MediaFormat) = Unit
@@ -176,9 +184,14 @@ internal class AdtsAudioFileWriter(
     private val adtsHeaderScratch = ByteArray(ADTS_HEADER_SIZE)
 
     init {
-        require(codecConfig == ExportCodec.AAC_LC) { "ADTS export supports AAC-LC only" }
-        require(isExportConfigurationSupported(ExportFormat.AAC_ADTS, codecConfig, configuredSampleRate, configuredChannelCount)) {
-            "Unsupported ADTS configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+        try {
+            require(codecConfig == ExportCodec.AAC_LC) { "ADTS export supports AAC-LC only" }
+            require(isExportConfigurationSupported(ExportFormat.AAC_ADTS, codecConfig, configuredSampleRate, configuredChannelCount)) {
+                "Unsupported ADTS configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+            }
+        } catch (e: Exception) {
+            cleanupResources()
+            throw e
         }
     }
 
@@ -213,14 +226,19 @@ internal class RawAmrAudioFileWriter(
     bitrateKbps = bitrateKbps,
 ) {
     init {
-        require(codecConfig == ExportCodec.AMR_NB || codecConfig == ExportCodec.AMR_WB) { "Raw AMR export requires AMR codec" }
-        val format = if (codecConfig == ExportCodec.AMR_WB) ExportFormat.AMR_WB_FILE else ExportFormat.AMR_NB_FILE
-        require(isExportConfigurationSupported(format, codecConfig, configuredSampleRate, configuredChannelCount)) {
-            "Unsupported AMR configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+        try {
+            require(codecConfig == ExportCodec.AMR_NB || codecConfig == ExportCodec.AMR_WB) { "Raw AMR export requires AMR codec" }
+            val format = if (codecConfig == ExportCodec.AMR_WB) ExportFormat.AMR_WB_FILE else ExportFormat.AMR_NB_FILE
+            require(isExportConfigurationSupported(format, codecConfig, configuredSampleRate, configuredChannelCount)) {
+                "Unsupported AMR configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+            }
+            outputStream.write(
+                if (codecConfig == ExportCodec.AMR_WB) AMR_WB_MAGIC_HEADER else AMR_NB_MAGIC_HEADER,
+            )
+        } catch (e: Exception) {
+            cleanupResources()
+            throw e
         }
-        outputStream.write(
-            if (codecConfig == ExportCodec.AMR_WB) AMR_WB_MAGIC_HEADER else AMR_NB_MAGIC_HEADER,
-        )
     }
 
     override fun writeEncodedAccessUnit(
@@ -259,9 +277,14 @@ internal class TsAudioFileWriter(
     private val packetizer = MpegTsAacPacketizer(outputStream, configuredSampleRate, configuredChannelCount)
 
     init {
-        require(codecConfig == ExportCodec.AAC_LC) { "MPEG-2 TS export supports AAC-LC only" }
-        require(isExportConfigurationSupported(ExportFormat.MPEG_2_TS, codecConfig, configuredSampleRate, configuredChannelCount)) {
-            "Unsupported MPEG-TS configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+        try {
+            require(codecConfig == ExportCodec.AAC_LC) { "MPEG-2 TS export supports AAC-LC only" }
+            require(isExportConfigurationSupported(ExportFormat.MPEG_2_TS, codecConfig, configuredSampleRate, configuredChannelCount)) {
+                "Unsupported MPEG-TS configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
+            }
+        } catch (e: Exception) {
+            cleanupResources()
+            throw e
         }
     }
 

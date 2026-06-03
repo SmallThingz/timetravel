@@ -1514,8 +1514,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun formatRetentionSizeMib(value: Double): String {
-        val formatter = DecimalFormat(TimeTravelConfig.FORMAT_RETENTION_SIZE_MIB, DecimalFormatSymbols(Locale.US))
-        return formatter.format(value.coerceAtLeast(0.0))
+        return retentionSizeFormatter.format(value.coerceAtLeast(0.0))
     }
 
     private companion object {
@@ -1527,6 +1526,7 @@ class SettingsActivity : AppCompatActivity() {
         const val EXTRA_PACKAGE_NAME_LEGACY = "package_name"
         const val EXTRA_PACKAGE_NAME = "packageName"
         const val URI_SCHEME_PACKAGE = "package"
+        val retentionSizeFormatter = DecimalFormat(TimeTravelConfig.FORMAT_RETENTION_SIZE_MIB, DecimalFormatSymbols(Locale.US))
     }
     private fun updateUndoButton(enabled: Boolean) {
         undoButton.isEnabled = enabled

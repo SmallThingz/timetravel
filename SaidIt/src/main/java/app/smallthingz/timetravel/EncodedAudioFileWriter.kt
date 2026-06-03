@@ -23,17 +23,26 @@ internal class EncodedAudioFileWriter(
     private var muxerStarted = false
     private var closed = false
 
+    @Volatile
     override var totalSampleBytesWritten: Long = 0
         private set
 
     init {
         val format = buildEncoderFormat(codecConfig, sampleRate, channelCount, bitrateKbps)
-        codec = MediaCodec.createEncoderByType(requireNotNull(codecConfig.encoderMimeType)).apply {
+        val enc = MediaCodec.createEncoderByType(requireNotNull(codecConfig.encoderMimeType)).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             start()
         }
-        parcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
-        muxer = MediaMuxer(parcelFileDescriptor.fileDescriptor, requireNotNull(outputFormat.muxerOutputFormat))
+        codec = enc
+        try {
+            val pfd = openWritableParcelFileDescriptor(context, target)
+            parcelFileDescriptor = pfd
+            muxer = MediaMuxer(pfd.fileDescriptor, requireNotNull(outputFormat.muxerOutputFormat))
+        } catch (e: Exception) {
+            runCatching { enc.stop() }
+            enc.release()
+            throw e
+        }
     }
 
     override fun write(
@@ -76,7 +85,7 @@ internal class EncodedAudioFileWriter(
                 runCatching { muxer.stop() }
             }
             muxer.release()
-            parcelFileDescriptor.close()
+            runCatching { parcelFileDescriptor.close() }
         }
     }
 
