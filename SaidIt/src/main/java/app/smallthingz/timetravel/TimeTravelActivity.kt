@@ -16,6 +16,9 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
+private const val EMPTY_STRING = ""
+private const val URI_SCHEME_PACKAGE = "package"
+
 class TimeTravelActivity : AppCompatActivity() {
     private var permissionDeniedDialog: AlertDialog? = null
     private lateinit var container: android.view.View
@@ -156,7 +159,7 @@ class TimeTravelActivity : AppCompatActivity() {
         val chunksItem = menu.findItem(NAVIGATION_CHUNKS_ID)
         if (isDebugChunksTabEnabled(this)) {
             if (chunksItem == null) {
-                menu.add(Menu.NONE, NAVIGATION_CHUNKS_ID, MENU_ORDER_CHUNKS, "").setIcon(R.drawable.ic_tab_chunks)
+                menu.add(Menu.NONE, NAVIGATION_CHUNKS_ID, MENU_ORDER_CHUNKS, EMPTY_STRING).setIcon(R.drawable.ic_tab_chunks)
             }
         } else if (chunksItem != null) {
             menu.removeItem(NAVIGATION_CHUNKS_ID)
@@ -177,7 +180,7 @@ class TimeTravelActivity : AppCompatActivity() {
             .setMessage(R.string.permission_required_message)
             .setPositiveButton(R.string.allow) { _, _ ->
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package", packageName, null)
+                    data = Uri.fromParts(URI_SCHEME_PACKAGE, packageName, null)
                 }
                 startActivity(intent)
             }

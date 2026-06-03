@@ -24,6 +24,8 @@ import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
+private const val RECORDING_DETAILS_SEPARATOR = " • "
+
 class SavedRecordingsFragment : Fragment() {
     private lateinit var brandLockup: View
     private lateinit var settingsButton: View
@@ -238,7 +240,7 @@ class SavedRecordingsFragment : Fragment() {
                     recording = recording,
                     timestampLabel = formatRecordingStartTimestamp(requireContext(), recording.startedAtMillis),
                     fileName = recording.displayName,
-                    durationLabel = "${formatSavedRecordingDuration(recording.durationMillis)} • ${recording.codecSummary}",
+                    durationLabel = "${formatSavedRecordingDuration(recording.durationMillis)}$RECORDING_DETAILS_SEPARATOR${recording.codecSummary}",
                     sizeLabel = formatShortFileSize(recording.sizeBytes),
                 ),
             )

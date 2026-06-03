@@ -5,6 +5,9 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
+private const val COMMA = ","
+private const val SQL_PLACEHOLDER = "?"
+
 data class RecordingEntity(
     val id: String,
     val displayName: String,
@@ -132,7 +135,7 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
 
         override suspend fun deleteByIds(ids: List<String>) {
             if (ids.isEmpty()) return
-            val placeholders = ids.joinToString(",") { "?" }
+            val placeholders = ids.joinToString(COMMA) { SQL_PLACEHOLDER }
             writableDatabase.delete(TABLE_RECORDINGS, "$COLUMN_ID IN ($placeholders)", ids.toTypedArray())
         }
     }

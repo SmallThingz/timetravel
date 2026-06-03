@@ -5,7 +5,7 @@ import java.io.IOException
 import java.util.ArrayDeque
 
 internal class AudioMemory {
-    private val filled = ArrayDeque<ByteArray>()
+    private val filled = ArrayList<ByteArray>()
     private val free = ArrayDeque<ByteArray>()
 
     private var fillingStartUptimeMillis = 0L
@@ -27,7 +27,7 @@ internal class AudioMemory {
         }
         while (filled.isNotEmpty() && currentSize - CHUNK_SIZE >= sizeToEnsure) {
             currentSize -= CHUNK_SIZE
-            filled.removeFirst()
+            filled.removeAt(0)
         }
         if (current != null && currentSize - CHUNK_SIZE >= sizeToEnsure) {
             current = null
@@ -79,7 +79,8 @@ internal class AudioMemory {
                     remainingSkipBytes -= length
                 }
             }
-            for (array in filled) {
+            for (i in filled.indices) {
+                val array = filled[i]
                 if (remainingTakeBytes <= 0L) break
                 val length = array.size.toLong()
                 if (remainingSkipBytes < length) {
@@ -115,7 +116,7 @@ internal class AudioMemory {
             if (!filling && currentBuffer != null && currentWasFilled) {
                 sum += (currentBuffer.size - offset).toLong()
             }
-            for (array in filled) sum += array.size.toLong()
+            for (i in filled.indices) sum += filled[i].size.toLong()
             if (currentBuffer != null && offset > 0) {
                 sum += offset.toLong()
             }
@@ -131,7 +132,7 @@ internal class AudioMemory {
         offset = 0
         currentWasFilled = false
         filling = false
-        for (array in filled) free.addLast(array)
+        for (i in filled.indices) free.addLast(filled[i])
         filled.clear()
     }
 
@@ -152,7 +153,7 @@ internal class AudioMemory {
                         return
                     }
                     currentWasFilled = true
-                    current = filled.removeFirst()
+                    current = filled.removeAt(0)
                 } else {
                     currentWasFilled = false
                     current = free.removeFirst()
@@ -168,7 +169,7 @@ internal class AudioMemory {
             this.offset += copyCount
 
             if (this.offset >= currentBuffer.size) {
-                filled.addLast(currentBuffer)
+                filled.add(currentBuffer)
                 current = null
                 this.offset = 0
             }
@@ -185,7 +186,7 @@ internal class AudioMemory {
                         return
                     }
                     currentWasFilled = true
-                    current = filled.removeFirst()
+                    current = filled.removeAt(0)
                 } else {
                     currentWasFilled = false
                     current = free.removeFirst()
@@ -201,7 +202,7 @@ internal class AudioMemory {
 
         synchronized(this) {
             if (offset + read >= currentBuffer.size) {
-                filled.addLast(currentBuffer)
+                filled.add(currentBuffer)
                 current = null
                 offset = 0
             } else {
@@ -217,7 +218,7 @@ internal class AudioMemory {
         val filledBytes = filled.size.toLong() * CHUNK_SIZE.toLong() + when {
             current == null -> 0L
             currentWasFilled -> CHUNK_SIZE.toLong()
-            else -> offset
+            else -> offset.toLong()
         }.toLong()
         val estimation = if (filling) {
             ((SystemClock.uptimeMillis() - fillingStartUptimeMillis) * fillRate.toLong() / 1000L)

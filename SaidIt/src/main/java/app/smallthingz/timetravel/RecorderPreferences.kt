@@ -49,6 +49,59 @@ private const val MAX_AUTO_MERGE_CUSTOM_SIZE_MIB = 4096.0
 private const val DEFAULT_AUTO_MERGE_EAGER_ENABLED = true
 private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
 private const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
+private const val THREAD_NAME_CAPABILITY_WARM = "timetravel-capability-warm"
+private const val FORMAT_PREF_WAV = "wav"
+private const val FORMAT_PREF_M4A = "m4a"
+private const val FORMAT_PREF_THREE_GPP = "3gp"
+private const val FORMAT_PREF_OGG = "ogg"
+private const val FORMAT_PREF_WEBM = "webm"
+private const val FORMAT_PREF_AAC_ADTS = "aac_adts"
+private const val FORMAT_PREF_AMR_NB_FILE = "amr_nb_file"
+private const val FORMAT_PREF_AMR_WB_FILE = "amr_wb_file"
+private const val FORMAT_PREF_MPEG_2_TS = "mpeg_2_ts"
+private const val FORMAT_EXT_WAV = "wav"
+private const val FORMAT_EXT_M4A = "m4a"
+private const val FORMAT_EXT_THREE_GPP = "3gp"
+private const val FORMAT_EXT_OGG = "ogg"
+private const val FORMAT_EXT_WEBM = "webm"
+private const val FORMAT_EXT_AAC = "aac"
+private const val FORMAT_EXT_AMR = "amr"
+private const val FORMAT_EXT_AWB = "awb"
+private const val FORMAT_EXT_TS = "ts"
+private const val FORMAT_MIME_WAV = "audio/wav"
+private const val FORMAT_MIME_MP4 = "audio/mp4"
+private const val FORMAT_MIME_THREE_GPP = "audio/3gpp"
+private const val FORMAT_MIME_OGG = "audio/ogg"
+private const val FORMAT_MIME_WEBM = "audio/webm"
+private const val FORMAT_MIME_AAC = "audio/aac"
+private const val FORMAT_MIME_AMR = "audio/amr"
+private const val FORMAT_MIME_AMR_WB = "audio/amr-wb"
+private const val FORMAT_MIME_MP2T = "video/mp2t"
+private const val CODEC_PREF_PCM_16 = "pcm_16"
+private const val CODEC_PREF_AAC_LC = "aac_lc"
+private const val CODEC_PREF_AAC_ELD = "aac_eld"
+private const val CODEC_PREF_HE_AAC = "he_aac"
+private const val CODEC_PREF_HE_AAC_V2 = "he_aac_v2"
+private const val CODEC_PREF_XHE_AAC = "xhe_aac"
+private const val CODEC_PREF_AMR_WB = "amr_wb"
+private const val CODEC_PREF_AMR_NB = "amr_nb"
+private const val CODEC_PREF_OPUS = "opus"
+private const val CODEC_PREF_VORBIS = "vorbis"
+private const val CODEC_PREF_FLAC = "flac"
+private const val ROUTE_PREF_AUTO = "auto"
+private const val ROUTE_PREF_BUILTIN_MIC = "builtin_mic"
+private const val CHANNEL_PREF_MONO = "mono"
+private const val CHANNEL_PREF_STEREO = "stereo"
+private const val THEME_PREF_SYSTEM = "system"
+private const val THEME_PREF_LIGHT = "light"
+private const val THEME_PREF_DARK = "dark"
+private const val MERGE_PREF_OFF = "off"
+private const val MERGE_PREF_RATIO = "ratio"
+private const val MERGE_PREF_CUSTOM_TIME = "custom_time"
+private const val MERGE_PREF_CUSTOM_SIZE = "custom_size"
+private const val DURATION_COLON = ":"
+private const val KHZ_LABEL = " kHz"
+private const val PAD_ZERO_PREFIX = "0"
 private val STANDARD_SAMPLE_RATES =
     intArrayOf(96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350)
 private val AAC_SAMPLE_RATES =
@@ -61,7 +114,7 @@ private val channelModesCache = ConcurrentHashMap<ChannelModesKey, List<ChannelM
 private val codecCapabilityCache = ConcurrentHashMap<ExportCodec, CodecCapability>()
 private val capabilityWarmLock = Any()
 private val capabilityWarmExecutor = Executors.newSingleThreadExecutor { runnable ->
-    Thread(runnable, "timetravel-capability-warm").apply {
+    Thread(runnable, THREAD_NAME_CAPABILITY_WARM).apply {
         isDaemon = true
         priority = Thread.MIN_PRIORITY
     }
@@ -158,15 +211,15 @@ enum class ExportFormat(
     val muxerOutputFormat: Int? = null,
     val minApi: Int = Build.VERSION_CODES.JELLY_BEAN_MR2,
 ) {
-    WAV("wav", R.string.format_wav, "wav", "audio/wav"),
-    M4A("m4a", R.string.format_m4a, "m4a", "audio/mp4", MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4),
-    THREE_GPP("3gp", R.string.format_3gp, "3gp", "audio/3gpp", MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, Build.VERSION_CODES.O),
-    OGG("ogg", R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, Build.VERSION_CODES.Q),
-    WEBM("webm", R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, Build.VERSION_CODES.LOLLIPOP),
-    AAC_ADTS("aac_adts", R.string.format_aac_adts, "aac", "audio/aac"),
-    AMR_NB_FILE("amr_nb_file", R.string.codec_amr_nb, "amr", "audio/amr"),
-    AMR_WB_FILE("amr_wb_file", R.string.codec_amr_wb, "awb", "audio/amr-wb"),
-    MPEG_2_TS("mpeg_2_ts", R.string.format_mpeg_2_ts, "ts", "video/mp2t"),
+    WAV(FORMAT_PREF_WAV, R.string.format_wav, FORMAT_EXT_WAV, FORMAT_MIME_WAV),
+    M4A(FORMAT_PREF_M4A, R.string.format_m4a, FORMAT_EXT_M4A, FORMAT_MIME_MP4, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4),
+    THREE_GPP(FORMAT_PREF_THREE_GPP, R.string.format_3gp, FORMAT_EXT_THREE_GPP, FORMAT_MIME_THREE_GPP, MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, Build.VERSION_CODES.O),
+    OGG(FORMAT_PREF_OGG, R.string.format_ogg, FORMAT_EXT_OGG, FORMAT_MIME_OGG, MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, Build.VERSION_CODES.Q),
+    WEBM(FORMAT_PREF_WEBM, R.string.format_webm, FORMAT_EXT_WEBM, FORMAT_MIME_WEBM, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, Build.VERSION_CODES.LOLLIPOP),
+    AAC_ADTS(FORMAT_PREF_AAC_ADTS, R.string.format_aac_adts, FORMAT_EXT_AAC, FORMAT_MIME_AAC),
+    AMR_NB_FILE(FORMAT_PREF_AMR_NB_FILE, R.string.codec_amr_nb, FORMAT_EXT_AMR, FORMAT_MIME_AMR),
+    AMR_WB_FILE(FORMAT_PREF_AMR_WB_FILE, R.string.codec_amr_wb, FORMAT_EXT_AWB, FORMAT_MIME_AMR_WB),
+    MPEG_2_TS(FORMAT_PREF_MPEG_2_TS, R.string.format_mpeg_2_ts, FORMAT_EXT_TS, FORMAT_MIME_MP2T),
     ;
 
     val isPcmContainer: Boolean
@@ -203,17 +256,17 @@ enum class ExportCodec(
     val encoderMimeType: String? = null,
     val aacProfile: Int? = null,
 ) {
-    PCM_16("pcm_16", R.string.codec_pcm_16),
-    AAC_LC("aac_lc", R.string.codec_aac_lc, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectLC),
-    AAC_ELD("aac_eld", R.string.codec_aac_eld, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectELD),
-    HE_AAC("he_aac", R.string.codec_he_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE),
-    HE_AAC_V2("he_aac_v2", R.string.codec_he_aac_v2, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS),
-    XHE_AAC("xhe_aac", R.string.codec_xhe_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectXHE),
-    AMR_WB("amr_wb", R.string.codec_amr_wb, MediaFormat.MIMETYPE_AUDIO_AMR_WB),
-    AMR_NB("amr_nb", R.string.codec_amr_nb, MediaFormat.MIMETYPE_AUDIO_AMR_NB),
-    OPUS("opus", R.string.codec_opus, MediaFormat.MIMETYPE_AUDIO_OPUS),
-    VORBIS("vorbis", R.string.codec_vorbis, MediaFormat.MIMETYPE_AUDIO_VORBIS),
-    FLAC("flac", R.string.codec_flac, MediaFormat.MIMETYPE_AUDIO_FLAC),
+    PCM_16(CODEC_PREF_PCM_16, R.string.codec_pcm_16),
+    AAC_LC(CODEC_PREF_AAC_LC, R.string.codec_aac_lc, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectLC),
+    AAC_ELD(CODEC_PREF_AAC_ELD, R.string.codec_aac_eld, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectELD),
+    HE_AAC(CODEC_PREF_HE_AAC, R.string.codec_he_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE),
+    HE_AAC_V2(CODEC_PREF_HE_AAC_V2, R.string.codec_he_aac_v2, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS),
+    XHE_AAC(CODEC_PREF_XHE_AAC, R.string.codec_xhe_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectXHE),
+    AMR_WB(CODEC_PREF_AMR_WB, R.string.codec_amr_wb, MediaFormat.MIMETYPE_AUDIO_AMR_WB),
+    AMR_NB(CODEC_PREF_AMR_NB, R.string.codec_amr_nb, MediaFormat.MIMETYPE_AUDIO_AMR_NB),
+    OPUS(CODEC_PREF_OPUS, R.string.codec_opus, MediaFormat.MIMETYPE_AUDIO_OPUS),
+    VORBIS(CODEC_PREF_VORBIS, R.string.codec_vorbis, MediaFormat.MIMETYPE_AUDIO_VORBIS),
+    FLAC(CODEC_PREF_FLAC, R.string.codec_flac, MediaFormat.MIMETYPE_AUDIO_FLAC),
     ;
 
     val isAacFamily: Boolean
@@ -291,8 +344,8 @@ enum class AudioSourceMode(
 }
 
 enum class InputRouteMode(val prefValue: String, @param:StringRes @field:StringRes val labelRes: Int) {
-    AUTO("auto", R.string.input_route_auto),
-    BUILTIN_MIC("builtin_mic", R.string.input_route_builtin_mic),
+    AUTO(ROUTE_PREF_AUTO, R.string.input_route_auto),
+    BUILTIN_MIC(ROUTE_PREF_BUILTIN_MIC, R.string.input_route_builtin_mic),
     ;
 
     companion object {
@@ -311,8 +364,8 @@ enum class ChannelMode(
     val channelCount: Int,
     val inputChannelMask: Int,
 ) {
-    MONO("mono", R.string.channel_mode_mono, 1, AudioFormat.CHANNEL_IN_MONO),
-    STEREO("stereo", R.string.channel_mode_stereo, 2, AudioFormat.CHANNEL_IN_STEREO),
+    MONO(CHANNEL_PREF_MONO, R.string.channel_mode_mono, 1, AudioFormat.CHANNEL_IN_MONO),
+    STEREO(CHANNEL_PREF_STEREO, R.string.channel_mode_stereo, 2, AudioFormat.CHANNEL_IN_STEREO),
     ;
 
     companion object {
@@ -330,9 +383,9 @@ enum class AppThemeMode(
     @param:StringRes @field:StringRes val labelRes: Int,
     val nightMode: Int,
 ) {
-    SYSTEM("system", R.string.theme_system, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM),
-    LIGHT("light", R.string.theme_light, AppCompatDelegate.MODE_NIGHT_NO),
-    DARK("dark", R.string.theme_dark, AppCompatDelegate.MODE_NIGHT_YES),
+    SYSTEM(THEME_PREF_SYSTEM, R.string.theme_system, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM),
+    LIGHT(THEME_PREF_LIGHT, R.string.theme_light, AppCompatDelegate.MODE_NIGHT_NO),
+    DARK(THEME_PREF_DARK, R.string.theme_dark, AppCompatDelegate.MODE_NIGHT_YES),
     ;
 
     companion object {
@@ -349,10 +402,10 @@ enum class AutoMergeMode(
     val prefValue: String,
     @param:StringRes @field:StringRes val labelRes: Int,
 ) {
-    OFF("off", R.string.auto_merge_mode_off),
-    RATIO("ratio", R.string.auto_merge_mode_ratio),
-    CUSTOM_TIME("custom_time", R.string.auto_merge_mode_custom_time),
-    CUSTOM_SIZE("custom_size", R.string.auto_merge_mode_custom_size),
+    OFF(MERGE_PREF_OFF, R.string.auto_merge_mode_off),
+    RATIO(MERGE_PREF_RATIO, R.string.auto_merge_mode_ratio),
+    CUSTOM_TIME(MERGE_PREF_CUSTOM_TIME, R.string.auto_merge_mode_custom_time),
+    CUSTOM_SIZE(MERGE_PREF_CUSTOM_SIZE, R.string.auto_merge_mode_custom_size),
     ;
 
     companion object {
@@ -585,7 +638,7 @@ fun getConfiguredOutputFormat(context: Context): ExportFormat {
     if (storedFormat != null) {
         return ExportFormat.fromPrefValue(storedFormat)
     }
-    val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(PrefKey.OUTPUT_CODEC, "wav"))
+    val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(PrefKey.OUTPUT_CODEC, LEGACY_CODEC_WAV))
     return if (legacyCodec != ExportCodec.PCM_16 || prefs.contains(PrefKey.OUTPUT_CODEC)) {
         preferredOutputFormatForCodec(legacyCodec)
     } else {
@@ -771,7 +824,7 @@ fun retentionSecondsForBytes(
 fun parseDurationInput(value: String): Int? {
     val trimmed = value.trim()
     if (trimmed.isEmpty()) return null
-    val parts = trimmed.split(":")
+    val parts = trimmed.split(DURATION_COLON)
     if (parts.size == 1) {
         val minutes = parts[0].toIntOrNull() ?: return null
         return if (minutes > 0) minutes * 60 else null
@@ -809,7 +862,7 @@ fun formatDurationInput(seconds: Long): String {
 }
 
 private fun pad2(value: Long): String {
-    return if (value < 10) "0$value" else value.toString()
+    return if (value < 10) "${PAD_ZERO_PREFIX}$value" else value.toString()
 }
 
 fun getPreferredOutputCodec(format: ExportFormat = preferredDefaultOutputFormat()): ExportCodec {
@@ -1079,13 +1132,13 @@ fun autoMergeCustomSecondsRange(): IntRange = MIN_AUTO_MERGE_CUSTOM_SECONDS..MAX
 fun isRecorderCapabilityCacheWarm(): Boolean = capabilityCacheWarm
 
 fun sampleRateLabel(sampleRate: Int): String {
-    if (sampleRate % 1000 == 0) return "${sampleRate / 1000} kHz"
+    if (sampleRate % 1000 == 0) return "${sampleRate / 1000}$KHZ_LABEL"
     val khz = sampleRate / 1000f
     val whole = khz.toInt()
     val frac = ((khz - whole) * 100f + 0.5f).toInt()
     return buildString {
         append(whole); append('.'); if (frac < 10) append('0')
-        append(frac); append(" kHz")
+        append(frac); append(KHZ_LABEL)
     }
 }
 

@@ -5,6 +5,12 @@ import java.text.DecimalFormatSymbols
 import java.util.Locale
 import kotlin.math.floor
 
+private const val FORMAT_ZERO_PADDED = "0%d"
+private const val FORMAT_HOURS_MINUTES = "%dh %dm"
+private const val FORMAT_MINUTES_SECONDS = "%dm %ds"
+private const val FORMAT_MINUTES = "%d min"
+private const val FORMAT_SECONDS = "%d s"
+
 private val sizeFormatter: ThreadLocal<DecimalFormat> = ThreadLocal.withInitial {
     DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
 }
@@ -27,7 +33,7 @@ fun formatShortTimer(seconds: Float): String {
 }
 
 private fun pad2(value: Int): String {
-    return if (value < 10) "0$value" else value.toString()
+    return if (value < 10) FORMAT_ZERO_PADDED.format(value) else value.toString()
 }
 
 fun formatShortFileSize(size: Long): String {
@@ -42,10 +48,10 @@ fun formatSavedRecordingDuration(durationMillis: Long): String {
     val seconds = totalSeconds % 60L
 
     return when {
-        hours > 0L -> "${hours}h ${minutes}m"
-        minutes > 0L && seconds > 0L -> "${minutes}m ${seconds}s"
-        minutes > 0L -> "$minutes min"
-        else -> "$seconds s"
+        hours > 0L -> FORMAT_HOURS_MINUTES.format(hours, minutes)
+        minutes > 0L && seconds > 0L -> FORMAT_MINUTES_SECONDS.format(minutes, seconds)
+        minutes > 0L -> FORMAT_MINUTES.format(minutes)
+        else -> FORMAT_SECONDS.format(seconds)
     }
 }
 
