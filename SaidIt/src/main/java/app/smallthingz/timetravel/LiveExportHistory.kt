@@ -40,7 +40,9 @@ internal fun parseAdtsHeader(
     val byte3 = header[3].toInt() and 0xFF
     if (byte0 != 0xFF || (byte1 and 0xF0) != 0xF0) return null
     val profile = ((byte2 shr 6) and 0x03) + 1
-    val sampleRate = ADTS_SAMPLE_RATES_BY_INDEX[(byte2 shr 2) and 0x0F] ?: return null
+    val rateIndex = (byte2 shr 2) and 0x0F
+    if (rateIndex >= ADTS_SAMPLE_RATES_BY_INDEX.size) return null
+    val sampleRate = ADTS_SAMPLE_RATES_BY_INDEX[rateIndex]
     val channelCount = ((byte2 and 0x01) shl 2) or ((byte3 shr 6) and 0x03)
     if (channelCount <= 0) return null
     return ParsedAdtsHeader(profile = profile, sampleRate = sampleRate, channelCount = channelCount)
@@ -61,41 +63,23 @@ internal fun detectRawAmrCodec(
 
 private const val ADTS_LC_PROFILE = 2
 private val ADTS_SAMPLE_RATES_BY_INDEX =
-    mapOf(
-        0 to 96_000,
-        1 to 88_200,
-        2 to 64_000,
-        3 to 48_000,
-        4 to 44_100,
-        5 to 32_000,
-        6 to 24_000,
-        7 to 22_050,
-        8 to 16_000,
-        9 to 12_000,
-        10 to 11_025,
-        11 to 8_000,
-        12 to 7_350,
+    intArrayOf(
+        96_000,
+        88_200,
+        64_000,
+        48_000,
+        44_100,
+        32_000,
+        24_000,
+        22_050,
+        16_000,
+        12_000,
+        11_025,
+        8_000,
+        7_350,
     )
 
-private const val FILE_READ_MODE = "r"
-private const val DOCUMENT_WRITE_MODE = "w"
-private const val HISTORY_FILE_PREFIX = "history-"
-private const val PCM_METADATA_PREFIX = "pcm-"
-private const val LOG_HISTORY_COMPACTION_FAILED = "History compaction failed"
-private const val LOG_PREPARED_EXPORT_COMPACTION_FAILED = "Prepared export compaction failed"
-private const val LOG_PREPARED_EXPORT_COMPACTION_WAIT_FAILED = "Prepared export compaction wait failed"
-private const val LOG_REGIONAL_EXPORT_COMPACTION_FAILED = "Regional export compaction failed"
-private const val LOG_MANUAL_CHUNK_COMPACTION_FAILED = "Manual chunk compaction failed"
-private const val LOG_DEBUG_FULL_HISTORY_COMPACTION_FAILED = "Debug full-history compaction failed"
-private const val EXPORT_COMPACT_FILE_FMT = "export-compact-%d-%d.%s.tmp"
-private const val PAIR_COMPACT_FILE_FMT = "pair-compact-%d-%d.%s.tmp"
-private const val COMPACT_FILE_FMT = "compact-%d-%d.%s.tmp"
-private const val MANUAL_COMPACT_FILE_FMT = "manual-compact-%d-%d.%s.tmp"
-private const val HISTORY_NEW_FILE_FMT = "history-%d-%d.%s"
-private const val SEGMENT_FILE_NAME_FMT = "history-%d-pcm-%d.%s"
-private const val EXPORT_OP_ID_FMT = "export-%d-%d"
-private const val BG_OP_ID_FMT = "bg-%d-%d"
-private const val MANUAL_OP_ID_FMT = "manual-%d-%d"
+
 
 internal class LiveExportHistory(
     private val context: Context,
@@ -514,7 +498,7 @@ internal class LiveExportHistory(
             mergedFile = requireNotNull(task.outputTarget.file)
             true
         } catch (e: Exception) {
-            Log.w(TAG, LOG_HISTORY_COMPACTION_FAILED, e)
+            Log.w(TAG, "History compaction failed", e)
             false
         } finally {
             synchronized(this) {
@@ -622,13 +606,15 @@ internal class LiveExportHistory(
         }
         val baseSegmentBytes = baseSegmentSampleBytesLocked(currentConfig)
         val configuredTargetSampleBytes = resolvedCompactionTargetSampleBytesLocked(currentConfig, includeExportFallback = true) ?: return null
-        val observedBlockSampleBytes =
-            snapshot.slices
-                .asSequence()
-                .filter { slice -> slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes }
-                .map { it.segment.sampleBytes }
-                .maxOrNull()
-                ?: 0L
+        var observedBlockSampleBytes = 0L
+        for (slice in snapshot.slices) {
+            if (slice.skipSampleBytes == 0L && slice.takeSampleBytes == slice.segment.sampleBytes) {
+                val sampleBytes = slice.segment.sampleBytes
+                if (sampleBytes > observedBlockSampleBytes) {
+                    observedBlockSampleBytes = sampleBytes
+                }
+            }
+        }
         val targetSampleBytes = maxOf(configuredTargetSampleBytes, observedBlockSampleBytes)
         if (targetSampleBytes <= baseSegmentBytes) {
             return null
@@ -700,9 +686,9 @@ internal class LiveExportHistory(
         currentConfig: Config,
     ): RegionalCompactionGroup {
         val startedAtMillis = slices.first().segment.startedAtMillis
-        val tempFile = File(historyRoot, String.format(EXPORT_COMPACT_FILE_FMT, startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+        val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
         return RegionalCompactionGroup(
-            operationId = String.format(EXPORT_OP_ID_FMT, startedAtMillis, System.nanoTime()),
+            operationId = "export-$startedAtMillis-${System.nanoTime()}",
             startSliceIndex = startSliceIndex,
             endSliceIndexExclusive = startSliceIndex + slices.size,
             sourcePaths = slices.map { it.segment.file.absolutePath },
@@ -752,7 +738,7 @@ internal class LiveExportHistory(
                         CompletedRegionalCompaction(group, file)
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, LOG_PREPARED_EXPORT_COMPACTION_FAILED, e)
+                    Log.w(TAG, "Prepared export compaction failed", e)
                     group.outputTarget.file?.delete()
                     null
                 } finally {
@@ -791,7 +777,7 @@ internal class LiveExportHistory(
             val buffer = exportScratchArray
             forEachPreparedExportSlice(parts, shouldCancel) { prepared ->
                 ensureExportNotCancelled(shouldCancel)
-                RandomAccessFile(prepared.slice.segment.file, FILE_READ_MODE).use { input ->
+                RandomAccessFile(prepared.slice.segment.file, "r").use { input ->
                     input.seek(WAV_HEADER_BYTES + prepared.slice.skipSampleBytes)
                     var remaining = prepared.slice.takeSampleBytes
                     while (remaining > 0L) {
@@ -819,7 +805,6 @@ internal class LiveExportHistory(
         var muxer: MediaMuxer? = null
         var trackIndex = -1
         val bufferInfo = MediaCodec.BufferInfo()
-        val byteBuffer = exportScratchDirect.duplicate()
         var outputBaseTimeUs = 0L
 
         try {
@@ -862,8 +847,8 @@ internal class LiveExportHistory(
                             break
                         }
 
-                        byteBuffer.clear()
-                        val sampleSize = extractor.readSampleData(byteBuffer, 0)
+                        exportScratchDirect.clear()
+                        val sampleSize = extractor.readSampleData(exportScratchDirect, 0)
                         if (sampleSize <= 0) {
                             break
                         }
@@ -876,7 +861,7 @@ internal class LiveExportHistory(
                             outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
                             mediaCodecBufferFlagsForExtractorSample(extractor.sampleFlags),
                         )
-                        muxer.writeSampleData(trackIndex, byteBuffer, bufferInfo)
+                        muxer.writeSampleData(trackIndex, exportScratchDirect, bufferInfo)
                         if (!extractor.advance()) {
                             break
                         }
@@ -1044,7 +1029,7 @@ internal class LiveExportHistory(
             val buffer = exportScratchArray
             snapshot.slices.forEach { slice ->
                 ensureExportNotCancelled(shouldCancel)
-                RandomAccessFile(slice.segment.file, FILE_READ_MODE).use { input ->
+                RandomAccessFile(slice.segment.file, "r").use { input ->
                     input.seek(WAV_HEADER_BYTES + slice.skipSampleBytes)
                     var remaining = slice.takeSampleBytes
                     while (remaining > 0L) {
@@ -1072,7 +1057,6 @@ internal class LiveExportHistory(
         var muxer: MediaMuxer? = null
         var trackIndex = -1
         val bufferInfo = MediaCodec.BufferInfo()
-        val byteBuffer = exportScratchDirect.duplicate()
         var outputBaseTimeUs = 0L
 
         try {
@@ -1114,8 +1098,8 @@ internal class LiveExportHistory(
                             break
                         }
 
-                        byteBuffer.clear()
-                        val sampleSize = extractor.readSampleData(byteBuffer, 0)
+                        exportScratchDirect.clear()
+                        val sampleSize = extractor.readSampleData(exportScratchDirect, 0)
                         if (sampleSize <= 0) {
                             break
                         }
@@ -1128,7 +1112,7 @@ internal class LiveExportHistory(
                             outputBaseTimeUs + (sampleTimeUs - firstWrittenSampleTimeUs).coerceAtLeast(0L),
                             mediaCodecBufferFlagsForExtractorSample(extractor.sampleFlags),
                         )
-                        muxer.writeSampleData(trackIndex, byteBuffer, bufferInfo)
+                        muxer.writeSampleData(trackIndex, exportScratchDirect, bufferInfo)
                         if (!extractor.advance()) {
                             break
                         }
@@ -1366,7 +1350,7 @@ internal class LiveExportHistory(
             }
 
             RecordingStorageType.DOCUMENT -> {
-                context.contentResolver.openOutputStream(requireNotNull(outputTarget.uri), DOCUMENT_WRITE_MODE)?.use { output ->
+                context.contentResolver.openOutputStream(requireNotNull(outputTarget.uri), "w")?.use { output ->
                     source.inputStream().use { input ->
                         while (true) {
                             ensureExportNotCancelled(shouldCancel)
@@ -1387,7 +1371,7 @@ internal class LiveExportHistory(
         skipBytes: Long = 0L,
         shouldCancel: () -> Boolean = { false },
     ) {
-        RandomAccessFile(source, FILE_READ_MODE).use { input ->
+        RandomAccessFile(source, "r").use { input ->
             if (skipBytes > 0L) {
                 input.seek(skipBytes)
             }
@@ -1464,7 +1448,7 @@ internal class LiveExportHistory(
 
                     val totalSampleBytes = left.segment.sampleBytes + right.segment.sampleBytes
                     val startedAtMillis = left.segment.startedAtMillis
-                    val tempFile = File(historyRoot, String.format(PAIR_COMPACT_FILE_FMT, startedAtMillis, System.nanoTime(), snapshot.config.format.extension))
+                    val tempFile = File(historyRoot, "pair-compact-$startedAtMillis-${System.nanoTime()}.${snapshot.config.format.extension}.tmp")
                     tempFiles += tempFile
                     val tempTarget = RecordingOutputTarget(
                         id = tempFile.absolutePath,
@@ -1561,7 +1545,7 @@ internal class LiveExportHistory(
                 Thread.currentThread().interrupt()
                 throw InterruptedIOException("Export cancelled")
             } catch (e: Exception) {
-                Log.w(TAG, LOG_PREPARED_EXPORT_COMPACTION_WAIT_FAILED, e)
+                Log.w(TAG, "Prepared export compaction wait failed", e)
                 return null
             }
         }
@@ -1602,7 +1586,7 @@ internal class LiveExportHistory(
         }
         val currentConfig = config ?: return
         ensureHistoryRootExists()
-        val file = File(historyRoot, String.format(HISTORY_NEW_FILE_FMT, startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+        val file = File(historyRoot, "history-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}")
         val target = RecordingOutputTarget(
             id = file.absolutePath,
             displayName = file.name,
@@ -1701,7 +1685,7 @@ internal class LiveExportHistory(
                         SegmentSlice(selected, 0L, selected.sampleBytes)
                     }
                     ensureHistoryRootExists()
-                    val tempFile = File(historyRoot, String.format(COMPACT_FILE_FMT, selectedSegments.first().startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+                    val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
                     val outputTarget = RecordingOutputTarget(
                         id = tempFile.absolutePath,
                         displayName = tempFile.name,
@@ -1713,7 +1697,7 @@ internal class LiveExportHistory(
                     )
                     compactionInFlight = true
                     return CompactionTask(
-                        operationId = String.format(BG_OP_ID_FMT, selectedSegments.first().startedAtMillis, System.nanoTime()),
+                        operationId = "bg-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
                         startIndex = startIndex,
                         sourcePaths = selectedSegments.map { it.file.absolutePath },
                         startedAtMillis = selectedSegments.first().startedAtMillis,
@@ -1734,7 +1718,7 @@ internal class LiveExportHistory(
                         SegmentSlice(selected, 0L, selected.sampleBytes)
                     }
                     ensureHistoryRootExists()
-                    val tempFile = File(historyRoot, String.format(COMPACT_FILE_FMT, selectedSegments.first().startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+                    val tempFile = File(historyRoot, "compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
                     val outputTarget = RecordingOutputTarget(
                         id = tempFile.absolutePath,
                         displayName = tempFile.name,
@@ -1746,7 +1730,7 @@ internal class LiveExportHistory(
                     )
                     compactionInFlight = true
                     return CompactionTask(
-                        operationId = String.format(BG_OP_ID_FMT, selectedSegments.first().startedAtMillis, System.nanoTime()),
+                        operationId = "bg-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
                         startIndex = startIndex,
                         sourcePaths = selectedSegments.map { it.file.absolutePath },
                         startedAtMillis = selectedSegments.first().startedAtMillis,
@@ -1794,7 +1778,7 @@ internal class LiveExportHistory(
                         SegmentSlice(selected, 0L, selected.sampleBytes)
                     }
                     ensureHistoryRootExists()
-                    val tempFile = File(historyRoot, String.format(MANUAL_COMPACT_FILE_FMT, selectedSegments.first().startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+                    val tempFile = File(historyRoot, "manual-compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
                     val outputTarget = RecordingOutputTarget(
                         id = tempFile.absolutePath,
                         displayName = tempFile.name,
@@ -1806,7 +1790,7 @@ internal class LiveExportHistory(
                     )
                     compactionInFlight = true
                     return CompactionTask(
-                        operationId = String.format(MANUAL_OP_ID_FMT, selectedSegments.first().startedAtMillis, System.nanoTime()),
+                        operationId = "manual-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
                         startIndex = startIndex,
                         sourcePaths = selectedSegments.map { it.file.absolutePath },
                         startedAtMillis = selectedSegments.first().startedAtMillis,
@@ -1831,7 +1815,7 @@ internal class LiveExportHistory(
                         SegmentSlice(selected, 0L, selected.sampleBytes)
                     }
                     ensureHistoryRootExists()
-                    val tempFile = File(historyRoot, String.format(MANUAL_COMPACT_FILE_FMT, selectedSegments.first().startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+                    val tempFile = File(historyRoot, "manual-compact-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
                     val outputTarget = RecordingOutputTarget(
                         id = tempFile.absolutePath,
                         displayName = tempFile.name,
@@ -1843,7 +1827,7 @@ internal class LiveExportHistory(
                     )
                     compactionInFlight = true
                     return CompactionTask(
-                        operationId = String.format(MANUAL_OP_ID_FMT, selectedSegments.first().startedAtMillis, System.nanoTime()),
+                        operationId = "manual-${selectedSegments.first().startedAtMillis}-${System.nanoTime()}",
                         startIndex = startIndex,
                         sourcePaths = selectedSegments.map { it.file.absolutePath },
                         startedAtMillis = selectedSegments.first().startedAtMillis,
@@ -1900,9 +1884,9 @@ internal class LiveExportHistory(
             return null
         }
         val startedAtMillis = slices.first().segment.startedAtMillis
-        val tempFile = File(historyRoot, String.format(EXPORT_COMPACT_FILE_FMT, startedAtMillis, System.nanoTime(), currentConfig.format.extension))
+        val tempFile = File(historyRoot, "export-compact-$startedAtMillis-${System.nanoTime()}.${currentConfig.format.extension}.tmp")
         return RegionalCompactionGroup(
-            operationId = String.format(EXPORT_OP_ID_FMT, startedAtMillis, System.nanoTime()),
+            operationId = "export-$startedAtMillis-${System.nanoTime()}",
             startSliceIndex = runStartInclusive,
             endSliceIndexExclusive = runEndExclusive,
             sourcePaths = slices.map { it.segment.file.absolutePath },
@@ -2030,7 +2014,7 @@ internal class LiveExportHistory(
                                     CompletedRegionalCompaction(group, file)
                                 }
                             } catch (e: Exception) {
-                                Log.w(TAG, LOG_REGIONAL_EXPORT_COMPACTION_FAILED, e)
+                                Log.w(TAG, "Regional export compaction failed", e)
                                 group.outputTarget.file?.delete()
                                 null
                             } finally {
@@ -2436,7 +2420,7 @@ internal class LiveExportHistory(
         if (currentConfig.codec != ExportCodec.AAC_LC) {
             return null
         }
-        RandomAccessFile(file, FILE_READ_MODE).use { input ->
+        RandomAccessFile(file, "r").use { input ->
             val header = ByteArray(7)
             val read = input.read(header)
             val parsedHeader = parseAdtsHeader(header, read)
@@ -2462,7 +2446,7 @@ internal class LiveExportHistory(
         startedAtMillis: Long,
         parsedSampleBytes: Long?,
     ): Segment? {
-        RandomAccessFile(file, FILE_READ_MODE).use { input ->
+        RandomAccessFile(file, "r").use { input ->
             val header = ByteArray(9)
             val read = input.read(header)
             if (detectRawAmrCodec(header, read) != currentConfig.codec) {
@@ -2586,7 +2570,7 @@ internal class LiveExportHistory(
         sampleBytes: Long,
         extension: String,
     ): String {
-        return String.format(SEGMENT_FILE_NAME_FMT, startedAtMillis, sampleBytes, extension)
+        return "history-$startedAtMillis-pcm-$sampleBytes.$extension"
     }
 
     private fun ensureHistoryRootExists() {
@@ -2897,7 +2881,7 @@ internal class LiveExportHistory(
             mergedFile = requireNotNull(task.outputTarget.file)
             true
         } catch (e: Exception) {
-            Log.w(TAG, LOG_MANUAL_CHUNK_COMPACTION_FAILED, e)
+            Log.w(TAG, "Manual chunk compaction failed", e)
             false
         } finally {
             synchronized(this) {
@@ -2932,7 +2916,7 @@ internal class LiveExportHistory(
                     mergedFile = requireNotNull(task.outputTarget.file)
                     true
                 } catch (e: Exception) {
-                    Log.w(TAG, LOG_DEBUG_FULL_HISTORY_COMPACTION_FAILED, e)
+                    Log.w(TAG, "Debug full-history compaction failed", e)
                     false
                 } finally {
                     synchronized(this) {
@@ -3008,8 +2992,8 @@ internal class LiveExportHistory(
 private data class NameFields(val startedAtMillis: Long, val sampleBytes: Long?)
 
 private fun parseNameFields(name: String): NameFields? {
-    if (!name.startsWith(HISTORY_FILE_PREFIX)) return null
-    val afterPrefix = name.removePrefix(HISTORY_FILE_PREFIX)
+    if (!name.startsWith("history-")) return null
+    val afterPrefix = name.removePrefix("history-")
 
     // METADATA format: history-(digits)-pcm-(digits).(ext)
     val firstDash = afterPrefix.indexOf('-')
@@ -3017,7 +3001,7 @@ private fun parseNameFields(name: String): NameFields? {
     val startedStr = afterPrefix.substring(0, firstDash)
     val started = startedStr.toLongOrNull() ?: return null
     val rest = afterPrefix.substring(firstDash + 1)
-    if (rest.startsWith(PCM_METADATA_PREFIX)) {
+    if (rest.startsWith("pcm-")) {
         val dot = rest.lastIndexOf('.')
         if (dot < 0) return null
         val bytesStr = rest.substring(4, dot)

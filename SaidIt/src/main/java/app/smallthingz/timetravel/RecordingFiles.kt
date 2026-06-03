@@ -18,18 +18,7 @@ import java.io.RandomAccessFile
 
 private val ILLEGAL_FILENAME_CHARS = setOf('\\', '/', '*', '?', '"', '<', '>', '|')
 private val SUPPORTED_RECORDING_EXTENSIONS = ExportFormat.entries.map { it.extension }.toSet()
-private const val CODEC_SUMMARY_SEPARATOR = TimeTravelConfig.CODEC_SUMMARY_SEPARATOR
-private const val RECORDINGS_SUBDIR_NAME = "recordings"
-private const val VOLUME_ID_PRIMARY = "primary"
-private const val VOLUME_ID_HOME = "home"
-private const val FILE_MODE_READ_WRITE = "rw"
-private const val FILE_MODE_WRITE = "w"
-private const val FILE_MODE_READ = "r"
-private const val HIDDEN_FILE_PREFIX = "."
-private const val PARENTHESIS_SUFFIX = ")"
-private const val SPACE_OPEN_PAREN = " ("
-private const val KHZ_STR = "kHz"
-private const val KBPS_STR = "kbps"
+
 
 enum class RecordingStorageType {
     FILE,
@@ -49,7 +38,7 @@ data class RecordingOutputTarget(
 
 fun getSavedRecordingsDirectory(context: Context): File {
     val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
-        ?: File(context.filesDir, RECORDINGS_SUBDIR_NAME)
+        ?: File(context.filesDir, "recordings")
     return File(baseDir, TimeTravelConfig.APP_STORAGE_FOLDER_NAME)
 }
 
@@ -202,7 +191,7 @@ fun resolveRecordingCodecInfo(
 fun buildPlayerCodecSummary(codecSummary: String): String {
     val trimmed = codecSummary.trim()
     if (trimmed.isEmpty()) return codecSummary
-    val sep = CODEC_SUMMARY_SEPARATOR
+    val sep = TimeTravelConfig.CODEC_SUMMARY_SEPARATOR
     val parts = mutableListOf<String>()
     var start = 0
     while (true) {
@@ -218,8 +207,8 @@ fun buildPlayerCodecSummary(codecSummary: String): String {
     var bitrate: String? = null
     for (i in 1 until parts.size) {
         val p = parts[i]
-        if (p.contains(KHZ_STR, ignoreCase = true)) sampleRate = p
-        else if (p.contains(KBPS_STR, ignoreCase = true)) bitrate = p
+        if (p.contains("kHz", ignoreCase = true)) sampleRate = p
+        else if (p.contains("kbps", ignoreCase = true)) bitrate = p
     }
     return buildString {
         append(first)
@@ -237,11 +226,11 @@ private fun resolveRecordingCodecInfo(
     return buildString {
         append(ext)
         sampleRate?.takeIf { it > 0 }?.let {
-            append(CODEC_SUMMARY_SEPARATOR)
+            append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
             append(sampleRateLabel(it))
         }
         bitrate?.takeIf { it > 0 }?.let {
-            append(CODEC_SUMMARY_SEPARATOR)
+            append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
             append(it / 1000)
             append(TimeTravelConfig.BITRATE_SUFFIX)
         }
@@ -254,7 +243,7 @@ private fun describeFileRecordingLocation(
 ): String {
     val normalizedPath = file.absolutePath.replace('\\', '/')
     val appStoragePath = getSavedRecordingsDirectory(context).absolutePath.replace('\\', '/').trimEnd('/')
-    if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
+        if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
         val relativePath = normalizedPath.removePrefix(appStoragePath).trimStart('/')
         return appendRelativePath(
             "${context.getString(R.string.app_storage_label)}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
@@ -300,8 +289,8 @@ private fun describeDocumentIdPath(
     describeAppStorageRelativePath(context, relativePath)?.let { return it }
 
     val rootLabel = when {
-        volumeId.equals(VOLUME_ID_PRIMARY, ignoreCase = true) -> context.getString(R.string.volume_internal_shared_storage)
-        volumeId.equals(VOLUME_ID_HOME, ignoreCase = true) -> context.getString(R.string.volume_documents)
+        volumeId.equals("primary", ignoreCase = true) -> context.getString(R.string.volume_internal_shared_storage)
+        volumeId.equals("home", ignoreCase = true) -> context.getString(R.string.volume_documents)
         else -> context.getString(R.string.volume_storage_template, volumeId)
     }
     return appendRelativePath(rootLabel, relativePath)
@@ -348,14 +337,14 @@ fun buildCodecSummary(
         ?.let { bitrateKbps ?: it }
     return buildString {
         append(context.getString(codec.labelRes))
-        append(CODEC_SUMMARY_SEPARATOR)
+        append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
         append(context.getString(format.labelRes))
-        append(CODEC_SUMMARY_SEPARATOR)
+        append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
         append(sampleRateLabel(sampleRate))
-        append(CODEC_SUMMARY_SEPARATOR)
+        append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
         append(channelLabel)
         resolvedBitrateKbps?.let {
-            append(CODEC_SUMMARY_SEPARATOR)
+            append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
             append(it)
             append(TimeTravelConfig.BITRATE_SUFFIX)
         }
@@ -422,7 +411,7 @@ fun resolveRecordingDurationMillis(
     if (metadataDuration != null && metadataDuration > 0L) {
         return metadataDuration
     }
-    if (displayName.endsWith(".${ExportFormat.WAV.extension}", ignoreCase = true)) {
+    if (displayName.endsWith(        ".${ExportFormat.WAV.extension}", ignoreCase = true)) {
         return context.contentResolver.openInputStream(uri)?.use(::readWavDurationMillis).orEmptyDuration()
     }
     return 0L
@@ -438,7 +427,7 @@ fun createOutputTarget(
     val baseName = sanitizeBaseName(
         if (requestedName.isNullOrBlank()) buildRecordingBaseName(startedAtMillis) else requestedName.trim(),
     )
-    val displayName = "$baseName.${format.extension}"
+    val displayName =         "$baseName.${format.extension}"
     val mimeType = format.outputMimeType
     return createOutputTarget(context, displayName, mimeType, startedAtMillis)
 }
@@ -472,7 +461,7 @@ fun openWritableParcelFileDescriptor(
         }
 
         RecordingStorageType.DOCUMENT -> {
-                context.contentResolver.openFileDescriptor(requireNotNull(target.uri), FILE_MODE_READ_WRITE)
+                context.contentResolver.openFileDescriptor(requireNotNull(target.uri), "rw")
                 ?: throw IOException("Unable to open output document: ${target.id}")
         }
     }
@@ -541,7 +530,7 @@ fun renameRecordingAsset(
 ): RecordingEntity? {
     val extension = recording.displayName.substringAfterLast('.', "")
     val baseName = sanitizeBaseName(requestedBaseName.substringBeforeLast('.', requestedBaseName))
-    val displayName = if (extension.isBlank()) baseName else "$baseName.$extension"
+    val displayName = if (extension.isBlank()) baseName else         "$baseName.$extension"
     return when (RecordingStorageType.valueOf(recording.storageType)) {
         RecordingStorageType.FILE -> renameFileRecording(recording, displayName)
         RecordingStorageType.DOCUMENT -> renameDocumentRecording(context, recording, displayName)
@@ -572,7 +561,7 @@ fun copyRecordingToConfiguredDirectory(
                 }
 
                 RecordingStorageType.DOCUMENT -> {
-                    context.contentResolver.openOutputStream(requireNotNull(target.uri), FILE_MODE_WRITE)?.use { output ->
+                    context.contentResolver.openOutputStream(requireNotNull(target.uri), "w")?.use { output ->
                         input.copyTo(output)
                     } ?: throw IOException("Unable to open target output stream")
                 }
@@ -603,7 +592,7 @@ fun listCurrentOutputDirectoryRecordings(context: Context): List<RecordingEntity
         val directory = getSavedRecordingsDirectory(context)
         directory.listFiles()
             ?.asSequence()
-            ?.filter { it.isFile && it.length() > 0L && !it.name.startsWith(HIDDEN_FILE_PREFIX) }
+            ?.filter { it.isFile && it.length() > 0L && !it.isHidden }
             ?.filter { it.extension.lowercase() in SUPPORTED_RECORDING_EXTENSIONS }
             ?.map { file ->
                 RecordingEntity(
@@ -784,8 +773,8 @@ private fun guessMimeType(displayName: String): String {
 }
 
 private fun stripDuplicateSuffix(name: String): String {
-    if (!name.endsWith(PARENTHESIS_SUFFIX)) return name
-    val openParen = name.lastIndexOf(SPACE_OPEN_PAREN)
+    if (!name.endsWith(")")) return name
+    val openParen = name.lastIndexOf(" (")
     if (openParen < 0) return name
     val suffix = name.substring(openParen + 2, name.length - 1)
     if (suffix.all { it in '0'..'9' }) return name.substring(0, openParen)
@@ -800,7 +789,7 @@ private fun parseRecordingStartTimeMillis(value: String): Long? {
 
 private fun readWavDurationMillis(file: File): Long {
     return runCatching {
-        RandomAccessFile(file, FILE_MODE_READ).use { input ->
+        RandomAccessFile(file, "r").use { input ->
             input.seek(22L)
             val channelCount = input.readUnsignedShortLE()
             input.seek(24L)

@@ -32,7 +32,6 @@ internal class PersistentAudioRingStore(
     private var mappedChannelCount = -1
     private var lastForcedAtUptimeMillis = 0L
     private val ioScratch = ByteArray(IO_CHUNK_SIZE)
-    private var dataView: MappedByteBuffer? = null
 
     data class RestoreSummary(
         val restoredBytes: Int,
@@ -93,7 +92,7 @@ internal class PersistentAudioRingStore(
         var restored = 0
         var remaining = filledBytes
         var readPosition = startPosition
-        val dv = dataView ?: return RestoreSummary(0, 0L)
+        val dv = dataMap ?: return RestoreSummary(0, 0L)
 
         while (remaining > 0) {
             val chunkSize = minOf(remaining, scratch.size, mappedCapacityBytes - readPosition)
@@ -117,27 +116,35 @@ internal class PersistentAudioRingStore(
         maxBytes: Long,
         reader: AudioMemory.Consumer,
     ) {
-        val snapshot = peekSnapshot() ?: return
+        ensureMetaMapped()
+        val meta = metaMap ?: return
         if (maxBytes <= 0L) {
             return
         }
-        ensureMapped(snapshot.capacityBytes, snapshot.sampleRate, snapshot.channelCount)
-        val dv = dataView ?: return
+        val capacityBytes = meta.readCapacityBytes()
+        val sampleRate = meta.readSampleRate()
+        val channelCount = meta.readChannelCount()
+        val filledBytes = meta.readFilledBytes()
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+            return
+        }
+        ensureMapped(capacityBytes, sampleRate, channelCount)
+        val dv = dataMap ?: return
         var remainingSkip = skipBytes.coerceAtLeast(0L)
-        var remainingTake = minOf(maxBytes, snapshot.filledBytes.toLong() - remainingSkip).coerceAtLeast(0L)
+        var remainingTake = minOf(maxBytes, filledBytes.toLong() - remainingSkip).coerceAtLeast(0L)
         if (remainingTake <= 0L) {
             return
         }
 
-        var readPosition = if (snapshot.filledBytes >= snapshot.capacityBytes) {
-            metaMap?.readWritePosition() ?: 0
+        var readPosition = if (filledBytes >= capacityBytes) {
+            meta.readWritePosition()
         } else {
             0
         }
-        var unread = snapshot.filledBytes
+        var unread = filledBytes
 
         while (unread > 0 && remainingTake > 0L) {
-            val chunkSize = minOf(unread, ioScratch.size, snapshot.capacityBytes - readPosition)
+            val chunkSize = minOf(unread, ioScratch.size, capacityBytes - readPosition)
             dv.position(readPosition)
             dv.get(ioScratch, 0, chunkSize)
 
@@ -153,7 +160,7 @@ internal class PersistentAudioRingStore(
 
             unread -= chunkSize
             readPosition += chunkSize
-            if (readPosition >= snapshot.capacityBytes) {
+            if (readPosition >= capacityBytes) {
                 readPosition = 0
             }
         }
@@ -171,7 +178,7 @@ internal class PersistentAudioRingStore(
         if (count <= 0 || capacityBytes <= 0L) return
         ensureMapped(capacityBytes.toInt(), sampleRate, channelCount)
         val meta = metaMap ?: return
-        val dv = dataView ?: return
+        val dv = dataMap ?: return
         var writePosition = meta.readWritePosition()
         var remaining = count
         var readOffset = offset
@@ -224,13 +231,43 @@ internal class PersistentAudioRingStore(
     }
 
     @Synchronized
-    fun hasData(): Boolean = peekSnapshot() != null
+    fun hasData(): Boolean {
+        ensureMetaMapped()
+        val meta = metaMap ?: return false
+        val capacityBytes = meta.readCapacityBytes()
+        val sampleRate = meta.readSampleRate()
+        val channelCount = meta.readChannelCount()
+        val filledBytes = meta.readFilledBytes()
+        return capacityBytes > 0 && sampleRate > 0 && channelCount > 0 && filledBytes > 0 && filledBytes <= capacityBytes
+    }
 
     @Synchronized
-    fun countFilledBytes(): Long = peekSnapshot()?.filledBytes?.toLong() ?: 0L
+    fun countFilledBytes(): Long {
+        ensureMetaMapped()
+        val meta = metaMap ?: return 0L
+        val capacityBytes = meta.readCapacityBytes()
+        val sampleRate = meta.readSampleRate()
+        val channelCount = meta.readChannelCount()
+        val filledBytes = meta.readFilledBytes()
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+            return 0L
+        }
+        return filledBytes.toLong()
+    }
 
     @Synchronized
-    fun configuredCapacityBytes(): Long = peekSnapshot()?.capacityBytes?.toLong() ?: 0L
+    fun configuredCapacityBytes(): Long {
+        ensureMetaMapped()
+        val meta = metaMap ?: return 0L
+        val capacityBytes = meta.readCapacityBytes()
+        val sampleRate = meta.readSampleRate()
+        val channelCount = meta.readChannelCount()
+        val filledBytes = meta.readFilledBytes()
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+            return 0L
+        }
+        return capacityBytes.toLong()
+    }
 
     @Synchronized
     fun checkpoint() {
@@ -254,7 +291,6 @@ internal class PersistentAudioRingStore(
         force()
         metaMap = null
         dataMap = null
-        dataView = null
         metaChannel?.close()
         dataChannel?.close()
         metaAccess?.close()
@@ -326,7 +362,6 @@ internal class PersistentAudioRingStore(
         dataAccess = RandomAccessFile(dataFile, "rwd").also { it.setLength(capacityBytes.toLong()) }
         dataChannel = requireNotNull(dataAccess).channel
         dataMap = requireNotNull(dataChannel).map(FileChannel.MapMode.READ_WRITE, 0, capacityBytes.toLong())
-        dataView = dataMap?.duplicate() as MappedByteBuffer?
 
         mappedCapacityBytes = capacityBytes
         mappedSampleRate = sampleRate

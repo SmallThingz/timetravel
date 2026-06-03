@@ -28,22 +28,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
-private const val REENCODE_PREFIX = " · Reencode "
-private const val REENCODE_SEPARATOR = " / "
-private const val REENCODE_PENDING_LABEL = " · Reencode pending"
-private const val CHUNKS_LABEL = " chunks"
-private const val RETAINED_LABEL = " retained"
-private const val ACTIVE_LABEL = " · Active "
-private const val SOURCE_CHUNKS_LABEL = " source chunks"
-private const val ARROW_SEPARATOR = " → "
-private const val FORMAT_UNKNOWN = "?"
-private const val STEREO_LABEL = "stereo"
-private const val MONO_LABEL = "mono"
-private const val DOT_SEPARATOR = " · "
-private const val EMPTY_STATE = "—"
-private const val NEWLINE = "\n"
-private const val PLUS_NEWLINE = "\n+"
-private const val MORE_LABEL = " more"
 
 class DebugChunksFragment : Fragment() {
     private var service: TimeTravelService? = null
@@ -190,8 +174,8 @@ class DebugChunksFragment : Fragment() {
             else -> TimeTravelConfig.MODE_LABEL_PAUSED
         }
         val reencode = when {
-            snapshot.historyReencoding -> "$REENCODE_PREFIX${formatShortFileSize(snapshot.historyReencodeProcessedBytes)}$REENCODE_SEPARATOR${formatShortFileSize(snapshot.historyReencodeTotalBytes)}"
-            snapshot.historyReencodePending -> REENCODE_PENDING_LABEL
+            snapshot.historyReencoding -> " · Reencode ${formatShortFileSize(snapshot.historyReencodeProcessedBytes)} / ${formatShortFileSize(snapshot.historyReencodeTotalBytes)}"
+            snapshot.historyReencodePending -> " · Reencode pending"
             else -> ""
         }
         val operations = history?.operations.orEmpty()
@@ -215,14 +199,14 @@ class DebugChunksFragment : Fragment() {
                 if (activeChunks > 0) R.string.chunks_title_active else R.string.chunks_title,
             )
         summary.text =
-            "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${if ((history?.channelCount ?: snapshot.channelCount) >= 2) STEREO_LABEL else MONO_LABEL}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}$mode$reencode"
-        metricPrimary.text = "${chunks.size}$CHUNKS_LABEL"
-        metricSecondary.text = "${formatShortFileSize(totalFileBytes)}$RETAINED_LABEL"
+            "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${if ((history?.channelCount ?: snapshot.channelCount) >= 2) "stereo" else "mono"}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}$mode$reencode"
+        metricPrimary.text = "${chunks.size} chunks"
+        metricSecondary.text = "${formatShortFileSize(totalFileBytes)} retained"
         metricDetail.text =
             buildString {
                 append(formatShortFileSize(totalSampleBytes))
                 append(TimeTravelConfig.STATUS_SAMPLES)
-                append(ACTIVE_LABEL)
+                append(" · Active ")
                 append(activeChunks)
                 append(TimeTravelConfig.STATUS_MERGING)
                 append(operations.size)
@@ -244,7 +228,7 @@ class DebugChunksFragment : Fragment() {
                 row.findViewById<TextView>(R.id.operation_target).text = formatShortFileSize(operation.targetSampleBytes)
                 dateBuffer.time = operation.startedAtMillis
                 row.findViewById<TextView>(R.id.operation_meta).text =
-                    "${timeFormatter.format(dateBuffer)}$DOT_SEPARATOR${operation.sourcePaths.size}$SOURCE_CHUNKS_LABEL"
+                    "${timeFormatter.format(dateBuffer)} · ${operation.sourcePaths.size} source chunks"
                 row.findViewById<TextView>(R.id.operation_sources).text =
                     summarizeOperationSources(operation.sourcePaths)
                 operationsList.addView(row)
@@ -278,11 +262,11 @@ class DebugChunksFragment : Fragment() {
             val startStr = timeFormatter.format(dateBuffer)
             dateBuffer.time = chunk.endedAtMillis
             row.findViewById<TextView>(R.id.chunk_timing).text =
-                "$startStr$ARROW_SEPARATOR${timeFormatter.format(dateBuffer)}"
+                "$startStr → ${timeFormatter.format(dateBuffer)}"
             row.findViewById<TextView>(R.id.chunk_format).text =
-                "${(chunk.format ?: FORMAT_UNKNOWN).uppercase(Locale.US)}$DOT_SEPARATOR${(chunk.codec ?: FORMAT_UNKNOWN).uppercase(Locale.US)}$DOT_SEPARATOR${sampleRateLabel(chunk.sampleRate)}$DOT_SEPARATOR${if (chunk.channelCount >= 2) STEREO_LABEL else MONO_LABEL}"
+                "${(chunk.format ?: "?").uppercase(Locale.US)} · ${(chunk.codec ?: "?").uppercase(Locale.US)} · ${sampleRateLabel(chunk.sampleRate)} · ${if (chunk.channelCount >= 2) "stereo" else "mono"}"
             row.findViewById<TextView>(R.id.chunk_size).text =
-                "${formatShortFileSize(chunk.fileSizeBytes)}$DOT_SEPARATOR${formatShortTimer(((chunk.endedAtMillis - chunk.startedAtMillis).coerceAtLeast(0L) / 1000f))}"
+                "${formatShortFileSize(chunk.fileSizeBytes)} · ${formatShortTimer(((chunk.endedAtMillis - chunk.startedAtMillis).coerceAtLeast(0L) / 1000f))}"
             row.findViewById<TextView>(R.id.chunk_path).text =
                 "${chunk.filePath.substringAfterLast(TimeTravelConfig.HISTORY_CACHE_PATH_SEGMENT)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${formatShortFileSize(chunk.sampleBytes)}${TimeTravelConfig.STATUS_SAMPLES}"
             row.findViewById<TextView>(R.id.chunk_active).visibility = if (chunk.active) View.VISIBLE else View.GONE
@@ -293,7 +277,7 @@ class DebugChunksFragment : Fragment() {
                 operationsText.visibility = View.GONE
             } else {
                 operationsText.visibility = View.VISIBLE
-                operationsText.text = affectingOperationLabels.joinToString(separator = DOT_SEPARATOR)
+                operationsText.text = affectingOperationLabels.joinToString(separator = " · ")
             }
             exportButton.isEnabled = !chunk.active && selectedChunkPaths.isEmpty()
             exportButton.alpha = if (exportButton.isEnabled) 1f else 0.45f
@@ -399,11 +383,16 @@ class DebugChunksFragment : Fragment() {
     }
 
     private fun summarizeOperationSources(sourcePaths: List<String>): String {
-        if (sourcePaths.isEmpty()) return EMPTY_STATE
-        val visible = sourcePaths.take(4).joinToString(separator = NEWLINE) { it.substringAfterLast('/') }
+        if (sourcePaths.isEmpty()) return "—"
+        val visible = sourcePaths.take(4).joinToString(separator = "\n") { it.substringAfterLast('/') }
         val remaining = max(sourcePaths.size - 4, 0)
         return if (remaining > 0) {
-            "$visible$PLUS_NEWLINE$remaining$MORE_LABEL"
+            buildString {
+                append(visible)
+                appendLine("+")
+                append(remaining)
+                append(" more")
+            }
         } else {
             visible
         }

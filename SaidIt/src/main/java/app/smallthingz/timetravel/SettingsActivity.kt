@@ -43,15 +43,6 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
-private const val EMPTY_STRING = ""
-private const val DIGITS_NUMERIC = "0123456789"
-private const val DIGITS_TIME = "0123456789:"
-private const val DIGITS_SIZE = "0123456789.,"
-private const val ACTION_VIEW_ADVANCED_POWER_USAGE = "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL"
-private const val EXTRA_PACKAGE_NAME = "package_name"
-private const val EXTRA_PACKAGE_NAME_CAMEL = "packageName"
-private const val PACKAGE_URI_SCHEME = "package"
-
 class SettingsActivity : AppCompatActivity() {
     private lateinit var themeLayout: TextInputLayout
     private lateinit var retentionTimeLayout: TextInputLayout
@@ -937,7 +928,7 @@ class SettingsActivity : AppCompatActivity() {
         sampleRateLayout.error = if (availableSampleRates.isEmpty()) getString(R.string.unsupported_config_message) else null
 
         if (availableSampleRates.isEmpty()) {
-            setDropdownItems(sampleRateDropdown, emptyList(), EMPTY_STRING)
+            setDropdownItems(sampleRateDropdown, emptyList(), "")
             sampleRateDropdown.isEnabled = false
         } else {
             sampleRateDropdown.isEnabled = true
@@ -1002,21 +993,21 @@ class SettingsActivity : AppCompatActivity() {
             AutoMergeMode.RATIO -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_ratio_value_label)
                 autoMergeValueLayout.helperText = getString(R.string.auto_merge_ratio_supporting)
-                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance(DIGITS_NUMERIC)
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789")
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER
                 autoMergeValueInput.setText(autoMergeDivisorValue.toString())
             }
             AutoMergeMode.CUSTOM_TIME -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_time_value_label)
                 autoMergeValueLayout.helperText = getString(R.string.retention_time_invalid)
-                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance(DIGITS_TIME)
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789:")
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 autoMergeValueInput.setText(formatDurationInput(autoMergeCustomSecondsValue))
             }
             AutoMergeMode.CUSTOM_SIZE -> {
                 autoMergeValueLayout.hint = getString(R.string.auto_merge_custom_size_value_label)
                 autoMergeValueLayout.helperText = getString(R.string.auto_merge_custom_size_invalid)
-                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance(DIGITS_SIZE)
+                autoMergeValueInput.keyListener = DigitsKeyListener.getInstance("0123456789.,")
                 autoMergeValueInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
                 autoMergeValueInput.setText(formatRetentionSizeMib(autoMergeCustomSizeMibValue))
             }
@@ -1053,8 +1044,8 @@ class SettingsActivity : AppCompatActivity() {
             val previousBindingUi = bindingUi
             bindingUi = true
             if (!preserveActiveInputs) {
-                retentionTimeInput.setText(EMPTY_STRING)
-                retentionSizeInput.setText(EMPTY_STRING)
+                retentionTimeInput.setText("")
+                retentionSizeInput.setText("")
             }
             retentionTimeLayout.prefixText = null
             retentionSizeLayout.prefixText = null
@@ -1431,15 +1422,15 @@ class SettingsActivity : AppCompatActivity() {
                 )
             }
             add(
-                Intent(ACTION_VIEW_ADVANCED_POWER_USAGE).apply {
+                Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL").apply {
                     data = Uri.parse("package:$packageName")
-                    putExtra(EXTRA_PACKAGE_NAME, packageName)
-                    putExtra(EXTRA_PACKAGE_NAME_CAMEL, packageName)
+                    putExtra("package_name", packageName)
+                    putExtra("packageName", packageName)
                 },
             )
             add(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts(PACKAGE_URI_SCHEME, packageName, null)
+                    data = Uri.fromParts("package", packageName, null)
                 },
             )
             add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))

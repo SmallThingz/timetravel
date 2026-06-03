@@ -13,8 +13,6 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 
-private const val HTTPS_SCHEME = "https://"
-
 internal object AboutInfoDialog {
     private const val GITHUB_REPO_URL = "https://github.com/SmallThingz/timetravel"
 
@@ -33,7 +31,7 @@ internal object AboutInfoDialog {
         content.findViewById<TextView>(R.id.about_version).text =
             context.getString(R.string.about_version, packageInfo.versionName.orEmpty())
         content.findViewById<TextView>(R.id.about_github_value).apply {
-            text = GITHUB_REPO_URL.removePrefix(HTTPS_SCHEME)
+            text = GITHUB_REPO_URL.removePrefix("https://")
             ellipsize = TextUtils.TruncateAt.END
             setOnClickListener { openGithub(context) }
         }

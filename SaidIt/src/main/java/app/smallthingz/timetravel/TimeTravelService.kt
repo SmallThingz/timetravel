@@ -50,61 +50,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.runBlocking
 
-private const val LOG_HISTORY_COMPACTION_FAILED = "History compaction pass failed"
-private const val LOG_AUDIO_INIT_FAILED = "Audio input initialization failed"
-private const val LOG_AUDIO_START_RECORDING_FAILED = "AudioRecord.startRecording failed"
-private const val LOG_AUDIO_NOT_RECORDING = "AudioRecord failed to enter recording state"
-private const val LOG_UNABLE_CREATE_AUDIO_RECORD = "Unable to create AudioRecord"
-private const val LOG_UNABLE_PREPARE_EXPORT = "Unable to prepare export file"
-private const val LOG_UNABLE_CREATE_RECORDING_OUTPUT = "Unable to create recording output"
-private const val LOG_ERROR_CLOSING_RECORDING_FILE = "Error while closing recording file"
-private const val LOG_RECORDED_OUTPUT_MISSING = "Recorded output missing or empty"
-private const val LOG_AUDIO_ERROR_BAD_VALUE = "AudioRecord returned ERROR_BAD_VALUE"
-private const val LOG_AUDIO_ERROR_INVALID_OPERATION = "AudioRecord returned ERROR_INVALID_OPERATION"
-private const val LOG_AUDIO_ERROR = "AudioRecord returned ERROR"
-private const val LOG_DEBUG_COMPACTION_FAILED = "Debug history compaction failed"
-private const val LOG_DEBUG_CHUNK_DELETE_FAILED = "Debug chunk delete failed"
-private const val LOG_UNABLE_SNAPSHOT_REENCODE = "Unable to snapshot retained PCM for history re-encode"
-private const val LOG_REENCODE_FAILED = "History re-encode failed"
-private const val LOG_AUDIO_SHUTDOWN_TIMEOUT = "Timed out waiting for audio-thread shutdown work"
-private const val LOG_DEBUG_MERGE_ALL_FAILED = "Debug merge-all failed"
-private const val LOG_DEBUG_REENCODE_START_FAILED = "Debug reencode-all failed to start"
-private const val LOG_DEBUG_APPLY_SETTINGS_FAILED = "Debug apply-settings failed"
-private const val DUMP_SERVICE_HEADER = "TimeTravelService"
-private const val DEBUG_REPORT_FORCE_APP_STORAGE = "force-app-storage-exports"
-private const val DEBUG_REPORT_MANUAL_DUMP = "manual-dump"
-private const val DEBUG_REPORT_SET_OUTPUT_CONFIG = "set-output-config:"
-private const val DEBUG_UNCHANGED = "(unchanged)"
-private const val ID_HISTORY_REENCODE = "history-reencode"
-private const val KIND_HISTORY_REENCODE = "HISTORY_REENCODE"
-private const val DEBUG_REPORT_FILENAME = "debug-report.txt"
-private const val FILE_MODE_READ = "r"
-private const val SEPARATOR_COMMA = ","
-private const val SEPARATOR_REPORT_FOOTER = "\n---\n"
-private const val STATUS_KEY_REASON = "reason="
-private const val STATUS_KEY_STATE = " state="
-private const val STATUS_KEY_SAMPLE_RATE = " sampleRate="
-private const val STATUS_KEY_CHANNEL_COUNT = " channelCount="
-private const val STATUS_KEY_FORMAT = " format="
-private const val STATUS_KEY_CODEC = " codec="
-private const val STATUS_KEY_FILLED = " filled="
-private const val STATUS_KEY_TOTAL = " total="
-private const val STATUS_KEY_OVERWRITING = " overwriting="
-private const val STATUS_KEY_PERSISTED_FILLED = " persistedFilled="
-private const val STATUS_KEY_PERSISTED_CAPACITY = " persistedCapacity="
-private const val STATUS_KEY_PERSISTED_LAST_WRITE = " persistedLastWrite="
-private const val STATUS_KEY_HISTORY_SEGMENTS = " historySegments="
-private const val STATUS_KEY_HISTORY_TOTAL_BYTES = " historyTotalSampleBytes="
-private const val STATUS_KEY_HISTORY_CURRENT_SEGMENT_BYTES = " historyCurrentSegmentBytes="
-private const val STATUS_KEY_HISTORY_NEXT_SEGMENT_START = " historyNextSegmentStart="
-private const val STATUS_KEY_HISTORY_FILES = " historyFiles="
-private const val STATUS_KEY_DEBUG_OPERATIONS = " debugOperations="
-private const val STATUS_KEY_EXPORT_DIR = " exportDir="
-private const val LOG_DEBUG_CHUNK_EXPORT_FAILED = "Debug chunk export failed"
-private const val LOG_ERROR_CLOSING_RECORDING_FILE_DURING_SHUTDOWN = "Error while closing recording file during shutdown"
-private const val DEBUG_STATUS_STORE_CLASS = "app.smallthingz.timetravel.DebugStatusStore"
-private const val METHOD_WRITE = "write"
-
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelService : Service() {
     @Volatile
@@ -206,7 +151,7 @@ class TimeTravelService : Service() {
                         false
                     }
                 } catch (t: Throwable) {
-                    Log.w(TAG, LOG_HISTORY_COMPACTION_FAILED, t)
+                    Log.w(TAG, "History compaction pass failed", t)
                     false
                 }
 
@@ -338,7 +283,7 @@ class TimeTravelService : Service() {
         val stats = audioMemory.getStats(fillRate)
         val persisted = if (::persistentAudioRingStore.isInitialized) persistentAudioRingStore.peekSnapshot() else null
         val history = if (::liveExportHistory.isInitialized) liveExportHistory.debugSnapshot() else null
-        writer.println(DUMP_SERVICE_HEADER)
+        writer.println("TimeTravelService")
         writer.println("  state=$state")
         writer.println("  listeningEnabled=${isListeningEnabled()}")
         writer.println("  sampleRate=$sampleRate")
@@ -545,7 +490,7 @@ class TimeTravelService : Service() {
             audioRecord = createAudioRecord()
             val record = audioRecord
             if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, LOG_AUDIO_INIT_FAILED)
+                Log.e(TAG, "Audio input initialization failed")
                 releaseAudioRecord()
                 state = STATE_READY
                 updateWakeLockState()
@@ -556,7 +501,7 @@ class TimeTravelService : Service() {
             try {
                 record.startRecording()
             } catch (e: IllegalStateException) {
-                Log.e(TAG, LOG_AUDIO_START_RECORDING_FAILED, e)
+                Log.e(TAG, "AudioRecord.startRecording failed", e)
                 releaseAudioRecord()
                 state = STATE_READY
                 updateWakeLockState()
@@ -564,7 +509,7 @@ class TimeTravelService : Service() {
                 return@post
             }
             if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                Log.e(TAG, LOG_AUDIO_NOT_RECORDING)
+                Log.e(TAG, "AudioRecord failed to enter recording state")
                 releaseAudioRecord()
                 state = STATE_READY
                 updateWakeLockState()
@@ -644,7 +589,7 @@ class TimeTravelService : Service() {
                     }
                 }
         } catch (t: Throwable) {
-            Log.e(TAG, LOG_UNABLE_CREATE_AUDIO_RECORD, t)
+            Log.e(TAG, "Unable to create AudioRecord", t)
             null
         }
     }
@@ -752,7 +697,7 @@ class TimeTravelService : Service() {
                             try {
                             createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
                         } catch (e: IOException) {
-                            Log.e(TAG, LOG_UNABLE_PREPARE_EXPORT, e)
+                            Log.e(TAG, "Unable to prepare export file", e)
                             val message = getString(R.string.cant_create_file_generic)
                             showToast(message)
                             notifyReceiverFailure(receiver, message)
@@ -891,7 +836,7 @@ class TimeTravelService : Service() {
                 recordingTarget = createOutputTarget(this@TimeTravelService, null, startedAtMillis, effectiveOutputFormat, effectiveOutputCodec)
                 audioFileWriter = createAudioFileWriter(requireNotNull(recordingTarget))
             } catch (e: Exception) {
-                Log.e(TAG, LOG_UNABLE_CREATE_RECORDING_OUTPUT, e)
+                Log.e(TAG, "Unable to create recording output", e)
                 recordingTarget = null
                 audioFileWriter = null
                 state = STATE_LISTENING
@@ -1059,10 +1004,10 @@ class TimeTravelService : Service() {
 
             val runtimeMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
             runCatching { writer.close() }
-                .onFailure { Log.e(TAG, LOG_ERROR_CLOSING_RECORDING_FILE, it) }
+                .onFailure { Log.e(TAG, "Error while closing recording file", it) }
             runCatching { requireExportedOutput(target) }
                 .onFailure {
-                    Log.e(TAG, LOG_RECORDED_OUTPUT_MISSING, it)
+                    Log.e(TAG, "Recorded output missing or empty", it)
                     notifyReceiverFailure(receiver, getString(R.string.error_during_writing_history_into) + target.displayName)
                     return@post
                 }
@@ -1272,15 +1217,15 @@ class TimeTravelService : Service() {
         val read = currentRecord.read(array, offset, count, AudioRecord.READ_NON_BLOCKING)
         when (read) {
             AudioRecord.ERROR_BAD_VALUE -> {
-                Log.e(TAG, LOG_AUDIO_ERROR_BAD_VALUE)
+                Log.e(TAG, "AudioRecord returned ERROR_BAD_VALUE")
                 return@Consumer 0
             }
             AudioRecord.ERROR_INVALID_OPERATION -> {
-                Log.e(TAG, LOG_AUDIO_ERROR_INVALID_OPERATION)
+                Log.e(TAG, "AudioRecord returned ERROR_INVALID_OPERATION")
                 return@Consumer 0
             }
             AudioRecord.ERROR -> {
-                Log.e(TAG, LOG_AUDIO_ERROR)
+                Log.e(TAG, "AudioRecord returned ERROR")
                 return@Consumer 0
             }
         }
@@ -1421,7 +1366,7 @@ class TimeTravelService : Service() {
                 try {
                     if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactAllChunksNow() else 0
                 } catch (t: Throwable) {
-                    Log.w(TAG, LOG_DEBUG_COMPACTION_FAILED, t)
+                    Log.w(TAG, "Debug history compaction failed", t)
                     0
                 }
             val message =
@@ -1452,7 +1397,7 @@ class TimeTravelService : Service() {
                         0
                     }
                 } catch (t: Throwable) {
-                    Log.w(TAG, LOG_DEBUG_CHUNK_DELETE_FAILED, t)
+                    Log.w(TAG, "Debug chunk delete failed", t)
                     0
                 }
             val message =
@@ -1482,7 +1427,7 @@ class TimeTravelService : Service() {
                 }
                 val descriptor = liveExportHistory.debugChunkExportDescriptor(filePath)
                     ?: throw IOException("Chunk unavailable")
-                val displayName = "${buildRecordingBaseName(descriptor.startedAtMillis)}-chunk.${descriptor.extension}"
+                val displayName = buildRecordingBaseName(descriptor.startedAtMillis) + CHUNK_EXPORT_NAME_SEPARATOR + descriptor.extension
                 val outTarget = createOutputTarget(this@TimeTravelService, displayName, descriptor.mimeType, descriptor.startedAtMillis)
                 val exported = liveExportHistory.debugExportChunkToTarget(filePath, outTarget)
                     ?: throw IOException("Chunk export failed")
@@ -1505,7 +1450,7 @@ class TimeTravelService : Service() {
                     callback?.completed(true, getString(R.string.chunks_export_done))
                 }
             } catch (e: Exception) {
-                Log.e(TAG, LOG_DEBUG_CHUNK_EXPORT_FAILED, e)
+                Log.e(TAG, "Debug chunk export failed", e)
                 mainHandler.post {
                     callback?.completed(false, getString(R.string.chunks_export_failed))
                 }
@@ -1590,7 +1535,7 @@ class TimeTravelService : Service() {
             try {
                 createHistoryReencodeSnapshot(expectedConfig)
             } catch (e: Exception) {
-                Log.e(TAG, LOG_UNABLE_SNAPSHOT_REENCODE, e)
+                Log.e(TAG, "Unable to snapshot retained PCM for history re-encode", e)
                 completeHistoryReencode(false, getString(R.string.reencode_history_failed))
                 return
             }
@@ -1618,7 +1563,7 @@ class TimeTravelService : Service() {
             historyReencodePending = false
             completeHistoryReencode(true, getString(R.string.reencode_history_done))
         } catch (e: Exception) {
-            Log.e(TAG, LOG_REENCODE_FAILED, e)
+            Log.e(TAG, "History re-encode failed", e)
             importedRanges.flatMap { it.importedSegments }.forEach { it.file.delete() }
             liveExportHistory.releasePinnedSourcePaths(snapshot.sourcePaths)
             completeHistoryReencode(false, getString(R.string.reencode_history_failed))
@@ -1640,7 +1585,7 @@ class TimeTravelService : Service() {
             return null
         }
 
-        val rootDirectory = File(noBackupFilesDir, "${TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME}/history-reencode-${SystemClock.elapsedRealtime()}").also { directory ->
+        val rootDirectory = File(noBackupFilesDir, "${TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME}/$REENCODE_WORKSPACE_PREFIX${SystemClock.elapsedRealtime()}").also { directory ->
             if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
                 liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
                 throw IOException("Unable to create re-encode workspace: ${directory.absolutePath}")
@@ -1667,7 +1612,7 @@ class TimeTravelService : Service() {
         try {
             sourceSegments.forEachIndexed { index, chunk ->
                 futures += executor.submit<LiveExportHistory.ImportedSegment> {
-                    val targetFile = File(snapshot.rootDirectory, "encoded-$rangeIndex-$index.${effectiveOutputFormat.extension}.tmp")
+                    val targetFile = File(snapshot.rootDirectory, "$REENCODE_ENCODED_FILE_PREFIX$rangeIndex-$index." + effectiveOutputFormat.extension + REENCODE_TEMP_EXTENSION)
                     val target = RecordingOutputTarget(
                         id = targetFile.absolutePath,
                         displayName = targetFile.name,
@@ -1700,7 +1645,7 @@ class TimeTravelService : Service() {
         writer: AudioFileWriter,
     ) {
         if (chunk.file.extension.equals(ExportFormat.WAV.extension, ignoreCase = true)) {
-            RandomAccessFile(chunk.file, FILE_MODE_READ).use { input ->
+            RandomAccessFile(chunk.file, RANDOM_ACCESS_READ_MODE).use { input ->
                 input.seek(REENCODE_WAV_HEADER_BYTES)
                 val buffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
                 var remaining = chunk.sampleBytes
@@ -1795,7 +1740,7 @@ class TimeTravelService : Service() {
             historyReencodeProcessedBytes = historyReencodeTotalBytes
         }
         if (isDebuggableBuild()) {
-            writeDebugReport("reencode-complete:$success")
+            writeDebugReport("reencode-complete:" + success)
         }
         message?.let(::showToast)
     }
@@ -1808,8 +1753,8 @@ class TimeTravelService : Service() {
             return null
         }
         return ChunkOperationItem(
-            id = ID_HISTORY_REENCODE,
-            kind = KIND_HISTORY_REENCODE,
+            id = HISTORY_REENCODE_OPERATION_ID,
+            kind = HISTORY_REENCODE_OPERATION_KIND,
             sourcePaths = history?.chunks?.filterNot { it.active }?.map { it.filePath }.orEmpty(),
             targetSampleBytes = historyReencodeTotalBytes.coerceAtLeast(historyReencodeProcessedBytes),
             startedAtMillis = historyReencodeStartedAtMillis.takeIf { it > 0L } ?: System.currentTimeMillis(),
@@ -1939,7 +1884,7 @@ class TimeTravelService : Service() {
                 audioFileWriter = null
                 recordingTarget = null
                 runCatching { writer?.close() }
-                    .onFailure { Log.e(TAG, LOG_ERROR_CLOSING_RECORDING_FILE_DURING_SHUTDOWN, it) }
+                    .onFailure { Log.e(TAG, "Error while closing recording file during shutdown", it) }
             }
             syncPersistentBufferFromMemory()
             liveExportHistory.pause()
@@ -1966,7 +1911,7 @@ class TimeTravelService : Service() {
             }
         }
         if (!latch.await(3, TimeUnit.SECONDS)) {
-            Log.w(TAG, LOG_AUDIO_SHUTDOWN_TIMEOUT)
+            Log.w(TAG, "Timed out waiting for audio-thread shutdown work")
         }
     }
 
@@ -1993,7 +1938,7 @@ class TimeTravelService : Service() {
                 ACTION_DEBUG_INJECT_BUFFER -> injectDebugBuffer(seconds)
                 ACTION_DEBUG_FORCE_APP_STORAGE_EXPORTS -> {
                     setConfiguredExportTreeUri(this@TimeTravelService, null)
-                    writeDebugReport(DEBUG_REPORT_FORCE_APP_STORAGE)
+                    writeDebugReport("force-app-storage-exports")
                 }
                 ACTION_DEBUG_EXPORT_FULL -> exportDebug(FULL_BUFFER_SECONDS)
                 ACTION_DEBUG_EXPORT_SECONDS -> exportDebug(seconds)
@@ -2002,10 +1947,10 @@ class TimeTravelService : Service() {
                         try {
                             if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactAllChunksNow() else 0
                         } catch (t: Throwable) {
-                            Log.w(TAG, LOG_DEBUG_MERGE_ALL_FAILED, t)
+                            Log.w(TAG, "Debug merge-all failed", t)
                             0
                     }
-                    writeDebugReport("merge-all:$mergedCount")
+                    writeDebugReport("merge-all:" + mergedCount)
                 }
                 ACTION_DEBUG_REENCODE_ALL -> exportHandler.post {
                     val started =
@@ -2019,10 +1964,10 @@ class TimeTravelService : Service() {
                                 false
                             }
                         } catch (t: Throwable) {
-                            Log.w(TAG, LOG_DEBUG_REENCODE_START_FAILED, t)
+                            Log.w(TAG, "Debug reencode-all failed to start", t)
                             false
                         }
-                    writeDebugReport("reencode-all-start:$started")
+                    writeDebugReport("reencode-all-start:" + started)
                 }
                 ACTION_DEBUG_SET_OUTPUT_CONFIG -> {
                     val prefs = getRecorderPreferences(this@TimeTravelService)
@@ -2037,10 +1982,10 @@ class TimeTravelService : Service() {
                         }
                     }.apply()
                     writeDebugReport(
-                        DEBUG_REPORT_SET_OUTPUT_CONFIG +
-                            "format=${format ?: DEBUG_UNCHANGED}," +
-                            "codec=${codec ?: DEBUG_UNCHANGED}," +
-                            "bitrate=${if (bitrateKbps == Int.MIN_VALUE) DEBUG_UNCHANGED else bitrateKbps}",
+                        "set-output-config:" +
+                            "format=${format ?: "(unchanged)"}," +
+                            "codec=${codec ?: "(unchanged)"}," +
+                            "bitrate=${if (bitrateKbps == Int.MIN_VALUE) "(unchanged)" else bitrateKbps}",
                     )
                 }
                 ACTION_DEBUG_APPLY_SETTINGS -> {
@@ -2048,14 +1993,14 @@ class TimeTravelService : Service() {
                         try {
                             applyUpdatedPreferences().name
                         } catch (t: Throwable) {
-                            Log.w(TAG, LOG_DEBUG_APPLY_SETTINGS_FAILED, t)
-                            "ERROR:${t.javaClass.simpleName}"
+                            Log.w(TAG, "Debug apply-settings failed", t)
+                            "ERROR:" + t.javaClass.simpleName
                         }
-                    writeDebugReport("apply-settings:$result")
+                    writeDebugReport("apply-settings:" + result)
                 }
                 ACTION_DEBUG_CHECKPOINT -> syncPersistentBufferFromMemory()
                 ACTION_DEBUG_LOG_STATE -> logDebugState()
-                ACTION_DEBUG_DUMP_REPORT -> writeDebugReport(DEBUG_REPORT_MANUAL_DUMP)
+                ACTION_DEBUG_DUMP_REPORT -> writeDebugReport("manual-dump")
             }
         }
     }
@@ -2147,37 +2092,32 @@ class TimeTravelService : Service() {
             buildList {
                 addAll(history.operations.map { it.kind.name })
                 if (buildReencodeDebugOperation(history) != null) {
-                    add(KIND_HISTORY_REENCODE)
+                    add(HISTORY_REENCODE_OPERATION_KIND)
                 }
             }
         val status =
             buildString {
-                append(STATUS_KEY_REASON).append(reason)
-                append(STATUS_KEY_STATE).append(state)
-                append(STATUS_KEY_SAMPLE_RATE).append(sampleRate)
-                append(STATUS_KEY_CHANNEL_COUNT).append(channelMode.channelCount)
-                append(STATUS_KEY_FORMAT).append(effectiveOutputFormat.prefValue)
-                append(STATUS_KEY_CODEC).append(effectiveOutputCodec.prefValue)
-                append(STATUS_KEY_FILLED).append(stats.filled)
-                append(STATUS_KEY_TOTAL).append(stats.total)
-                append(STATUS_KEY_OVERWRITING).append(stats.overwriting)
-                append(STATUS_KEY_PERSISTED_FILLED).append(persisted?.filledBytes ?: 0)
-                append(STATUS_KEY_PERSISTED_CAPACITY).append(persisted?.capacityBytes ?: 0)
-                append(STATUS_KEY_PERSISTED_LAST_WRITE).append(persisted?.lastWriteAtMillis ?: 0)
-                append(STATUS_KEY_HISTORY_SEGMENTS).append(history.segmentCount)
-                append(STATUS_KEY_HISTORY_TOTAL_BYTES).append(history.totalSampleBytes)
-                append(STATUS_KEY_HISTORY_CURRENT_SEGMENT_BYTES).append(history.currentSegmentSampleBytes)
-                append(STATUS_KEY_HISTORY_NEXT_SEGMENT_START).append(history.nextSegmentStartMillis ?: 0)
-                append(STATUS_KEY_HISTORY_FILES).append(history.segmentFiles.joinToString(SEPARATOR_COMMA))
-                append(STATUS_KEY_DEBUG_OPERATIONS).append(debugOperations.joinToString(SEPARATOR_COMMA))
-                append(STATUS_KEY_EXPORT_DIR).append(describeConfiguredOutputDirectory(this@TimeTravelService))
+                append("reason=").append(reason)
+                append(" state=").append(state)
+                append(" sampleRate=").append(sampleRate)
+                append(" channelCount=").append(channelMode.channelCount)
+                append(" format=").append(effectiveOutputFormat.prefValue)
+                append(" codec=").append(effectiveOutputCodec.prefValue)
+                append(" filled=").append(stats.filled)
+                append(" total=").append(stats.total)
+                append(" overwriting=").append(stats.overwriting)
+                append(" persistedFilled=").append(persisted?.filledBytes ?: 0)
+                append(" persistedCapacity=").append(persisted?.capacityBytes ?: 0)
+                append(" persistedLastWrite=").append(persisted?.lastWriteAtMillis ?: 0)
+                append(" historySegments=").append(history.segmentCount)
+                append(" historyTotalSampleBytes=").append(history.totalSampleBytes)
+                append(" historyCurrentSegmentBytes=").append(history.currentSegmentSampleBytes)
+                append(" historyNextSegmentStart=").append(history.nextSegmentStartMillis ?: 0)
+                append(" historyFiles=").append(history.segmentFiles.joinToString(","))
+                append(" debugOperations=").append(debugOperations.joinToString(","))
+                append(" exportDir=").append(describeConfiguredOutputDirectory(this@TimeTravelService))
             }
-        reportFile.parentFile?.let { parent ->
-            if (!parent.exists() && !parent.mkdirs() && !parent.exists()) {
-                throw IOException("Unable to create debug report directory: ${parent.absolutePath}")
-            }
-        }
-        reportFile.appendText(status + SEPARATOR_REPORT_FOOTER)
+        reportFile.appendText(status + "\n---\n")
         Log.d(TAG, "writeDebugReport $status path=${reportFile.absolutePath}")
         storeDebugStatus(status)
     }
@@ -2187,13 +2127,13 @@ class TimeTravelService : Service() {
         if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
             throw IOException("Unable to create recordings directory: ${directory.absolutePath}")
         }
-        return File(directory, DEBUG_REPORT_FILENAME)
+        return File(directory, DEBUG_REPORT_FILE_NAME)
     }
 
     private fun storeDebugStatus(status: String) {
         runCatching {
-            val clazz = Class.forName(DEBUG_STATUS_STORE_CLASS)
-            val method = clazz.getMethod(METHOD_WRITE, Context::class.java, String::class.java)
+            val clazz = Class.forName(DEBUG_STATUS_STORE_CLASS_NAME)
+            val method = clazz.getMethod("write", Context::class.java, String::class.java)
             method.invoke(null, this, status)
         }
     }
@@ -2235,7 +2175,7 @@ class TimeTravelService : Service() {
         }
 
         val powerManager = getSystemService(PowerManager::class.java) ?: return
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:timeTravelBuffer").apply {
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, packageName + WAKE_LOCK_TAG_SUFFIX).apply {
             setReferenceCounted(false)
             acquire()
         }
@@ -2404,12 +2344,12 @@ class TimeTravelService : Service() {
     private inner class DebugAudioFileReceiver : AudioFileReceiver {
         override fun fileReady(recording: RecordingEntity) {
             Log.d(TAG, "debug-export-ready id=${recording.id} name=${recording.displayName} size=${recording.sizeBytes}")
-            writeDebugReport("export-ready:${recording.displayName}:${recording.sizeBytes}")
+            writeDebugReport("export-ready:" + recording.displayName + ":" + recording.sizeBytes)
         }
 
         override fun fileFailed(message: String) {
             Log.e(TAG, "debug-export-failed $message")
-            writeDebugReport("export-failed:$message")
+            writeDebugReport("export-failed:" + message)
         }
     }
 
@@ -2445,6 +2385,16 @@ class TimeTravelService : Service() {
         const val EXTRA_DEBUG_FORMAT = TimeTravelConfig.EXTRA_FORMAT
         const val EXTRA_DEBUG_CODEC = TimeTravelConfig.EXTRA_CODEC
         const val EXTRA_DEBUG_BITRATE_KBPS = TimeTravelConfig.EXTRA_BITRATE_KBPS
+        const val REENCODE_WORKSPACE_PREFIX = "history-reencode-"
+        const val REENCODE_ENCODED_FILE_PREFIX = "encoded-"
+        const val REENCODE_TEMP_EXTENSION = ".tmp"
+        const val RANDOM_ACCESS_READ_MODE = "r"
+        const val HISTORY_REENCODE_OPERATION_ID = "history-reencode"
+        const val HISTORY_REENCODE_OPERATION_KIND = "HISTORY_REENCODE"
+        const val DEBUG_REPORT_FILE_NAME = "debug-report.txt"
+        const val DEBUG_STATUS_STORE_CLASS_NAME = "app.smallthingz.timetravel.DebugStatusStore"
+        const val WAKE_LOCK_TAG_SUFFIX = ":timeTravelBuffer"
+        const val CHUNK_EXPORT_NAME_SEPARATOR = "-chunk."
 
         const val STATE_READY = 0
         const val STATE_LISTENING = 1

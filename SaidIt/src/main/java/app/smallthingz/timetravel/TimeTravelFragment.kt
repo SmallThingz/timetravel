@@ -59,17 +59,7 @@ import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 
-private const val ON_SERVICE_CONNECTED = "onServiceConnected"
-private const val ON_SERVICE_DISCONNECTED = "onServiceDisconnected"
-private const val HISTORY_SIZE_TIME_FORMAT = "%s / %s"
-private const val HISTORY_SIZE_SIZE_FORMAT = "%s / %s"
-private const val SCALE_X = "scaleX"
-private const val SCALE_Y = "scaleY"
-private const val ZERO_TIME = "0:00"
-private const val EMPTY = ""
-private const val IMPLICIT_SAM_INSTANCE = "ImplicitSamInstance"
-
-@SuppressLint(IMPLICIT_SAM_INSTANCE)
+@SuppressLint("ImplicitSamInstance")
 class TimeTravelFragment : Fragment() {
     private lateinit var brandLockup: View
     private lateinit var recordMaxButton: MaterialButton
@@ -114,7 +104,7 @@ class TimeTravelFragment : Fragment() {
 
     private val recorderConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, binder: IBinder) {
-            Log.d(TAG, ON_SERVICE_CONNECTED)
+            Log.d(TAG, "onServiceConnected")
             val typedBinder = binder as TimeTravelService.BackgroundRecorderBinder
             val service = typedBinder.service
             serviceBound = true
@@ -127,7 +117,7 @@ class TimeTravelFragment : Fragment() {
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            Log.d(TAG, ON_SERVICE_DISCONNECTED)
+            Log.d(TAG, "onServiceDisconnected")
             recorder = null
             serviceBound = false
             if (isSaving) {
@@ -430,7 +420,7 @@ class TimeTravelFragment : Fragment() {
         val overExportLimit = currentBytes > exportLimitBytes
         when (retentionMode) {
             RetentionMode.TIME -> {
-                historySize.text = HISTORY_SIZE_TIME_FORMAT.format(formatShortTimer(displayedCurrentSeconds.toFloat()), formatShortTimer(displayedLimitSeconds.toFloat()))
+                historySize.text = "%s / %s".format(formatShortTimer(displayedCurrentSeconds.toFloat()), formatShortTimer(displayedLimitSeconds.toFloat()))
                 formatSummary.text =
                     if (overExportLimit) {
                         getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
@@ -440,7 +430,7 @@ class TimeTravelFragment : Fragment() {
             }
 
             RetentionMode.SIZE -> {
-                historySize.text = HISTORY_SIZE_SIZE_FORMAT.format(formatShortFileSize(currentBytes), formatShortFileSize(configuredLimitBytes))
+                historySize.text = "%s / %s".format(formatShortFileSize(currentBytes), formatShortFileSize(configuredLimitBytes))
                 formatSummary.text =
                     if (overExportLimit) {
                         getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
@@ -651,8 +641,8 @@ class TimeTravelFragment : Fragment() {
         val duration = if (recordingPulse) 2200L else 3400L
 
         pulseAnimators = listOf(
-            createGlowAnimator(listenRing, SCALE_X, 1f, scaleTo, duration),
-            createGlowAnimator(listenRing, SCALE_Y, 1f, scaleTo, duration),
+            createGlowAnimator(listenRing, "scaleX", 1f, scaleTo, duration),
+            createGlowAnimator(listenRing, "scaleY", 1f, scaleTo, duration),
         )
         pulseAnimators.forEach { it.start() }
     }
@@ -750,7 +740,7 @@ class TimeTravelFragment : Fragment() {
             listOf(startTimeField, endTimeField, startSizeField, endSizeField, pastTimeField, pastSizeField).forEach {
                 it.setSelectAllOnFocus(true)
             }
-            startTimeField.setText(ZERO_TIME)
+            startTimeField.setText("0:00")
             endTimeField.setText(formatDurationInput(lastMemorizedSeconds.coerceAtLeast(0f).roundToInt()))
             val currentBytes = currentBufferExportBytes()
             startSizeField.setText(formatSizeInputMib(0L))
@@ -929,12 +919,12 @@ class TimeTravelFragment : Fragment() {
             if (range.warningDurationSeconds != null) {
                 showExportClampDialog(range.warningDurationSeconds) {
                     setSavingInProgress(true)
-                    service.dumpRecordingRange(range.startSeconds, range.endSeconds, SaveResultReceiver(requireActivity()), EMPTY)
+                    service.dumpRecordingRange(range.startSeconds, range.endSeconds, SaveResultReceiver(requireActivity()), "")
                 }
                 return true
             }
             setSavingInProgress(true)
-            service.dumpRecordingRange(range.startSeconds, range.endSeconds, SaveResultReceiver(requireActivity()), EMPTY)
+            service.dumpRecordingRange(range.startSeconds, range.endSeconds, SaveResultReceiver(requireActivity()), "")
             return true
         }
 

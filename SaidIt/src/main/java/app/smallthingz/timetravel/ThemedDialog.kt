@@ -20,8 +20,6 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
 
-private const val EMPTY_STRING = ""
-
 internal object ThemedDialog {
     data class Handle(
         val dialog: AppCompatDialog,
@@ -161,13 +159,13 @@ internal object ThemedDialog {
         val negativeButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
-            text = negativeText ?: EMPTY_STRING
+            text = negativeText ?: ""
             visibility = if (negativeText == null) View.GONE else View.VISIBLE
         }
         val positiveButton = com.google.android.material.button.MaterialButton(
             ContextThemeWrapper(dialogContext, com.google.android.material.R.style.Widget_Material3_Button_TextButton),
         ).apply {
-            text = positiveText ?: EMPTY_STRING
+            text = positiveText ?: ""
             visibility = if (positiveText == null) View.GONE else View.VISIBLE
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
