@@ -169,6 +169,47 @@ class TimeTravelService : Service() {
         }
     }
 
+    private var statePollListeningEnabled = false
+    private var statePollRecording = false
+    private var statePollCallback: StateCallback? = null
+    private var statePollConfiguredRetentionBytes = 0L
+    private var statePollRetainedBytes = 0L
+    private var statePollMemorizedBytes = 0L
+    private var statePollFinalRecordedBytes = 0L
+
+    private val statePollAudioTask: Runnable = object : Runnable {
+        override fun run() {
+            val stats = audioMemory.getStats(fillRate)
+            statePollConfiguredRetentionBytes = configuredRetentionSampleBytes()
+            statePollRetainedBytes = availableBufferedSampleBytes()
+            statePollMemorizedBytes = (statePollRetainedBytes + stats.estimation).coerceAtMost(statePollConfiguredRetentionBytes)
+            var recordedBytes = 0L
+            val writer = audioFileWriter
+            if (writer != null) {
+                recordedBytes += writer.totalSampleBytesWritten
+                recordedBytes += stats.estimation
+            }
+            statePollFinalRecordedBytes = recordedBytes
+            mainHandler.post(statePollMainTask)
+        }
+    }
+
+    private val statePollMainTask: Runnable = object : Runnable {
+        override fun run() {
+            statePollCallback?.state(
+                statePollListeningEnabled,
+                statePollRecording,
+                statePollMemorizedBytes * bytesToSeconds,
+                statePollConfiguredRetentionBytes * bytesToSeconds,
+                statePollFinalRecordedBytes * bytesToSeconds,
+                historyReencodePending,
+                historyReencoding,
+                historyReencodeProcessedBytes,
+                historyReencodeTotalBytes,
+            )
+        }
+    }
+
     override fun onCreate() {
         loadConfiguration()
         persistentAudioRingStore = PersistentAudioRingStore(this)
@@ -1235,35 +1276,10 @@ class TimeTravelService : Service() {
     }
 
     fun getState(callback: StateCallback) {
-        val listeningEnabled = state == STATE_LISTENING || state == STATE_RECORDING
-        val recording = state == STATE_RECORDING
-
-        audioHandler.post {
-            val stats = audioMemory.getStats(fillRate)
-            val configuredRetentionBytes = configuredRetentionSampleBytes()
-            val retainedBytes = availableBufferedSampleBytes()
-            val memorizedBytes = (retainedBytes + stats.estimation).coerceAtMost(configuredRetentionBytes)
-            var recordedBytes = 0L
-            val writer = audioFileWriter
-            if (writer != null) {
-                recordedBytes += writer.totalSampleBytesWritten
-                recordedBytes += stats.estimation
-            }
-            val finalRecordedBytes = recordedBytes
-            mainHandler.post {
-                callback.state(
-                    listeningEnabled,
-                    recording,
-                    memorizedBytes * bytesToSeconds,
-                    configuredRetentionBytes * bytesToSeconds,
-                    finalRecordedBytes * bytesToSeconds,
-                    historyReencodePending,
-                    historyReencoding,
-                    historyReencodeProcessedBytes,
-                    historyReencodeTotalBytes,
-                )
-            }
-        }
+        statePollCallback = callback
+        statePollListeningEnabled = state == STATE_LISTENING || state == STATE_RECORDING
+        statePollRecording = state == STATE_RECORDING
+        audioHandler.post(statePollAudioTask)
     }
 
     fun getConfigurationSnapshot(): RecorderConfigurationSnapshot {

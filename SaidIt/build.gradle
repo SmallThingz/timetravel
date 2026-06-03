@@ -18,6 +18,20 @@ configurations.all {
     exclude group: 'androidx.profileinstaller', module: 'profileinstaller'
 }
 
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+        freeCompilerArgs.addAll(
+            '-Xjvm-default=all',
+            '-Xno-param-assertions',
+            '-Xno-receiver-assertions',
+            '-Xno-call-assertions',
+        )
+    }
+}
+
 def releaseStoreFilePath = findProperty('timetravelReleaseStoreFile') ?: 'release.keystore'
 def releaseStorePassword = findProperty('timetravelReleaseStorePassword')
 def releaseKeyAlias = findProperty('timetravelReleaseKeyAlias')
@@ -99,6 +113,6 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.10.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0'
     implementation 'androidx.appcompat:appcompat:1.7.1'
-    implementation 'com.google.android.material:material:1.13.0'
+    implementation 'com.google.android.material:material:1.14.0'
     testImplementation 'junit:junit:4.13.2'
 }

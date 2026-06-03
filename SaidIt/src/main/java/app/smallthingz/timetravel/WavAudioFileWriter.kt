@@ -50,10 +50,10 @@ internal class WavAudioFileWriter(
         val blockAlign = channelCount * BITS_PER_SAMPLE / 8
         headerBuffer.clear()
         headerBuffer.order(ByteOrder.LITTLE_ENDIAN)
-        headerBuffer.put("RIFF".toByteArray(Charsets.US_ASCII))
+        headerBuffer.put(RIFF_BYTES)
         headerBuffer.putInt(chunkSize.toInt())
-        headerBuffer.put("WAVE".toByteArray(Charsets.US_ASCII))
-        headerBuffer.put("fmt ".toByteArray(Charsets.US_ASCII))
+        headerBuffer.put(WAVE_BYTES)
+        headerBuffer.put(FMT_BYTES)
         headerBuffer.putInt(16)
         headerBuffer.putShort(1)
         headerBuffer.putShort(channelCount.toShort())
@@ -61,7 +61,7 @@ internal class WavAudioFileWriter(
         headerBuffer.putInt(byteRate)
         headerBuffer.putShort(blockAlign.toShort())
         headerBuffer.putShort(BITS_PER_SAMPLE.toShort())
-        headerBuffer.put("data".toByteArray(Charsets.US_ASCII))
+        headerBuffer.put(DATA_BYTES)
         headerBuffer.putInt(dataSize.toInt())
         headerBuffer.flip()
         channel.position(0L)
@@ -73,5 +73,9 @@ internal class WavAudioFileWriter(
     private companion object {
         const val BITS_PER_SAMPLE = 16
         const val HEADER_SIZE = 44
+        private val RIFF_BYTES = byteArrayOf(0x52, 0x49, 0x46, 0x46)
+        private val WAVE_BYTES = byteArrayOf(0x57, 0x41, 0x56, 0x45)
+        private val FMT_BYTES = byteArrayOf(0x66, 0x6D, 0x74, 0x20)
+        private val DATA_BYTES = byteArrayOf(0x64, 0x61, 0x74, 0x61)
     }
 }

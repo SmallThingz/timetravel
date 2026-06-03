@@ -987,7 +987,7 @@ class TimeTravelFragment : Fragment() {
 
         private fun formatSizeInputMib(sizeBytes: Long): String {
             val mebibytes = sizeBytes.coerceAtLeast(0L) / (1024.0 * 1024.0)
-            return DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US)).format(mebibytes)
+            return sizeFormatter.get()!!.format(mebibytes)
         }
 
         private fun showExportClampDialog(
@@ -1095,6 +1095,9 @@ class TimeTravelFragment : Fragment() {
         private const val PULSE_RECORDING = 2
         private const val STATE_UPDATE_DELAY_MS = 150L
         private const val PRESS_ANIMATION_DURATION_MS = 110L
+        private val sizeFormatter: ThreadLocal<DecimalFormat> = ThreadLocal.withInitial {
+            DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
+        }
 
         fun buildNotificationForFile(
             context: Context,

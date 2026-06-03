@@ -189,13 +189,32 @@ fun resolveRecordingCodecInfo(
 }
 
 fun buildPlayerCodecSummary(codecSummary: String): String {
-    val parts = codecSummary.split(CODEC_SUMMARY_SEPARATOR).map(String::trim).filter(String::isNotEmpty)
+    val trimmed = codecSummary.trim()
+    if (trimmed.isEmpty()) return codecSummary
+    val sep = CODEC_SUMMARY_SEPARATOR
+    val parts = mutableListOf<String>()
+    var start = 0
+    while (true) {
+        val idx = trimmed.indexOf(sep, start)
+        val part = if (idx < 0) trimmed.substring(start).trim() else trimmed.substring(start, idx).trim()
+        if (part.isNotEmpty()) parts.add(part)
+        if (idx < 0) break
+        start = idx + sep.length
+    }
     if (parts.isEmpty()) return codecSummary
-    val sampleRate = parts.firstOrNull { it.contains("kHz", ignoreCase = true) }
-    val bitrate = parts.firstOrNull { it.contains("kbps", ignoreCase = true) }
-    return linkedSetOf(parts.first(), sampleRate, bitrate)
-        .filterNotNull()
-        .joinToString(CODEC_SUMMARY_SEPARATOR)
+    val first = parts[0]
+    var sampleRate: String? = null
+    var bitrate: String? = null
+    for (i in 1 until parts.size) {
+        val p = parts[i]
+        if (p.contains("kHz", ignoreCase = true)) sampleRate = p
+        else if (p.contains("kbps", ignoreCase = true)) bitrate = p
+    }
+    return buildString {
+        append(first)
+        if (sampleRate != null && sampleRate != first) { append(sep); append(sampleRate) }
+        if (bitrate != null && bitrate != first) { append(sep); append(bitrate) }
+    }
 }
 
 private fun resolveRecordingCodecInfo(

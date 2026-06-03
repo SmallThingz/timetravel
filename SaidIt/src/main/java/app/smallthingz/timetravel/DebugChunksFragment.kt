@@ -51,6 +51,13 @@ class DebugChunksFragment : Fragment() {
 
     private val selectedChunkPaths = linkedSetOf<String>()
     private val timeFormatter = SimpleDateFormat(TimeTravelConfig.FORMAT_DATE_DEBUG, Locale.US)
+    private val dateBuffer = Date()
+    private val debugCallback = object : TimeTravelService.ChunkDebugCallback {
+        override fun snapshot(data: TimeTravelService.ChunkDebugSnapshot) {
+            if (!isAdded || view == null) return
+            renderSnapshot(data)
+        }
+    }
 
     private val connection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -155,14 +162,7 @@ class DebugChunksFragment : Fragment() {
 
     private fun requestSnapshot() {
         val currentService = service ?: return
-        currentService.getChunkDebugSnapshot(object : TimeTravelService.ChunkDebugCallback {
-            override fun snapshot(data: TimeTravelService.ChunkDebugSnapshot) {
-                if (!isAdded || view == null) {
-                    return
-                }
-                renderSnapshot(data)
-            }
-        })
+        currentService.getChunkDebugSnapshot(debugCallback)
     }
 
     private fun renderSnapshot(snapshot: TimeTravelService.ChunkDebugSnapshot) {
@@ -181,16 +181,17 @@ class DebugChunksFragment : Fragment() {
         val chunks = history?.chunks.orEmpty()
         val paths = HashSet<String>(chunks.size)
         var activeChunks = 0
+        var inactiveCount = 0
         var totalFileBytes = 0L
         var totalSampleBytes = 0L
         for (c in chunks) {
             paths.add(c.filePath)
-            if (c.active) activeChunks++
+            if (c.active) activeChunks++ else inactiveCount++
             totalFileBytes += c.fileSizeBytes
             totalSampleBytes += c.sampleBytes
         }
         selectedChunkPaths.retainAll(paths)
-        mergeButton.isEnabled = operations.isEmpty() && chunks.any { !it.active }
+        mergeButton.isEnabled = operations.isEmpty() && inactiveCount > 0
         mergeButton.alpha = if (mergeButton.isEnabled) 1f else 0.45f
         title.text =
             getString(
@@ -208,9 +209,10 @@ class DebugChunksFragment : Fragment() {
                 append(activeChunks)
                 append(TimeTravelConfig.STATUS_MERGING)
                 append(operations.size)
-                history?.nextSegmentStartMillis?.let {
+                history?.nextSegmentStartMillis?.let { next ->
                     append(TimeTravelConfig.STATUS_NEXT)
-                    append(timeFormatter.format(Date(it)))
+                    dateBuffer.time = next
+                    append(timeFormatter.format(dateBuffer))
                 }
             }
 
@@ -223,8 +225,9 @@ class DebugChunksFragment : Fragment() {
                 row.findViewById<TextView>(R.id.operation_title).text =
                     getString(operationLabelRes(operation.kind))
                 row.findViewById<TextView>(R.id.operation_target).text = formatShortFileSize(operation.targetSampleBytes)
+                dateBuffer.time = operation.startedAtMillis
                 row.findViewById<TextView>(R.id.operation_meta).text =
-                    "${timeFormatter.format(Date(operation.startedAtMillis))} · ${operation.sourcePaths.size} source chunks"
+                    "${timeFormatter.format(dateBuffer)} · ${operation.sourcePaths.size} source chunks"
                 row.findViewById<TextView>(R.id.operation_sources).text =
                     summarizeOperationSources(operation.sourcePaths)
                 operationsList.addView(row)
@@ -232,6 +235,18 @@ class DebugChunksFragment : Fragment() {
             }
 
         updateSelectionChrome()
+
+        val opsBySourcePath = if (operations.isEmpty()) {
+            emptyMap()
+        } else {
+            val map = HashMap<String, MutableList<String>>()
+            for (op in operations) {
+                for (path in op.sourcePaths) {
+                    map.getOrPut(path) { mutableListOf() } += getString(operationLabelRes(op.kind))
+                }
+            }
+            map
+        }
 
         chunksList.removeAllViews()
         if (chunks.isEmpty()) {
@@ -242,8 +257,11 @@ class DebugChunksFragment : Fragment() {
             val row = layoutInflater.inflate(R.layout.item_debug_chunk, chunksList, false)
             row.isActivated = chunk.filePath in selectedChunkPaths
             row.findViewById<TextView>(R.id.chunk_name).text = chunk.fileName
+            dateBuffer.time = chunk.startedAtMillis
+            val startStr = timeFormatter.format(dateBuffer)
+            dateBuffer.time = chunk.endedAtMillis
             row.findViewById<TextView>(R.id.chunk_timing).text =
-                "${timeFormatter.format(Date(chunk.startedAtMillis))} → ${timeFormatter.format(Date(chunk.endedAtMillis))}"
+                "$startStr → ${timeFormatter.format(dateBuffer)}"
             row.findViewById<TextView>(R.id.chunk_format).text =
                 "${(chunk.format ?: "?").uppercase(Locale.US)} · ${(chunk.codec ?: "?").uppercase(Locale.US)} · ${sampleRateLabel(chunk.sampleRate)} · ${if (chunk.channelCount >= 2) "stereo" else "mono"}"
             row.findViewById<TextView>(R.id.chunk_size).text =
@@ -251,19 +269,14 @@ class DebugChunksFragment : Fragment() {
             row.findViewById<TextView>(R.id.chunk_path).text =
                 "${chunk.filePath.substringAfterLast(TimeTravelConfig.HISTORY_CACHE_PATH_SEGMENT)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${formatShortFileSize(chunk.sampleBytes)}${TimeTravelConfig.STATUS_SAMPLES}"
             row.findViewById<TextView>(R.id.chunk_active).visibility = if (chunk.active) View.VISIBLE else View.GONE
-            val affectingOperations = operations.filter { chunk.filePath in it.sourcePaths }
+            val affectingOperationLabels = opsBySourcePath[chunk.filePath].orEmpty()
             val operationsText = row.findViewById<TextView>(R.id.chunk_operations)
             val exportButton = row.findViewById<View>(R.id.chunk_export_button)
-            if (affectingOperations.isEmpty()) {
+            if (affectingOperationLabels.isEmpty()) {
                 operationsText.visibility = View.GONE
             } else {
                 operationsText.visibility = View.VISIBLE
-                operationsText.text =
-                    affectingOperations.joinToString(separator = " · ") {
-                        getString(
-                            operationLabelRes(it.kind),
-                        )
-                    }
+                operationsText.text = affectingOperationLabels.joinToString(separator = " · ")
             }
             exportButton.isEnabled = !chunk.active && selectedChunkPaths.isEmpty()
             exportButton.alpha = if (exportButton.isEnabled) 1f else 0.45f

@@ -5,6 +5,9 @@ import java.text.DecimalFormatSymbols
 import java.util.Locale
 import kotlin.math.floor
 
+private val sizeFormatter: ThreadLocal<DecimalFormat> = ThreadLocal.withInitial {
+    DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
+}
 
 fun formatShortTimer(seconds: Float): String {
     val totalSeconds = floor(seconds).toInt().coerceAtLeast(0)
@@ -13,16 +16,23 @@ fun formatShortTimer(seconds: Float): String {
     val secs = totalSeconds % 60
 
     return if (hours > 0) {
-        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_HMS, hours, minutes, secs)
+        buildString {
+            append(hours); append(':'); append(pad2(minutes)); append(':'); append(pad2(secs))
+        }
     } else {
-        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_MS, minutes, secs)
+        buildString {
+            append(minutes); append(':'); append(pad2(secs))
+        }
     }
+}
+
+private fun pad2(value: Int): String {
+    return if (value < 10) "0$value" else value.toString()
 }
 
 fun formatShortFileSize(size: Long): String {
     val mebibytes = size.coerceAtLeast(0L) / (1024.0 * 1024.0)
-    val formatter = DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
-    return "${formatter.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
+    return "${sizeFormatter.get()!!.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
 }
 
 fun formatSavedRecordingDuration(durationMillis: Long): String {

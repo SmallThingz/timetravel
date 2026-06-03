@@ -188,8 +188,11 @@ enum class ExportFormat(
         get() = Build.VERSION.SDK_INT >= minApi
 
     companion object {
+        private val byPrefValue = entries.associateBy { it.prefValue }
+
         fun fromPrefValue(value: String?): ExportFormat {
-            return entries.firstOrNull { it.prefValue == value } ?: WAV
+            val v = value ?: return WAV
+            return byPrefValue[v] ?: WAV
         }
     }
 }
@@ -233,11 +236,14 @@ enum class ExportCodec(
         }
 
     companion object {
+        private val byPrefValue = entries.associateBy { it.prefValue }
+
         fun fromPrefValue(value: String?): ExportCodec {
-            return when (value) {
+            val v = value ?: return PCM_16
+            return when (v) {
                 LEGACY_CODEC_AAC -> AAC_LC
                 LEGACY_CODEC_WAV -> PCM_16
-                else -> entries.firstOrNull { it.prefValue == value } ?: PCM_16
+                else -> byPrefValue[v] ?: PCM_16
             }
         }
     }
@@ -274,12 +280,11 @@ enum class AudioSourceMode(
             VOICE_DOWNLINK,
             REMOTE_SUBMIX,
         )
+        private val bySourceValue = entries.associateBy { it.sourceValue }
 
         fun defaultMode(): AudioSourceMode = preferredOrder.first()
 
-        fun fromSourceValue(value: Int): AudioSourceMode {
-            return entries.firstOrNull { it.sourceValue == value } ?: defaultMode()
-        }
+        fun fromSourceValue(value: Int): AudioSourceMode = bySourceValue[value] ?: defaultMode()
 
         fun availableModes(): List<AudioSourceMode> = preferredOrder
     }
@@ -291,8 +296,11 @@ enum class InputRouteMode(val prefValue: String, @param:StringRes @field:StringR
     ;
 
     companion object {
+        private val byPrefValue = entries.associateBy { it.prefValue }
+
         fun fromPrefValue(value: String?): InputRouteMode {
-            return entries.firstOrNull { it.prefValue == value } ?: AUTO
+            val v = value ?: return AUTO
+            return byPrefValue[v] ?: AUTO
         }
     }
 }
@@ -308,8 +316,11 @@ enum class ChannelMode(
     ;
 
     companion object {
+        private val byPrefValue = entries.associateBy { it.prefValue }
+
         fun fromPrefValue(value: String?): ChannelMode {
-            return entries.firstOrNull { it.prefValue == value } ?: MONO
+            val v = value ?: return MONO
+            return byPrefValue[v] ?: MONO
         }
     }
 }
@@ -325,8 +336,11 @@ enum class AppThemeMode(
     ;
 
     companion object {
+        private val byPrefValue = entries.associateBy { it.prefValue }
+
         fun fromPrefValue(value: String?): AppThemeMode {
-            return entries.firstOrNull { it.prefValue == value } ?: SYSTEM
+            val v = value ?: return SYSTEM
+            return byPrefValue[v] ?: SYSTEM
         }
     }
 }
@@ -342,10 +356,15 @@ enum class AutoMergeMode(
     ;
 
     companion object {
+        private val byPrefValue = entries.associateBy { it.prefValue }
+
         fun fromPrefValue(value: String?): AutoMergeMode {
             return when (value) {
                 LEGACY_AUTO_MERGE_CUSTOM -> CUSTOM_TIME
-                else -> entries.firstOrNull { it.prefValue == value } ?: RATIO
+                else -> {
+                    val v = value ?: return RATIO
+                    byPrefValue[v] ?: RATIO
+                }
             }
         }
     }
@@ -779,10 +798,18 @@ fun formatDurationInput(seconds: Long): String {
     val minutes = total % 3600 / 60
     val secs = total % 60
     return if (hours > 0) {
-        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_HMS, hours, minutes, secs)
+        buildString {
+            append(hours); append(':'); append(pad2(minutes)); append(':'); append(pad2(secs))
+        }
     } else {
-        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_MS, minutes, secs)
+        buildString {
+            append(minutes); append(':'); append(pad2(secs))
+        }
     }
+}
+
+private fun pad2(value: Long): String {
+    return if (value < 10) "0$value" else value.toString()
 }
 
 fun getPreferredOutputCodec(format: ExportFormat = preferredDefaultOutputFormat()): ExportCodec {
@@ -1039,7 +1066,9 @@ fun supportedInputRouteModes(context: Context): List<InputRouteMode> {
     }
 }
 
-fun standardSampleRates(): List<Int> = STANDARD_SAMPLE_RATES.toList()
+private val STANDARD_SAMPLE_RATES_LIST = STANDARD_SAMPLE_RATES.toList()
+
+fun standardSampleRates(): List<Int> = STANDARD_SAMPLE_RATES_LIST
 
 fun historyChunkSecondsRange(): IntRange = MIN_HISTORY_CHUNK_SECONDS..MAX_HISTORY_CHUNK_SECONDS
 
@@ -1050,10 +1079,13 @@ fun autoMergeCustomSecondsRange(): IntRange = MIN_AUTO_MERGE_CUSTOM_SECONDS..MAX
 fun isRecorderCapabilityCacheWarm(): Boolean = capabilityCacheWarm
 
 fun sampleRateLabel(sampleRate: Int): String {
-    return if (sampleRate % 1000 == 0) {
-        "${sampleRate / 1000} kHz"
-    } else {
-        String.format(Locale.US, TimeTravelConfig.FORMAT_SAMPLE_RATE_KHZ, sampleRate / 1000f)
+    if (sampleRate % 1000 == 0) return "${sampleRate / 1000} kHz"
+    val khz = sampleRate / 1000f
+    val whole = khz.toInt()
+    val frac = ((khz - whole) * 100f + 0.5f).toInt()
+    return buildString {
+        append(whole); append('.'); if (frac < 10) append('0')
+        append(frac); append(" kHz")
     }
 }
 

@@ -125,7 +125,8 @@ internal class AudioMemory {
 
     @Synchronized
     fun clear() {
-        current?.let { free.addLast(it) }
+        val c = current
+        if (c != null) free.addLast(c)
         current = null
         offset = 0
         currentWasFilled = false
