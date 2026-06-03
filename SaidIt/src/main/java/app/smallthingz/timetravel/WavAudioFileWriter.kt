@@ -16,6 +16,7 @@ internal class WavAudioFileWriter(
     private val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
     private val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
     private val channel: FileChannel = outputStream.channel
+    private val headerBuffer = ByteBuffer.allocate(HEADER_SIZE)
 
     override var totalSampleBytesWritten: Long = 0
         private set
@@ -47,25 +48,25 @@ internal class WavAudioFileWriter(
         val chunkSize = 36L + dataSize
         val byteRate = sampleRate * channelCount * BITS_PER_SAMPLE / 8
         val blockAlign = channelCount * BITS_PER_SAMPLE / 8
-        val header = ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
-            put("RIFF".toByteArray(Charsets.US_ASCII))
-            putInt(chunkSize.toInt())
-            put("WAVE".toByteArray(Charsets.US_ASCII))
-            put("fmt ".toByteArray(Charsets.US_ASCII))
-            putInt(16)
-            putShort(1)
-            putShort(channelCount.toShort())
-            putInt(sampleRate)
-            putInt(byteRate)
-            putShort(blockAlign.toShort())
-            putShort(BITS_PER_SAMPLE.toShort())
-            put("data".toByteArray(Charsets.US_ASCII))
-            putInt(dataSize.toInt())
-            flip()
-        }
+        headerBuffer.clear()
+        headerBuffer.order(ByteOrder.LITTLE_ENDIAN)
+        headerBuffer.put("RIFF".toByteArray(Charsets.US_ASCII))
+        headerBuffer.putInt(chunkSize.toInt())
+        headerBuffer.put("WAVE".toByteArray(Charsets.US_ASCII))
+        headerBuffer.put("fmt ".toByteArray(Charsets.US_ASCII))
+        headerBuffer.putInt(16)
+        headerBuffer.putShort(1)
+        headerBuffer.putShort(channelCount.toShort())
+        headerBuffer.putInt(sampleRate)
+        headerBuffer.putInt(byteRate)
+        headerBuffer.putShort(blockAlign.toShort())
+        headerBuffer.putShort(BITS_PER_SAMPLE.toShort())
+        headerBuffer.put("data".toByteArray(Charsets.US_ASCII))
+        headerBuffer.putInt(dataSize.toInt())
+        headerBuffer.flip()
         channel.position(0L)
-        while (header.hasRemaining()) {
-            channel.write(header)
+        while (headerBuffer.hasRemaining()) {
+            channel.write(headerBuffer)
         }
     }
 

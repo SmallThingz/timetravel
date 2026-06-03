@@ -89,7 +89,7 @@ internal class PersistentAudioRingStore(
         val writePosition = meta.readWritePosition()
         val lastWriteAtMillis = meta.readLastWriteAtMillis()
         val startPosition = if (filledBytes >= mappedCapacityBytes) writePosition else 0
-        val scratch = ByteArray(minOf(IO_CHUNK_SIZE, filledBytes))
+        val scratch = ioScratch
         var restored = 0
         var remaining = filledBytes
         var readPosition = startPosition

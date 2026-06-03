@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.util.Log
 import java.io.BufferedOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -169,7 +170,8 @@ internal class LiveExportHistory(
 
     @Synchronized
     fun countRetainedSampleBytes(): Long {
-        return segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
+        var sum = 0L; for (s in segments) sum += s.sampleBytes
+        return sum + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
     }
 
     @Synchronized
@@ -376,7 +378,8 @@ internal class LiveExportHistory(
         requestedSampleBytes: Long,
         reopenForContinuedCapture: Boolean,
     ): Snapshot? {
-        val totalSampleBytes = segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
+        var totalSampleBytes = (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
+        for (s in segments) totalSampleBytes += s.sampleBytes
         val skipBytes = (totalSampleBytes - requestedSampleBytes.coerceAtLeast(0L)).coerceAtLeast(0L)
         return snapshotForRange(skipBytes, requestedSampleBytes.coerceAtLeast(0L), reopenForContinuedCapture)
     }
@@ -402,7 +405,7 @@ internal class LiveExportHistory(
             return null
         }
 
-        val totalSampleBytes = segments.sumOf { it.sampleBytes }
+        var totalSampleBytes = 0L; for (s in segments) totalSampleBytes += s.sampleBytes
         if (totalSampleBytes <= 0L) {
             if (reopenForContinuedCapture) {
                 ensureWriterLocked(System.currentTimeMillis())
@@ -1333,14 +1336,9 @@ internal class LiveExportHistory(
         val scratch = ByteArray(COPY_BUFFER_BYTES)
         when (outputTarget.storageType) {
             RecordingStorageType.FILE -> {
-                FileOutputStream(requireNotNull(outputTarget.file)).use { output ->
-                    source.inputStream().use { input ->
-                        while (true) {
-                            ensureExportNotCancelled(shouldCancel)
-                            val read = input.read(scratch)
-                            if (read <= 0) break
-                            output.write(scratch, 0, read)
-                        }
+                FileInputStream(source).channel.use { srcChannel ->
+                    FileOutputStream(requireNotNull(outputTarget.file)).channel.use { dstChannel ->
+                        srcChannel.transferTo(0, Long.MAX_VALUE, dstChannel)
                     }
                 }
             }
@@ -2291,7 +2289,7 @@ internal class LiveExportHistory(
         if (retentionBytes <= 0L) {
             return
         }
-        var totalBytes = segments.sumOf { it.sampleBytes } + (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L)
+        var totalBytes = (currentWriter?.totalSampleBytesWritten?.toLong() ?: 0L); for (s in segments) totalBytes += s.sampleBytes
         while (segments.size > 1 && totalBytes > retentionBytes) {
             val oldest = segments.first()
             if (pinnedFiles.containsKey(oldest.file.absolutePath)) {

@@ -17,7 +17,6 @@ import java.io.InputStream
 import java.io.RandomAccessFile
 
 private val ILLEGAL_FILENAME_CHARS = setOf('\\', '/', '*', '?', '"', '<', '>', '|')
-private val SANITIZE_WHITESPACE_REGEX = Regex("\\s+")
 private val SUPPORTED_RECORDING_EXTENSIONS = ExportFormat.entries.map { it.extension }.toSet()
 private const val CODEC_SUMMARY_SEPARATOR = TimeTravelConfig.CODEC_SUMMARY_SEPARATOR
 
@@ -44,7 +43,7 @@ fun getSavedRecordingsDirectory(context: Context): File {
 }
 
 fun getConfiguredExportTreeUri(context: Context): Uri? {
-    val raw = getRecorderPreferences(context).getString(TimeTravelConfig.EXPORT_DIRECTORY_URI_KEY, null) ?: return null
+    val raw = getRecorderPreferences(context).getString(PrefKey.EXPORT_DIRECTORY_URI, null) ?: return null
     return raw.takeIf { it.isNotBlank() }?.let(Uri::parse)
 }
 
@@ -52,9 +51,13 @@ fun setConfiguredExportTreeUri(
     context: Context,
     treeUri: Uri?,
 ) {
-    getRecorderPreferences(context).edit()
-        .putString(TimeTravelConfig.EXPORT_DIRECTORY_URI_KEY, treeUri?.toString())
-        .apply()
+    val editor = getRecorderPreferences(context).edit()
+    if (treeUri != null) {
+        editor.putString(PrefKey.EXPORT_DIRECTORY_URI, treeUri.toString())
+    } else {
+        editor.remove(PrefKey.EXPORT_DIRECTORY_URI)
+    }
+    editor.apply()
 }
 
 fun getConfiguredOutputDirectoryId(context: Context): String {

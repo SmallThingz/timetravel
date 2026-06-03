@@ -509,9 +509,9 @@ internal class MpegTsAacPacketizer(
 
     private fun mpegCrc32(bytes: ByteArray): Int {
         var crc = -1
-        bytes.forEach { value ->
-            crc = crc xor ((value.toInt() and 0xFF) shl 24)
-            repeat(8) {
+        for (i in bytes.indices) {
+            crc = crc xor ((bytes[i].toInt() and 0xFF) shl 24)
+            for (j in 0 until 8) {
                 crc =
                     if ((crc and Int.MIN_VALUE) != 0) {
                         (crc shl 1) xor 0x04C11DB7

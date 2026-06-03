@@ -577,7 +577,7 @@ class SettingsActivity : AppCompatActivity() {
         val configuredMode = getConfiguredRetentionMode(this)
         val configuredTime = getConfiguredRetentionSeconds(this).toInt()
         val storedSizeBytes = prefs.getLong(
-            TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY,
+            PrefKey.AUDIO_MEMORY_SIZE,
             512L * BYTES_IN_MEGABYTE,
         )
         val configuredFormat = getConfiguredOutputFormat(this)
@@ -586,7 +586,7 @@ class SettingsActivity : AppCompatActivity() {
         val configuredSource = getConfiguredAudioSourceMode(this)
         val configuredChannelMode = getConfiguredChannelMode(this)
         val configuredRate = prefs.getInt(
-            TimeTravelConfig.SAMPLE_RATE_KEY,
+            PrefKey.SAMPLE_RATE,
             getPreferredSampleRate(
                 this,
                 configuredSource,
@@ -1242,26 +1242,26 @@ class SettingsActivity : AppCompatActivity() {
 
         setConfiguredThemeMode(this, themeMode)
         getRecorderPreferences(this).edit()
-            .putInt(TimeTravelConfig.RETENTION_MODE_KEY, activeRetentionMode.ordinal)
-            .putLong(TimeTravelConfig.RETENTION_SECONDS_KEY, retentionTime.toLong())
-            .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, sizeBytes)
-            .putString(TimeTravelConfig.OUTPUT_FORMAT_KEY, format.prefValue)
-            .putString(TimeTravelConfig.OUTPUT_CODEC_KEY, codec.prefValue)
-            .putInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, bitrateKbps ?: (effectiveCodecBitrateKbps() ?: 0))
-            .putInt(TimeTravelConfig.AUDIO_SOURCE_KEY, source.sourceValue)
-            .putString(TimeTravelConfig.CHANNEL_MODE_KEY, channelMode.prefValue)
-            .putString(TimeTravelConfig.INPUT_ROUTE_KEY, route.prefValue)
-            .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
-            .putInt(TimeTravelConfig.HISTORY_CHUNK_SECONDS_KEY, historyChunkSecondsValue)
-            .putString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, activeAutoMergeMode.prefValue)
-            .putInt(TimeTravelConfig.AUTO_MERGE_DIVISOR_KEY, autoMergeDivisorValue)
-            .putInt(TimeTravelConfig.AUTO_MERGE_CUSTOM_SECONDS_KEY, autoMergeCustomSecondsValue)
-            .putString(TimeTravelConfig.AUTO_MERGE_CUSTOM_SIZE_MIB_KEY, formatRetentionSizeMib(autoMergeCustomSizeMibValue))
-            .putBoolean(TimeTravelConfig.AUTO_MERGE_EAGER_ENABLED_KEY, autoMergeEagerSwitch.isChecked)
-            .putBoolean(TimeTravelConfig.DEBUG_CHUNKS_TAB_ENABLED_KEY, debugChunksSwitch.isChecked)
-            .putBoolean(TimeTravelConfig.BUFFER_DISK_CACHE_ENABLED_KEY, persistentBufferEnabled)
-            .putBoolean(TimeTravelConfig.AGGRESSIVE_RESTART_ENABLED_KEY, aggressiveRestartEnabled)
-            .putBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, wakeLockEnabled)
+            .putInt(PrefKey.RETENTION_MODE, activeRetentionMode.ordinal)
+            .putLong(PrefKey.RETENTION_SECONDS, retentionTime.toLong())
+            .putLong(PrefKey.AUDIO_MEMORY_SIZE, sizeBytes)
+            .putString(PrefKey.OUTPUT_FORMAT, format.prefValue)
+            .putString(PrefKey.OUTPUT_CODEC, codec.prefValue)
+            .putInt(PrefKey.OUTPUT_BITRATE_KBPS, bitrateKbps ?: (effectiveCodecBitrateKbps() ?: 0))
+            .putInt(PrefKey.AUDIO_SOURCE, source.sourceValue)
+            .putString(PrefKey.CHANNEL_MODE, channelMode.prefValue)
+            .putString(PrefKey.INPUT_ROUTE, route.prefValue)
+            .putInt(PrefKey.SAMPLE_RATE, sampleRate)
+            .putInt(PrefKey.HISTORY_CHUNK_SECONDS, historyChunkSecondsValue)
+            .putString(PrefKey.AUTO_MERGE_MODE, activeAutoMergeMode.prefValue)
+            .putInt(PrefKey.AUTO_MERGE_DIVISOR, autoMergeDivisorValue)
+            .putInt(PrefKey.AUTO_MERGE_CUSTOM_SECONDS, autoMergeCustomSecondsValue)
+            .putString(PrefKey.AUTO_MERGE_CUSTOM_SIZE_MIB, formatRetentionSizeMib(autoMergeCustomSizeMibValue))
+            .putBoolean(PrefKey.AUTO_MERGE_EAGER_ENABLED, autoMergeEagerSwitch.isChecked)
+            .putBoolean(PrefKey.DEBUG_CHUNKS_TAB_ENABLED, debugChunksSwitch.isChecked)
+            .putBoolean(PrefKey.BUFFER_DISK_CACHE_ENABLED, persistentBufferEnabled)
+            .putBoolean(PrefKey.AGGRESSIVE_RESTART_ENABLED, aggressiveRestartEnabled)
+            .putBoolean(PrefKey.WAKE_LOCK_ENABLED, wakeLockEnabled)
             .apply()
         setConfiguredExportTreeUri(this, selectedExportTreeUri)
         applyConfiguredThemeMode(this)

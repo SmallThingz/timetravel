@@ -79,10 +79,8 @@ internal class AudioMemory {
                     remainingSkipBytes -= length
                 }
             }
-            filled.forEach { array ->
-                if (remainingTakeBytes <= 0L) {
-                    return@forEach
-                }
+            for (array in filled) {
+                if (remainingTakeBytes <= 0L) break
                 val length = array.size.toLong()
                 if (remainingSkipBytes < length) {
                     val readOffset = remainingSkipBytes.toInt()
@@ -117,7 +115,7 @@ internal class AudioMemory {
             if (!filling && currentBuffer != null && currentWasFilled) {
                 sum += (currentBuffer.size - offset).toLong()
             }
-            filled.forEach { sum += it.size.toLong() }
+            for (array in filled) sum += array.size.toLong()
             if (currentBuffer != null && offset > 0) {
                 sum += offset.toLong()
             }
@@ -132,7 +130,7 @@ internal class AudioMemory {
         offset = 0
         currentWasFilled = false
         filling = false
-        filled.forEach { free.addLast(it) }
+        for (array in filled) free.addLast(array)
         filled.clear()
     }
 

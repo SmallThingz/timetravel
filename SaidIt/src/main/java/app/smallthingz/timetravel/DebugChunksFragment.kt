@@ -179,10 +179,17 @@ class DebugChunksFragment : Fragment() {
         }
         val operations = history?.operations.orEmpty()
         val chunks = history?.chunks.orEmpty()
-        selectedChunkPaths.retainAll(chunks.mapTo(HashSet()) { it.filePath })
-        val activeChunks = chunks.count { it.active }
-        val totalFileBytes = chunks.sumOf { it.fileSizeBytes }
-        val totalSampleBytes = chunks.sumOf { it.sampleBytes }
+        val paths = HashSet<String>(chunks.size)
+        var activeChunks = 0
+        var totalFileBytes = 0L
+        var totalSampleBytes = 0L
+        for (c in chunks) {
+            paths.add(c.filePath)
+            if (c.active) activeChunks++
+            totalFileBytes += c.fileSizeBytes
+            totalSampleBytes += c.sampleBytes
+        }
+        selectedChunkPaths.retainAll(paths)
         mergeButton.isEnabled = operations.isEmpty() && chunks.any { !it.active }
         mergeButton.alpha = if (mergeButton.isEnabled) 1f else 0.45f
         title.text =

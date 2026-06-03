@@ -745,9 +745,9 @@ class TimeTravelFragment : Fragment() {
             val currentBytes = currentBufferExportBytes()
             startSizeField.setText(formatSizeInputMib(0L))
             endSizeField.setText(formatSizeInputMib(currentBytes))
-            val lastPastSeconds = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, 5 * 60).coerceAtLeast(1)
+            val lastPastSeconds = prefs.getInt(PrefKey.CUSTOM_EXPORT_PAST_SECONDS, 5 * 60).coerceAtLeast(1)
             pastTimeField.setText(formatDurationInput(lastPastSeconds))
-            val lastPastSizeMib = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_PAST_SIZE_MIB_KEY, formatSizeInputMib(currentBytes)) ?: formatSizeInputMib(currentBytes)
+            val lastPastSizeMib = prefs.getString(PrefKey.CUSTOM_EXPORT_PAST_SIZE_MIB, formatSizeInputMib(currentBytes)) ?: formatSizeInputMib(currentBytes)
             pastSizeField.setText(lastPastSizeMib)
 
             fun currentModeKey(): CustomExportMode =
@@ -860,7 +860,7 @@ class TimeTravelFragment : Fragment() {
                         pastTimeLayout.error = getString(R.string.retention_time_invalid)
                         return false
                     }
-                    prefs.edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_PAST_SECONDS_KEY, pastSeconds.roundToInt()).apply()
+                    prefs.edit().putInt(PrefKey.CUSTOM_EXPORT_PAST_SECONDS, pastSeconds.roundToInt()).apply()
                     handle.dialog.dismiss()
                     return startExport(clampExportRange((currentSeconds - pastSeconds).coerceAtLeast(0f), currentSeconds))
                 }
@@ -873,7 +873,7 @@ class TimeTravelFragment : Fragment() {
                     pastSizeLayout.error = getString(R.string.custom_export_range_invalid)
                     return false
                 }
-                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_PAST_SIZE_MIB_KEY, formatSizeInputMib(pastSizeBytes)).apply()
+                prefs.edit().putString(PrefKey.CUSTOM_EXPORT_PAST_SIZE_MIB, formatSizeInputMib(pastSizeBytes)).apply()
                 handle.dialog.dismiss()
                 val pastSizeSeconds = sizeBytesToExportSeconds(pastSizeBytes)
                 return startExport(clampExportRange((currentSeconds - pastSizeSeconds).coerceAtLeast(0f), currentSeconds))

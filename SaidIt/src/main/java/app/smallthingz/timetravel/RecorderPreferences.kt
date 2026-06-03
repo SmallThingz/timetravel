@@ -372,14 +372,14 @@ enum class CustomExportUnit {
 }
 
 fun getRecorderPreferences(context: Context): SharedPreferences {
-    return context.getSharedPreferences(TimeTravelConfig.PACKAGE_NAME, Context.MODE_PRIVATE)
+    return context.getSharedPreferences(context.packageName, Context.MODE_PRIVATE)
 }
 
 fun getConfiguredRetentionMode(context: Context): RetentionMode {
     val prefs = getRecorderPreferences(context)
-    val stored = prefs.getInt(TimeTravelConfig.RETENTION_MODE_KEY, -1)
-    if (stored in RetentionMode.entries.indices) return RetentionMode.entries[stored]
-    val legacy = prefs.getString(TimeTravelConfig.RETENTION_MODE_KEY, null)
+    val stored = prefs.getInt(PrefKey.RETENTION_MODE, -1)
+    if (stored >= 0 && stored < RetentionMode.entries.size) return RetentionMode.entries[stored]
+    val legacy = prefs.getString(PrefKey.RETENTION_MODE, null)
     return when (legacy) {
         LEGACY_RETENTION_TIME -> RetentionMode.TIME
         else -> RetentionMode.SIZE
@@ -388,9 +388,9 @@ fun getConfiguredRetentionMode(context: Context): RetentionMode {
 
 fun getConfiguredCustomExportMode(context: Context): CustomExportMode {
     val prefs = getRecorderPreferences(context)
-    val stored = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, -1)
-    if (stored in CustomExportMode.entries.indices) return CustomExportMode.entries[stored]
-    val legacy = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, null)
+    val stored = prefs.getInt(PrefKey.CUSTOM_EXPORT_MODE, -1)
+    if (stored >= 0 && stored < CustomExportMode.entries.size) return CustomExportMode.entries[stored]
+    val legacy = prefs.getString(PrefKey.CUSTOM_EXPORT_MODE, null)
     return when (legacy) {
         LEGACY_EXPORT_MODE_RANGE -> CustomExportMode.RANGE
         else -> TimeTravelConfig.DEFAULT_CUSTOM_EXPORT_MODE
@@ -398,14 +398,14 @@ fun getConfiguredCustomExportMode(context: Context): CustomExportMode {
 }
 
 fun setConfiguredCustomExportMode(context: Context, mode: CustomExportMode) {
-    getRecorderPreferences(context).edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, mode.ordinal).apply()
+    getRecorderPreferences(context).edit().putInt(PrefKey.CUSTOM_EXPORT_MODE, mode.ordinal).apply()
 }
 
 fun getConfiguredCustomExportUnit(context: Context): CustomExportUnit {
     val prefs = getRecorderPreferences(context)
-    val stored = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, -1)
-    if (stored in CustomExportUnit.entries.indices) return CustomExportUnit.entries[stored]
-    val legacy = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, null)
+    val stored = prefs.getInt(PrefKey.CUSTOM_EXPORT_UNIT, -1)
+    if (stored >= 0 && stored < CustomExportUnit.entries.size) return CustomExportUnit.entries[stored]
+    val legacy = prefs.getString(PrefKey.CUSTOM_EXPORT_UNIT, null)
     return when (legacy) {
         LEGACY_EXPORT_UNIT_SIZE -> CustomExportUnit.SIZE
         else -> TimeTravelConfig.DEFAULT_CUSTOM_EXPORT_UNIT
@@ -413,23 +413,23 @@ fun getConfiguredCustomExportUnit(context: Context): CustomExportUnit {
 }
 
 fun setConfiguredCustomExportUnit(context: Context, unit: CustomExportUnit) {
-    getRecorderPreferences(context).edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, unit.ordinal).apply()
+    getRecorderPreferences(context).edit().putInt(PrefKey.CUSTOM_EXPORT_UNIT, unit.ordinal).apply()
 }
 
 fun isDiskBufferCacheEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(TimeTravelConfig.BUFFER_DISK_CACHE_ENABLED_KEY, true)
+    return getRecorderPreferences(context).getBoolean(PrefKey.BUFFER_DISK_CACHE_ENABLED, true)
 }
 
 fun isAggressiveRestartEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(TimeTravelConfig.AGGRESSIVE_RESTART_ENABLED_KEY, true)
+    return getRecorderPreferences(context).getBoolean(PrefKey.AGGRESSIVE_RESTART_ENABLED, true)
 }
 
 fun isWakeLockEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(TimeTravelConfig.WAKE_LOCK_ENABLED_KEY, false)
+    return getRecorderPreferences(context).getBoolean(PrefKey.WAKE_LOCK_ENABLED, false)
 }
 
 fun isDebugChunksTabEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(TimeTravelConfig.DEBUG_CHUNKS_TAB_ENABLED_KEY, false)
+    return getRecorderPreferences(context).getBoolean(PrefKey.DEBUG_CHUNKS_TAB_ENABLED, false)
 }
 
 fun isDebuggableBuild(context: Context): Boolean {
@@ -443,7 +443,7 @@ fun isIgnoringBatteryOptimizations(context: Context): Boolean {
 
 fun getConfiguredThemeMode(context: Context): AppThemeMode {
     return AppThemeMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.THEME_MODE_KEY, AppThemeMode.SYSTEM.prefValue),
+        getRecorderPreferences(context).getString(PrefKey.THEME_MODE, AppThemeMode.SYSTEM.prefValue),
     )
 }
 
@@ -451,7 +451,7 @@ fun setConfiguredThemeMode(
     context: Context,
     mode: AppThemeMode,
 ) {
-    getRecorderPreferences(context).edit().putString(TimeTravelConfig.THEME_MODE_KEY, mode.prefValue).apply()
+    getRecorderPreferences(context).edit().putString(PrefKey.THEME_MODE, mode.prefValue).apply()
 }
 
 fun applyConfiguredThemeMode(context: Context) {
@@ -459,41 +459,41 @@ fun applyConfiguredThemeMode(context: Context) {
 }
 
 fun getConfiguredRetentionSeconds(context: Context): Long {
-    return max(60L, getRecorderPreferences(context).getLong(TimeTravelConfig.RETENTION_SECONDS_KEY, TimeTravelConfig.DEFAULT_RETENTION_SECONDS))
+    return max(60L, getRecorderPreferences(context).getLong(PrefKey.RETENTION_SECONDS, TimeTravelConfig.DEFAULT_RETENTION_SECONDS))
 }
 
 fun getConfiguredRetentionSizeBytes(context: Context): Long {
-    return getRecorderPreferences(context).getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, TimeTravelConfig.DEFAULT_RETENTION_SIZE_BYTES)
+    return getRecorderPreferences(context).getLong(PrefKey.AUDIO_MEMORY_SIZE, TimeTravelConfig.DEFAULT_RETENTION_SIZE_BYTES)
         .coerceAtLeast(1L)
 }
 
 fun getConfiguredHistoryChunkSeconds(context: Context): Int {
     return getRecorderPreferences(context)
-        .getInt(TimeTravelConfig.HISTORY_CHUNK_SECONDS_KEY, DEFAULT_HISTORY_CHUNK_SECONDS)
+        .getInt(PrefKey.HISTORY_CHUNK_SECONDS, DEFAULT_HISTORY_CHUNK_SECONDS)
         .coerceIn(MIN_HISTORY_CHUNK_SECONDS, MAX_HISTORY_CHUNK_SECONDS)
 }
 
 fun getConfiguredAutoMergeMode(context: Context): AutoMergeMode {
     return AutoMergeMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, AutoMergeMode.RATIO.prefValue),
+        getRecorderPreferences(context).getString(PrefKey.AUTO_MERGE_MODE, AutoMergeMode.RATIO.prefValue),
     )
 }
 
 fun getConfiguredAutoMergeDivisor(context: Context): Int {
     return getRecorderPreferences(context)
-        .getInt(TimeTravelConfig.AUTO_MERGE_DIVISOR_KEY, DEFAULT_AUTO_MERGE_DIVISOR)
+        .getInt(PrefKey.AUTO_MERGE_DIVISOR, DEFAULT_AUTO_MERGE_DIVISOR)
         .coerceIn(MIN_AUTO_MERGE_DIVISOR, MAX_AUTO_MERGE_DIVISOR)
 }
 
 fun getConfiguredAutoMergeCustomSeconds(context: Context): Int {
     return getRecorderPreferences(context)
-        .getInt(TimeTravelConfig.AUTO_MERGE_CUSTOM_SECONDS_KEY, DEFAULT_AUTO_MERGE_CUSTOM_SECONDS)
+        .getInt(PrefKey.AUTO_MERGE_CUSTOM_SECONDS, DEFAULT_AUTO_MERGE_CUSTOM_SECONDS)
         .coerceIn(MIN_AUTO_MERGE_CUSTOM_SECONDS, MAX_AUTO_MERGE_CUSTOM_SECONDS)
 }
 
 fun getConfiguredAutoMergeCustomSizeMib(context: Context): Double {
     return getRecorderPreferences(context)
-        .getString(TimeTravelConfig.AUTO_MERGE_CUSTOM_SIZE_MIB_KEY, null)
+        .getString(PrefKey.AUTO_MERGE_CUSTOM_SIZE_MIB, null)
         ?.trim()
         ?.replace(',', '.')
         ?.toDoubleOrNull()
@@ -503,7 +503,7 @@ fun getConfiguredAutoMergeCustomSizeMib(context: Context): Double {
 
 fun isConfiguredAutoMergeEagerEnabled(context: Context): Boolean {
     return getRecorderPreferences(context).getBoolean(
-        TimeTravelConfig.AUTO_MERGE_EAGER_ENABLED_KEY,
+        PrefKey.AUTO_MERGE_EAGER_ENABLED,
         DEFAULT_AUTO_MERGE_EAGER_ENABLED,
     )
 }
@@ -562,12 +562,12 @@ fun defaultAutoMergeCustomSeconds(): Int {
 
 fun getConfiguredOutputFormat(context: Context): ExportFormat {
     val prefs = getRecorderPreferences(context)
-    val storedFormat = prefs.getString(TimeTravelConfig.OUTPUT_FORMAT_KEY, TimeTravelConfig.DEFAULT_OUTPUT_FORMAT.prefValue)
+    val storedFormat = prefs.getString(PrefKey.OUTPUT_FORMAT, TimeTravelConfig.DEFAULT_OUTPUT_FORMAT.prefValue)
     if (storedFormat != null) {
         return ExportFormat.fromPrefValue(storedFormat)
     }
-    val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, "wav"))
-    return if (legacyCodec != ExportCodec.PCM_16 || prefs.contains(TimeTravelConfig.OUTPUT_CODEC_KEY)) {
+    val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(PrefKey.OUTPUT_CODEC, "wav"))
+    return if (legacyCodec != ExportCodec.PCM_16 || prefs.contains(PrefKey.OUTPUT_CODEC)) {
         preferredOutputFormatForCodec(legacyCodec)
     } else {
         preferredDefaultOutputFormat()
@@ -576,7 +576,7 @@ fun getConfiguredOutputFormat(context: Context): ExportFormat {
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {
     val prefs = getRecorderPreferences(context)
-    val storedCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.DEFAULT_OUTPUT_CODEC.prefValue))
+    val storedCodec = ExportCodec.fromPrefValue(prefs.getString(PrefKey.OUTPUT_CODEC, TimeTravelConfig.DEFAULT_OUTPUT_CODEC.prefValue))
     val preferredFormat = getConfiguredOutputFormat(context)
     val preferred = getPreferredOutputCodec(preferredFormat)
     return if (isCodecCompatibleWithFormat(preferredFormat, storedCodec)) storedCodec else preferred
@@ -631,14 +631,14 @@ fun getConfiguredCodecBitrateKbps(
 ): Int? {
     val range = codecBitrateRangeKbps(codec) ?: return defaultCodecBitrateKbps(codec, sampleRate, channelCount)
     val fallback = defaultCodecBitrateKbps(codec, sampleRate, channelCount) ?: range.first
-    val stored = getRecorderPreferences(context).getInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, fallback)
+    val stored = getRecorderPreferences(context).getInt(PrefKey.OUTPUT_BITRATE_KBPS, fallback)
     return stored.coerceIn(range)
 }
 
 fun getConfiguredAudioSourceMode(context: Context): AudioSourceMode {
     return AudioSourceMode.fromSourceValue(
         getRecorderPreferences(context).getInt(
-            TimeTravelConfig.AUDIO_SOURCE_KEY,
+            PrefKey.AUDIO_SOURCE,
             AudioSourceMode.defaultMode().sourceValue,
         ),
     )
@@ -646,13 +646,13 @@ fun getConfiguredAudioSourceMode(context: Context): AudioSourceMode {
 
 fun getConfiguredInputRouteMode(context: Context): InputRouteMode {
     return InputRouteMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.INPUT_ROUTE_KEY, InputRouteMode.AUTO.prefValue),
+        getRecorderPreferences(context).getString(PrefKey.INPUT_ROUTE, InputRouteMode.AUTO.prefValue),
     )
 }
 
 fun getConfiguredChannelMode(context: Context): ChannelMode {
     return ChannelMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.CHANNEL_MODE_KEY, TimeTravelConfig.DEFAULT_CHANNEL_MODE.prefValue),
+        getRecorderPreferences(context).getString(PrefKey.CHANNEL_MODE, TimeTravelConfig.DEFAULT_CHANNEL_MODE.prefValue),
     )
 }
 
@@ -666,7 +666,7 @@ fun getConfiguredSampleRate(
 ): Int {
     val prefs = getRecorderPreferences(context)
     val preferred = getPreferredSampleRate(context, sourceMode, routeMode, format, codec, channelMode)
-    val requested = prefs.getInt(TimeTravelConfig.SAMPLE_RATE_KEY, preferred)
+    val requested = prefs.getInt(PrefKey.SAMPLE_RATE, preferred)
     return requested.takeIf { it > 0 } ?: preferred
 }
 
@@ -1433,9 +1433,19 @@ fun orderSampleRatesByPreference(
 ): List<Int> {
     if (sampleRates.isEmpty()) return emptyList()
     if (requestedRate <= 0) return sampleRates.sortedDescending()
-    val distinct = sampleRates.distinct()
-    val exact = distinct.filter { it == requestedRate }
-    val higher = distinct.filter { it > requestedRate }.sortedBy { it - requestedRate }
-    val lower = distinct.filter { it < requestedRate }.sortedByDescending { it }
+    val exact = mutableListOf<Int>()
+    val higher = mutableListOf<Int>()
+    val lower = mutableListOf<Int>()
+    val seen = HashSet<Int>(sampleRates.size)
+    for (rate in sampleRates) {
+        if (!seen.add(rate)) continue
+        when {
+            rate == requestedRate -> exact.add(rate)
+            rate > requestedRate -> higher.add(rate)
+            else -> lower.add(rate)
+        }
+    }
+    higher.sortBy { it - requestedRate }
+    lower.sortByDescending { it }
     return exact + higher + lower
 }

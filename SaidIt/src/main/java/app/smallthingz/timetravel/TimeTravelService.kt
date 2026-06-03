@@ -74,7 +74,7 @@ class TimeTravelService : Service() {
     private var outputCodec = ExportCodec.PCM_16
 
     @Volatile
-    private var outputBitrateKbps: Int? = null
+    private var outputBitrateKbps: Int = -1
 
     @Volatile
     private var inputRouteMode = InputRouteMode.AUTO
@@ -269,14 +269,14 @@ class TimeTravelService : Service() {
 
     fun enableListening() {
         getRecorderPreferences(this).edit()
-            .putBoolean(TimeTravelConfig.AUDIO_MEMORY_ENABLED_KEY, true)
+            .putBoolean(PrefKey.AUDIO_MEMORY_ENABLED, true)
             .apply()
         innerStartListening()
     }
 
     fun disableListening() {
         getRecorderPreferences(this).edit()
-            .putBoolean(TimeTravelConfig.AUDIO_MEMORY_ENABLED_KEY, false)
+            .putBoolean(PrefKey.AUDIO_MEMORY_ENABLED, false)
             .apply()
         if (state == STATE_RECORDING) {
             stopRecording(TimeTravelFragment.NotifyFileReceiver(this))
@@ -285,7 +285,7 @@ class TimeTravelService : Service() {
     }
 
     private fun isListeningEnabled(): Boolean {
-        return getRecorderPreferences(this).getBoolean(TimeTravelConfig.AUDIO_MEMORY_ENABLED_KEY, false)
+        return getRecorderPreferences(this).getBoolean(PrefKey.AUDIO_MEMORY_ENABLED, false)
     }
 
     private fun loadConfiguration() {
@@ -320,7 +320,7 @@ class TimeTravelService : Service() {
         audioSource = selectedSourceMode.sourceValue
         outputFormat = selectedFormat
         outputCodec = selectedCodec
-        outputBitrateKbps = getConfiguredCodecBitrateKbps(this, outputCodec, sampleRate, channelMode.channelCount)
+        outputBitrateKbps = getConfiguredCodecBitrateKbps(this, outputCodec, sampleRate, channelMode.channelCount) ?: -1
         inputRouteMode = selectedRouteMode
         refreshCachedBufferSizing()
         updateLiveExportHistoryConfiguration()
@@ -378,10 +378,22 @@ class TimeTravelService : Service() {
         preferredCodec: ExportCodec,
         preferredRate: Int,
     ): OperationalConfig? {
-        val formatCandidates = listOf(preferredFormat) + supportedFormats().filter { it != preferredFormat }
-        val routeCandidates = listOf(preferredRouteMode) + supportedInputRouteModes(this).filter { it != preferredRouteMode }
-        val sourceCandidates = listOf(preferredSourceMode) + AudioSourceMode.availableModes().filter { it != preferredSourceMode }
-        val channelCandidates = listOf(preferredChannelMode) + ChannelMode.entries.filter { it != preferredChannelMode }
+        val formatCandidates = buildList {
+            add(preferredFormat); val formats = supportedFormats()
+            for (f in formats) if (f != preferredFormat) add(f)
+        }
+        val routeCandidates = buildList {
+            add(preferredRouteMode); val modes = supportedInputRouteModes(this@TimeTravelService)
+            for (m in modes) if (m != preferredRouteMode) add(m)
+        }
+        val sourceCandidates = buildList {
+            add(preferredSourceMode); val modes = AudioSourceMode.availableModes()
+            for (m in modes) if (m != preferredSourceMode) add(m)
+        }
+        val channelCandidates = buildList {
+            add(preferredChannelMode)
+            for (m in ChannelMode.entries) if (m != preferredChannelMode) add(m)
+        }
 
         formatCandidates.forEach { format ->
             val codecCandidates = listOf(preferredCodec) + supportedCodecs(format).filter { it != preferredCodec }
@@ -814,8 +826,8 @@ class TimeTravelService : Service() {
 
     fun setMemorySize(memorySize: Long) {
         getRecorderPreferences(this).edit()
-            .putInt(TimeTravelConfig.RETENTION_MODE_KEY, RetentionMode.SIZE.ordinal)
-            .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, memorySize.coerceAtLeast(1L))
+            .putInt(PrefKey.RETENTION_MODE, RetentionMode.SIZE.ordinal)
+            .putLong(PrefKey.AUDIO_MEMORY_SIZE, memorySize.coerceAtLeast(1L))
             .apply()
         reloadConfiguration()
     }
@@ -824,7 +836,7 @@ class TimeTravelService : Service() {
 
     fun setSampleRate(sampleRate: Int) {
         getRecorderPreferences(this).edit()
-            .putInt(TimeTravelConfig.SAMPLE_RATE_KEY, sampleRate)
+            .putInt(PrefKey.SAMPLE_RATE, sampleRate)
             .apply()
         reloadConfiguration()
     }
@@ -1085,8 +1097,9 @@ class TimeTravelService : Service() {
         )
     }
 
-    private fun configuredCodecBitrateKbps(): Int? {
-        return outputBitrateKbps ?: getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount)
+    private fun configuredCodecBitrateKbps(): Int {
+        val kbps = outputBitrateKbps
+        return if (kbps >= 0) kbps else (getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount) ?: -1)
     }
 
     private fun configuredRetentionSampleBytes(): Long {
@@ -1946,10 +1959,10 @@ class TimeTravelService : Service() {
                     val codec = intent.getStringExtra(EXTRA_DEBUG_CODEC)
                     val bitrateKbps = intent.getIntExtra(EXTRA_DEBUG_BITRATE_KBPS, Int.MIN_VALUE)
                     prefs.edit().apply {
-                        format?.let { putString(TimeTravelConfig.OUTPUT_FORMAT_KEY, it) }
-                        codec?.let { putString(TimeTravelConfig.OUTPUT_CODEC_KEY, it) }
+                        format?.let { putString(PrefKey.OUTPUT_FORMAT, it) }
+                        codec?.let { putString(PrefKey.OUTPUT_CODEC, it) }
                         if (bitrateKbps != Int.MIN_VALUE) {
-                            putInt(TimeTravelConfig.OUTPUT_BITRATE_KBPS_KEY, bitrateKbps)
+                            putInt(PrefKey.OUTPUT_BITRATE_KBPS, bitrateKbps)
                         }
                     }.apply()
                     writeDebugReport(
