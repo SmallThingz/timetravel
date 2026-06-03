@@ -402,11 +402,11 @@ fun applyConfiguredThemeMode(context: Context) {
 }
 
 fun getConfiguredRetentionSeconds(context: Context): Long {
-    return max(60L, getRecorderPreferences(context).getLong(TimeTravelConfig.RETENTION_SECONDS_KEY, 30L * 60))
+    return max(60L, getRecorderPreferences(context).getLong(TimeTravelConfig.RETENTION_SECONDS_KEY, TimeTravelConfig.DEFAULT_RETENTION_SECONDS))
 }
 
 fun getConfiguredRetentionSizeBytes(context: Context): Long {
-    return getRecorderPreferences(context).getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, 512L * 1024L * 1024L)
+    return getRecorderPreferences(context).getLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, TimeTravelConfig.DEFAULT_RETENTION_SIZE_BYTES)
         .coerceAtLeast(1L)
 }
 

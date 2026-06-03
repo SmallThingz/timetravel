@@ -53,7 +53,7 @@ import kotlinx.coroutines.runBlocking
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelService : Service() {
     @Volatile
-    private var sampleRate = 48_000
+    private var sampleRate = TimeTravelConfig.PREFERRED_DEFAULT_SAMPLE_RATE
 
     @Volatile
     private var fillRate = 96_000

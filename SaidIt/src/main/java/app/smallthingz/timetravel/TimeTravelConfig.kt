@@ -77,4 +77,8 @@ object TimeTravelConfig {
 
     const val APP_STORAGE_FOLDER_NAME = "Timetravel"
     const val BUFFER_CACHE_FOLDER_NAME = "buffer-cache"
+
+    const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
+    const val DEFAULT_RETENTION_SECONDS = 86_400L
+    const val DEFAULT_RETENTION_SIZE_BYTES = 1024L * 1024L * 1024L
 }
