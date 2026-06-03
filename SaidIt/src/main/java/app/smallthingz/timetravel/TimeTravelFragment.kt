@@ -750,56 +750,49 @@ class TimeTravelFragment : Fragment() {
             val lastPastSizeMib = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_PAST_SIZE_MIB_KEY, formatSizeInputMib(currentBytes)) ?: formatSizeInputMib(currentBytes)
             pastSizeField.setText(lastPastSizeMib)
 
-            fun currentModeKey(): String =
-                if (scopeGroup.checkedButtonId == rangeScopeButton.id) TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE else TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST
+            fun currentModeKey(): CustomExportMode =
+                if (scopeGroup.checkedButtonId == rangeScopeButton.id) CustomExportMode.RANGE else CustomExportMode.PAST
 
-            fun currentUnitKey(): String =
-                if (unitGroup.checkedButtonId == timeUnitButton.id) TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME else TimeTravelConfig.CUSTOM_EXPORT_UNIT_SIZE
+            fun currentUnitKey(): CustomExportUnit =
+                if (unitGroup.checkedButtonId == timeUnitButton.id) CustomExportUnit.TIME else CustomExportUnit.SIZE
 
             fun refreshPanels() {
-                val rangeMode = currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE
-                val timeUnit = currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+                val rangeMode = currentModeKey() == CustomExportMode.RANGE
+                val timeUnit = currentUnitKey() == CustomExportUnit.TIME
                 rangeTimePanel.visibility = if (rangeMode && timeUnit) View.VISIBLE else View.GONE
                 rangeSizePanel.visibility = if (rangeMode && !timeUnit) View.VISIBLE else View.GONE
                 pastTimePanel.visibility = if (!rangeMode && timeUnit) View.VISIBLE else View.GONE
                 pastSizePanel.visibility = if (!rangeMode && !timeUnit) View.VISIBLE else View.GONE
             }
 
-            val initialModeKey = prefs.getString(
-                TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY,
-                TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST,
-            ) ?: TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST
-            val initialUnitKey = prefs.getString(
-                TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY,
-                TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME,
-            ) ?: TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+            val context = requireContext()
+            val initialModeKey = getConfiguredCustomExportMode(context)
+            val initialUnitKey = getConfiguredCustomExportUnit(context)
             scopeGroup.check(
-                if (initialModeKey == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE) rangeScopeButton.id else pastScopeButton.id,
+                if (initialModeKey == CustomExportMode.RANGE) rangeScopeButton.id else pastScopeButton.id,
             )
             unitGroup.check(
-                if (initialUnitKey == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME) timeUnitButton.id else sizeUnitButton.id,
+                if (initialUnitKey == CustomExportUnit.TIME) timeUnitButton.id else sizeUnitButton.id,
             )
             refreshPanels()
 
             scopeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
                 if (!isChecked) return@addOnButtonCheckedListener
-                val modeKey =
-                    if (checkedId == rangeScopeButton.id) TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE
-                    else TimeTravelConfig.CUSTOM_EXPORT_MODE_PAST
-                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, modeKey).apply()
+                val mode =
+                    if (checkedId == rangeScopeButton.id) CustomExportMode.RANGE else CustomExportMode.PAST
+                setConfiguredCustomExportMode(context, mode)
                 refreshPanels()
             }
             unitGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
                 if (!isChecked) return@addOnButtonCheckedListener
-                val unitKey =
-                    if (checkedId == timeUnitButton.id) TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
-                    else TimeTravelConfig.CUSTOM_EXPORT_UNIT_SIZE
-                prefs.edit().putString(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, unitKey).apply()
+                val unit =
+                    if (checkedId == timeUnitButton.id) CustomExportUnit.TIME else CustomExportUnit.SIZE
+                setConfiguredCustomExportUnit(context, unit)
                 refreshPanels()
             }
 
             val handle = ThemedDialog.create(
-                context = requireContext(),
+                context = context,
                 title = getString(R.string.export),
                 content = content,
                 positiveText = null,
@@ -809,7 +802,7 @@ class TimeTravelFragment : Fragment() {
             fun submit(): Boolean {
                 val currentSeconds = lastMemorizedSeconds.coerceAtLeast(0f)
                 if (currentSeconds <= 0f) {
-                    Toast.makeText(requireContext(), R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
                     return false
                 }
                 val startSeconds = parseDurationInput(startTimeField.text?.toString().orEmpty())?.toFloat()
@@ -820,8 +813,8 @@ class TimeTravelFragment : Fragment() {
                 val pastSizeBytes = parseSizeInputMib(pastSizeField.text?.toString().orEmpty())
                 listOf(startTimeLayout, endTimeLayout, startSizeLayout, endSizeLayout, pastTimeLayout, pastSizeLayout).forEach { it.error = null }
 
-                val rangeMode = currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE
-                val timeUnit = currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME
+                val rangeMode = currentModeKey() == CustomExportMode.RANGE
+                val timeUnit = currentUnitKey() == CustomExportUnit.TIME
 
                 if (rangeMode && timeUnit) {
                     if (startSeconds == null || startSeconds < 0f) {
@@ -907,16 +900,16 @@ class TimeTravelFragment : Fragment() {
 
             handle.dialog.show()
             val initialField = when {
-                currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE && currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME -> startTimeField
-                currentModeKey() == TimeTravelConfig.CUSTOM_EXPORT_MODE_RANGE -> startSizeField
-                currentUnitKey() == TimeTravelConfig.CUSTOM_EXPORT_UNIT_TIME -> pastTimeField
+                currentModeKey() == CustomExportMode.RANGE && currentUnitKey() == CustomExportUnit.TIME -> startTimeField
+                currentModeKey() == CustomExportMode.RANGE -> startSizeField
+                currentUnitKey() == CustomExportUnit.TIME -> pastTimeField
                 else -> pastSizeField
             }
             initialField.post {
                 initialField.requestFocus()
                 initialField.selectAll()
                 val imm =
-                    context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                    context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
                 imm?.showSoftInput(initialField, 0)
             }
         }

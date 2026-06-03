@@ -1242,7 +1242,7 @@ class SettingsActivity : AppCompatActivity() {
 
         setConfiguredThemeMode(this, themeMode)
         getRecorderPreferences(this).edit()
-            .putString(TimeTravelConfig.RETENTION_MODE_KEY, activeRetentionMode.prefValue)
+            .putInt(TimeTravelConfig.RETENTION_MODE_KEY, activeRetentionMode.ordinal)
             .putLong(TimeTravelConfig.RETENTION_SECONDS_KEY, retentionTime.toLong())
             .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, sizeBytes)
             .putString(TimeTravelConfig.OUTPUT_FORMAT_KEY, format.prefValue)

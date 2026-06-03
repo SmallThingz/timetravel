@@ -15,10 +15,11 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.RandomAccessFile
-import java.util.Locale
 
 private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
-private val SUPPORTED_RECORDING_EXTENSIONS = setOf("wav", "m4a", "3gp", "ogg", "webm", "aac", "amr", "awb", "ts")
+private val SANITIZE_ILLEGAL_REGEX = Regex("[\\\\/*?\"<>|]")
+private val SANITIZE_WHITESPACE_REGEX = Regex("\\s+")
+private val SUPPORTED_RECORDING_EXTENSIONS = ExportFormat.entries.map { it.extension }.toSet()
 private const val CODEC_SUMMARY_SEPARATOR = " • "
 
 enum class RecordingStorageType {
@@ -200,7 +201,7 @@ private fun resolveRecordingCodecInfo(
     bitrate: Int?,
     sampleRate: Int?,
 ): String {
-    val ext = extension.uppercase(Locale.US)
+    val ext = extension.uppercase()
     return buildString {
         append(ext)
         sampleRate?.takeIf { it > 0 }?.let {
@@ -391,7 +392,7 @@ fun resolveRecordingDurationMillis(file: File): Long {
         return metadataDuration
     }
 
-    if (file.extension.equals(TimeTravelConfig.OUTPUT_CODEC_WAV, ignoreCase = true)) {
+    if (file.extension.equals(ExportFormat.WAV.extension, ignoreCase = true)) {
         return readWavDurationMillis(file)
     }
 
@@ -414,7 +415,7 @@ fun resolveRecordingDurationMillis(
     if (metadataDuration != null && metadataDuration > 0L) {
         return metadataDuration
     }
-    if (displayName.endsWith(".wav", ignoreCase = true)) {
+    if (displayName.endsWith(".${ExportFormat.WAV.extension}", ignoreCase = true)) {
         return context.contentResolver.openInputStream(uri)?.use(::readWavDurationMillis).orEmptyDuration()
     }
     return 0L
@@ -596,7 +597,7 @@ fun listCurrentOutputDirectoryRecordings(context: Context): List<RecordingEntity
         directory.listFiles()
             ?.asSequence()
             ?.filter { it.isFile && it.length() > 0L && !it.name.startsWith(".") }
-            ?.filter { it.extension.lowercase(Locale.US) in SUPPORTED_RECORDING_EXTENSIONS }
+            ?.filter { it.extension.lowercase() in SUPPORTED_RECORDING_EXTENSIONS }
             ?.map { file ->
                 RecordingEntity(
                     id = file.absolutePath,
@@ -617,7 +618,7 @@ fun listCurrentOutputDirectoryRecordings(context: Context): List<RecordingEntity
         tree.listFiles()
             .asSequence()
             .filter { it.isFile && it.length() > 0L }
-            .filter { file -> file.name?.substringAfterLast('.', "")?.lowercase(Locale.US) in SUPPORTED_RECORDING_EXTENSIONS }
+            .filter { file -> file.name?.substringAfterLast('.', "")?.lowercase() in SUPPORTED_RECORDING_EXTENSIONS }
             .mapNotNull { file ->
                 val uri = file.uri
                 val name = file.name ?: return@mapNotNull null
@@ -755,18 +756,15 @@ private fun findAvailableDisplayName(
 
 private fun sanitizeBaseName(name: String): String {
     val sanitized = name
-        .replace(Regex("[\\\\/*?\"<>|]"), " ")
+        .replace(SANITIZE_ILLEGAL_REGEX, " ")
         .trim()
-        .replace(Regex("\\s+"), " ")
+        .replace(SANITIZE_WHITESPACE_REGEX, " ")
     return sanitized.ifEmpty { "TimeTravel" }
 }
 
 private fun guessMimeType(displayName: String): String {
-    return when (displayName.substringAfterLast('.', "").lowercase(Locale.US)) {
-        "m4a", "aac" -> "audio/mp4"
-        "wav" -> "audio/wav"
-        else -> "audio/*"
-    }
+    val ext = displayName.substringAfterLast('.', "").lowercase()
+    return ExportFormat.entries.firstOrNull { it.extension == ext }?.outputMimeType ?: "audio/*"
 }
 
 private fun parseRecordingStartTimeMillis(value: String): Long? {

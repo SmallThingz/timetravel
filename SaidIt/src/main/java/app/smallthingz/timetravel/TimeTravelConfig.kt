@@ -31,49 +31,6 @@ object TimeTravelConfig {
     const val CUSTOM_EXPORT_PAST_SECONDS_KEY = "custom_export_past_seconds"
     const val CUSTOM_EXPORT_PAST_SIZE_MIB_KEY = "custom_export_past_size_mib"
 
-    const val RETENTION_MODE_SIZE = "size"
-    const val RETENTION_MODE_TIME = "time"
-
-    const val OUTPUT_FORMAT_WAV = "wav"
-    const val OUTPUT_FORMAT_M4A = "m4a"
-    const val OUTPUT_FORMAT_3GP = "3gp"
-    const val OUTPUT_FORMAT_OGG = "ogg"
-    const val OUTPUT_FORMAT_WEBM = "webm"
-    const val OUTPUT_FORMAT_AAC_ADTS = "aac_adts"
-    const val OUTPUT_FORMAT_AMR_NB = "amr_nb_file"
-    const val OUTPUT_FORMAT_AMR_WB = "amr_wb_file"
-    const val OUTPUT_FORMAT_MPEG_2_TS = "mpeg_2_ts"
-
-    const val OUTPUT_CODEC_WAV = "wav"
-    const val OUTPUT_CODEC_PCM_16 = "pcm_16"
-    const val OUTPUT_CODEC_AAC = "aac"
-    const val OUTPUT_CODEC_AAC_LC = "aac_lc"
-    const val OUTPUT_CODEC_AAC_ELD = "aac_eld"
-    const val OUTPUT_CODEC_HE_AAC = "he_aac"
-    const val OUTPUT_CODEC_HE_AAC_V2 = "he_aac_v2"
-    const val OUTPUT_CODEC_XHE_AAC = "xhe_aac"
-    const val OUTPUT_CODEC_AMR_WB = "amr_wb"
-    const val OUTPUT_CODEC_AMR_NB = "amr_nb"
-    const val OUTPUT_CODEC_OPUS = "opus"
-    const val OUTPUT_CODEC_VORBIS = "vorbis"
-    const val OUTPUT_CODEC_FLAC = "flac"
-
-    const val CHANNEL_MODE_MONO = "mono"
-    const val CHANNEL_MODE_STEREO = "stereo"
-    const val INPUT_ROUTE_AUTO = "auto"
-    const val INPUT_ROUTE_BUILTIN_MIC = "builtin_mic"
-    const val THEME_MODE_SYSTEM = "system"
-    const val THEME_MODE_LIGHT = "light"
-    const val THEME_MODE_DARK = "dark"
-    const val AUTO_MERGE_MODE_OFF = "off"
-    const val AUTO_MERGE_MODE_RATIO = "ratio"
-    const val AUTO_MERGE_MODE_CUSTOM = "custom"
-    const val AUTO_MERGE_MODE_CUSTOM_TIME = "custom_time"
-    const val AUTO_MERGE_MODE_CUSTOM_SIZE = "custom_size"
-    const val CUSTOM_EXPORT_MODE_RANGE = "range"
-    const val CUSTOM_EXPORT_MODE_PAST = "past"
-    const val CUSTOM_EXPORT_UNIT_TIME = "time"
-    const val CUSTOM_EXPORT_UNIT_SIZE = "size"
 
     const val APP_STORAGE_FOLDER_NAME = "Timetravel"
     const val BUFFER_CACHE_FOLDER_NAME = "buffer-cache"
@@ -81,7 +38,10 @@ object TimeTravelConfig {
     const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
     const val DEFAULT_RETENTION_SECONDS = 86_400L
     const val DEFAULT_RETENTION_SIZE_BYTES = 512L * 1024L * 1024L
-    const val DEFAULT_OUTPUT_FORMAT = OUTPUT_FORMAT_WAV
-    const val DEFAULT_OUTPUT_CODEC = OUTPUT_CODEC_PCM_16
-    const val DEFAULT_CHANNEL_MODE = CHANNEL_MODE_MONO
+
+    val DEFAULT_OUTPUT_FORMAT: ExportFormat = ExportFormat.WAV
+    val DEFAULT_OUTPUT_CODEC: ExportCodec = ExportCodec.PCM_16
+    val DEFAULT_CHANNEL_MODE: ChannelMode = ChannelMode.MONO
+    val DEFAULT_CUSTOM_EXPORT_MODE: CustomExportMode = CustomExportMode.PAST
+    val DEFAULT_CUSTOM_EXPORT_UNIT: CustomExportUnit = CustomExportUnit.TIME
 }

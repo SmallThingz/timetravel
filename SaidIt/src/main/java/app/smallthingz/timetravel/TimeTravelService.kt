@@ -814,7 +814,7 @@ class TimeTravelService : Service() {
 
     fun setMemorySize(memorySize: Long) {
         getRecorderPreferences(this).edit()
-            .putString(TimeTravelConfig.RETENTION_MODE_KEY, TimeTravelConfig.RETENTION_MODE_SIZE)
+            .putInt(TimeTravelConfig.RETENTION_MODE_KEY, RetentionMode.SIZE.ordinal)
             .putLong(TimeTravelConfig.AUDIO_MEMORY_SIZE_KEY, memorySize.coerceAtLeast(1L))
             .apply()
         reloadConfiguration()

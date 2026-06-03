@@ -133,15 +133,13 @@ private inline fun <K : Any, V : Any> ConcurrentHashMap<K, V>.cached(
     return existing ?: value
 }
 
-enum class RetentionMode(val prefValue: String) {
-    SIZE(TimeTravelConfig.RETENTION_MODE_SIZE),
-    TIME(TimeTravelConfig.RETENTION_MODE_TIME),
+enum class RetentionMode {
+    SIZE,
+    TIME,
     ;
 
     companion object {
-        fun fromPrefValue(value: String?): RetentionMode {
-            return entries.firstOrNull { it.prefValue == value } ?: SIZE
-        }
+        fun fromStorage(value: Int): RetentionMode = entries.getOrElse(value) { SIZE }
     }
 }
 
@@ -153,15 +151,15 @@ enum class ExportFormat(
     val muxerOutputFormat: Int? = null,
     val minApi: Int = Build.VERSION_CODES.JELLY_BEAN_MR2,
 ) {
-    WAV(TimeTravelConfig.OUTPUT_FORMAT_WAV, R.string.format_wav, "wav", "audio/wav"),
-    M4A(TimeTravelConfig.OUTPUT_FORMAT_M4A, R.string.format_m4a, "m4a", "audio/mp4", MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4),
-    THREE_GPP(TimeTravelConfig.OUTPUT_FORMAT_3GP, R.string.format_3gp, "3gp", "audio/3gpp", MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, Build.VERSION_CODES.O),
-    OGG(TimeTravelConfig.OUTPUT_FORMAT_OGG, R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, Build.VERSION_CODES.Q),
-    WEBM(TimeTravelConfig.OUTPUT_FORMAT_WEBM, R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, Build.VERSION_CODES.LOLLIPOP),
-    AAC_ADTS(TimeTravelConfig.OUTPUT_FORMAT_AAC_ADTS, R.string.format_aac_adts, "aac", "audio/aac"),
-    AMR_NB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_NB, R.string.codec_amr_nb, "amr", "audio/amr"),
-    AMR_WB_FILE(TimeTravelConfig.OUTPUT_FORMAT_AMR_WB, R.string.codec_amr_wb, "awb", "audio/amr-wb"),
-    MPEG_2_TS(TimeTravelConfig.OUTPUT_FORMAT_MPEG_2_TS, R.string.format_mpeg_2_ts, "ts", "video/mp2t"),
+    WAV("wav", R.string.format_wav, "wav", "audio/wav"),
+    M4A("m4a", R.string.format_m4a, "m4a", "audio/mp4", MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4),
+    THREE_GPP("3gp", R.string.format_3gp, "3gp", "audio/3gpp", MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, Build.VERSION_CODES.O),
+    OGG("ogg", R.string.format_ogg, "ogg", "audio/ogg", MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, Build.VERSION_CODES.Q),
+    WEBM("webm", R.string.format_webm, "webm", "audio/webm", MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, Build.VERSION_CODES.LOLLIPOP),
+    AAC_ADTS("aac_adts", R.string.format_aac_adts, "aac", "audio/aac"),
+    AMR_NB_FILE("amr_nb_file", R.string.codec_amr_nb, "amr", "audio/amr"),
+    AMR_WB_FILE("amr_wb_file", R.string.codec_amr_wb, "awb", "audio/amr-wb"),
+    MPEG_2_TS("mpeg_2_ts", R.string.format_mpeg_2_ts, "ts", "video/mp2t"),
     ;
 
     val isPcmContainer: Boolean
@@ -195,17 +193,17 @@ enum class ExportCodec(
     val encoderMimeType: String? = null,
     val aacProfile: Int? = null,
 ) {
-    PCM_16(TimeTravelConfig.OUTPUT_CODEC_PCM_16, R.string.codec_pcm_16),
-    AAC_LC(TimeTravelConfig.OUTPUT_CODEC_AAC_LC, R.string.codec_aac_lc, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectLC),
-    AAC_ELD(TimeTravelConfig.OUTPUT_CODEC_AAC_ELD, R.string.codec_aac_eld, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectELD),
-    HE_AAC(TimeTravelConfig.OUTPUT_CODEC_HE_AAC, R.string.codec_he_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE),
-    HE_AAC_V2(TimeTravelConfig.OUTPUT_CODEC_HE_AAC_V2, R.string.codec_he_aac_v2, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS),
-    XHE_AAC(TimeTravelConfig.OUTPUT_CODEC_XHE_AAC, R.string.codec_xhe_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectXHE),
-    AMR_WB(TimeTravelConfig.OUTPUT_CODEC_AMR_WB, R.string.codec_amr_wb, MediaFormat.MIMETYPE_AUDIO_AMR_WB),
-    AMR_NB(TimeTravelConfig.OUTPUT_CODEC_AMR_NB, R.string.codec_amr_nb, MediaFormat.MIMETYPE_AUDIO_AMR_NB),
-    OPUS(TimeTravelConfig.OUTPUT_CODEC_OPUS, R.string.codec_opus, MediaFormat.MIMETYPE_AUDIO_OPUS),
-    VORBIS(TimeTravelConfig.OUTPUT_CODEC_VORBIS, R.string.codec_vorbis, MediaFormat.MIMETYPE_AUDIO_VORBIS),
-    FLAC(TimeTravelConfig.OUTPUT_CODEC_FLAC, R.string.codec_flac, MediaFormat.MIMETYPE_AUDIO_FLAC),
+    PCM_16("pcm_16", R.string.codec_pcm_16),
+    AAC_LC("aac_lc", R.string.codec_aac_lc, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectLC),
+    AAC_ELD("aac_eld", R.string.codec_aac_eld, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectELD),
+    HE_AAC("he_aac", R.string.codec_he_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE),
+    HE_AAC_V2("he_aac_v2", R.string.codec_he_aac_v2, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS),
+    XHE_AAC("xhe_aac", R.string.codec_xhe_aac, MediaFormat.MIMETYPE_AUDIO_AAC, MediaCodecInfo.CodecProfileLevel.AACObjectXHE),
+    AMR_WB("amr_wb", R.string.codec_amr_wb, MediaFormat.MIMETYPE_AUDIO_AMR_WB),
+    AMR_NB("amr_nb", R.string.codec_amr_nb, MediaFormat.MIMETYPE_AUDIO_AMR_NB),
+    OPUS("opus", R.string.codec_opus, MediaFormat.MIMETYPE_AUDIO_OPUS),
+    VORBIS("vorbis", R.string.codec_vorbis, MediaFormat.MIMETYPE_AUDIO_VORBIS),
+    FLAC("flac", R.string.codec_flac, MediaFormat.MIMETYPE_AUDIO_FLAC),
     ;
 
     val isAacFamily: Boolean
@@ -230,8 +228,8 @@ enum class ExportCodec(
     companion object {
         fun fromPrefValue(value: String?): ExportCodec {
             return when (value) {
-                TimeTravelConfig.OUTPUT_CODEC_AAC -> AAC_LC
-                TimeTravelConfig.OUTPUT_CODEC_WAV -> PCM_16
+                "aac" -> AAC_LC
+                "wav" -> PCM_16
                 else -> entries.firstOrNull { it.prefValue == value } ?: PCM_16
             }
         }
@@ -281,8 +279,8 @@ enum class AudioSourceMode(
 }
 
 enum class InputRouteMode(val prefValue: String, @param:StringRes @field:StringRes val labelRes: Int) {
-    AUTO(TimeTravelConfig.INPUT_ROUTE_AUTO, R.string.input_route_auto),
-    BUILTIN_MIC(TimeTravelConfig.INPUT_ROUTE_BUILTIN_MIC, R.string.input_route_builtin_mic),
+    AUTO("auto", R.string.input_route_auto),
+    BUILTIN_MIC("builtin_mic", R.string.input_route_builtin_mic),
     ;
 
     companion object {
@@ -298,8 +296,8 @@ enum class ChannelMode(
     val channelCount: Int,
     val inputChannelMask: Int,
 ) {
-    MONO(TimeTravelConfig.CHANNEL_MODE_MONO, R.string.channel_mode_mono, 1, AudioFormat.CHANNEL_IN_MONO),
-    STEREO(TimeTravelConfig.CHANNEL_MODE_STEREO, R.string.channel_mode_stereo, 2, AudioFormat.CHANNEL_IN_STEREO),
+    MONO("mono", R.string.channel_mode_mono, 1, AudioFormat.CHANNEL_IN_MONO),
+    STEREO("stereo", R.string.channel_mode_stereo, 2, AudioFormat.CHANNEL_IN_STEREO),
     ;
 
     companion object {
@@ -314,9 +312,9 @@ enum class AppThemeMode(
     @param:StringRes @field:StringRes val labelRes: Int,
     val nightMode: Int,
 ) {
-    SYSTEM(TimeTravelConfig.THEME_MODE_SYSTEM, R.string.theme_system, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM),
-    LIGHT(TimeTravelConfig.THEME_MODE_LIGHT, R.string.theme_light, AppCompatDelegate.MODE_NIGHT_NO),
-    DARK(TimeTravelConfig.THEME_MODE_DARK, R.string.theme_dark, AppCompatDelegate.MODE_NIGHT_YES),
+    SYSTEM("system", R.string.theme_system, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM),
+    LIGHT("light", R.string.theme_light, AppCompatDelegate.MODE_NIGHT_NO),
+    DARK("dark", R.string.theme_dark, AppCompatDelegate.MODE_NIGHT_YES),
     ;
 
     companion object {
@@ -330,19 +328,39 @@ enum class AutoMergeMode(
     val prefValue: String,
     @param:StringRes @field:StringRes val labelRes: Int,
 ) {
-    OFF(TimeTravelConfig.AUTO_MERGE_MODE_OFF, R.string.auto_merge_mode_off),
-    RATIO(TimeTravelConfig.AUTO_MERGE_MODE_RATIO, R.string.auto_merge_mode_ratio),
-    CUSTOM_TIME(TimeTravelConfig.AUTO_MERGE_MODE_CUSTOM_TIME, R.string.auto_merge_mode_custom_time),
-    CUSTOM_SIZE(TimeTravelConfig.AUTO_MERGE_MODE_CUSTOM_SIZE, R.string.auto_merge_mode_custom_size),
+    OFF("off", R.string.auto_merge_mode_off),
+    RATIO("ratio", R.string.auto_merge_mode_ratio),
+    CUSTOM_TIME("custom_time", R.string.auto_merge_mode_custom_time),
+    CUSTOM_SIZE("custom_size", R.string.auto_merge_mode_custom_size),
     ;
 
     companion object {
         fun fromPrefValue(value: String?): AutoMergeMode {
             return when (value) {
-                TimeTravelConfig.AUTO_MERGE_MODE_CUSTOM -> CUSTOM_TIME
+                "custom" -> CUSTOM_TIME
                 else -> entries.firstOrNull { it.prefValue == value } ?: RATIO
             }
         }
+    }
+}
+
+enum class CustomExportMode {
+    RANGE,
+    PAST,
+    ;
+
+    companion object {
+        fun fromStorage(value: Int): CustomExportMode = entries.getOrElse(value) { PAST }
+    }
+}
+
+enum class CustomExportUnit {
+    TIME,
+    SIZE,
+    ;
+
+    companion object {
+        fun fromStorage(value: Int): CustomExportUnit = entries.getOrElse(value) { TIME }
     }
 }
 
@@ -351,12 +369,44 @@ fun getRecorderPreferences(context: Context): SharedPreferences {
 }
 
 fun getConfiguredRetentionMode(context: Context): RetentionMode {
-    return RetentionMode.fromPrefValue(
-        getRecorderPreferences(context).getString(
-            TimeTravelConfig.RETENTION_MODE_KEY,
-            TimeTravelConfig.RETENTION_MODE_SIZE,
-        ),
-    )
+    val prefs = getRecorderPreferences(context)
+    val stored = prefs.getInt(TimeTravelConfig.RETENTION_MODE_KEY, -1)
+    if (stored in RetentionMode.entries.indices) return RetentionMode.entries[stored]
+    val legacy = prefs.getString(TimeTravelConfig.RETENTION_MODE_KEY, null)
+    return when (legacy) {
+        "time" -> RetentionMode.TIME
+        else -> RetentionMode.SIZE
+    }
+}
+
+fun getConfiguredCustomExportMode(context: Context): CustomExportMode {
+    val prefs = getRecorderPreferences(context)
+    val stored = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, -1)
+    if (stored in CustomExportMode.entries.indices) return CustomExportMode.entries[stored]
+    val legacy = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, null)
+    return when (legacy) {
+        "range" -> CustomExportMode.RANGE
+        else -> TimeTravelConfig.DEFAULT_CUSTOM_EXPORT_MODE
+    }
+}
+
+fun setConfiguredCustomExportMode(context: Context, mode: CustomExportMode) {
+    getRecorderPreferences(context).edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, mode.ordinal).apply()
+}
+
+fun getConfiguredCustomExportUnit(context: Context): CustomExportUnit {
+    val prefs = getRecorderPreferences(context)
+    val stored = prefs.getInt(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, -1)
+    if (stored in CustomExportUnit.entries.indices) return CustomExportUnit.entries[stored]
+    val legacy = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, null)
+    return when (legacy) {
+        "size" -> CustomExportUnit.SIZE
+        else -> TimeTravelConfig.DEFAULT_CUSTOM_EXPORT_UNIT
+    }
+}
+
+fun setConfiguredCustomExportUnit(context: Context, unit: CustomExportUnit) {
+    getRecorderPreferences(context).edit().putInt(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, unit.ordinal).apply()
 }
 
 fun isDiskBufferCacheEnabled(context: Context): Boolean {
@@ -386,7 +436,7 @@ fun isIgnoringBatteryOptimizations(context: Context): Boolean {
 
 fun getConfiguredThemeMode(context: Context): AppThemeMode {
     return AppThemeMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.THEME_MODE_KEY, TimeTravelConfig.THEME_MODE_SYSTEM),
+        getRecorderPreferences(context).getString(TimeTravelConfig.THEME_MODE_KEY, AppThemeMode.SYSTEM.prefValue),
     )
 }
 
@@ -418,7 +468,7 @@ fun getConfiguredHistoryChunkSeconds(context: Context): Int {
 
 fun getConfiguredAutoMergeMode(context: Context): AutoMergeMode {
     return AutoMergeMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, TimeTravelConfig.AUTO_MERGE_MODE_RATIO),
+        getRecorderPreferences(context).getString(TimeTravelConfig.AUTO_MERGE_MODE_KEY, AutoMergeMode.RATIO.prefValue),
     )
 }
 
@@ -505,11 +555,11 @@ fun defaultAutoMergeCustomSeconds(): Int {
 
 fun getConfiguredOutputFormat(context: Context): ExportFormat {
     val prefs = getRecorderPreferences(context)
-    val storedFormat = prefs.getString(TimeTravelConfig.OUTPUT_FORMAT_KEY, TimeTravelConfig.DEFAULT_OUTPUT_FORMAT)
+    val storedFormat = prefs.getString(TimeTravelConfig.OUTPUT_FORMAT_KEY, TimeTravelConfig.DEFAULT_OUTPUT_FORMAT.prefValue)
     if (storedFormat != null) {
         return ExportFormat.fromPrefValue(storedFormat)
     }
-    val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.OUTPUT_CODEC_WAV))
+    val legacyCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, "wav"))
     return if (legacyCodec != ExportCodec.PCM_16 || prefs.contains(TimeTravelConfig.OUTPUT_CODEC_KEY)) {
         preferredOutputFormatForCodec(legacyCodec)
     } else {
@@ -519,7 +569,7 @@ fun getConfiguredOutputFormat(context: Context): ExportFormat {
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {
     val prefs = getRecorderPreferences(context)
-    val storedCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.DEFAULT_OUTPUT_CODEC))
+    val storedCodec = ExportCodec.fromPrefValue(prefs.getString(TimeTravelConfig.OUTPUT_CODEC_KEY, TimeTravelConfig.DEFAULT_OUTPUT_CODEC.prefValue))
     val preferredFormat = getConfiguredOutputFormat(context)
     val preferred = getPreferredOutputCodec(preferredFormat)
     return if (isCodecCompatibleWithFormat(preferredFormat, storedCodec)) storedCodec else preferred
@@ -588,15 +638,14 @@ fun getConfiguredAudioSourceMode(context: Context): AudioSourceMode {
 }
 
 fun getConfiguredInputRouteMode(context: Context): InputRouteMode {
-    val defaultValue = TimeTravelConfig.INPUT_ROUTE_AUTO
     return InputRouteMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.INPUT_ROUTE_KEY, defaultValue),
+        getRecorderPreferences(context).getString(TimeTravelConfig.INPUT_ROUTE_KEY, InputRouteMode.AUTO.prefValue),
     )
 }
 
 fun getConfiguredChannelMode(context: Context): ChannelMode {
     return ChannelMode.fromPrefValue(
-        getRecorderPreferences(context).getString(TimeTravelConfig.CHANNEL_MODE_KEY, TimeTravelConfig.DEFAULT_CHANNEL_MODE),
+        getRecorderPreferences(context).getString(TimeTravelConfig.CHANNEL_MODE_KEY, TimeTravelConfig.DEFAULT_CHANNEL_MODE.prefValue),
     )
 }
 
