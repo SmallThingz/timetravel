@@ -13,16 +13,16 @@ fun formatShortTimer(seconds: Float): String {
     val secs = totalSeconds % 60
 
     return if (hours > 0) {
-        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, secs)
+        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_HMS, hours, minutes, secs)
     } else {
-        String.format(Locale.US, "%d:%02d", minutes, secs)
+        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_MS, minutes, secs)
     }
 }
 
 fun formatShortFileSize(size: Long): String {
     val mebibytes = size.coerceAtLeast(0L) / (1024.0 * 1024.0)
-    val formatter = DecimalFormat("0.0", DecimalFormatSymbols(Locale.US))
-    return "${formatter.format(mebibytes)} MiB"
+    val formatter = DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
+    return "${formatter.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
 }
 
 fun formatSavedRecordingDuration(durationMillis: Long): String {

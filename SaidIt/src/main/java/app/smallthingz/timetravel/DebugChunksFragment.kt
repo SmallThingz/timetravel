@@ -50,7 +50,7 @@ class DebugChunksFragment : Fragment() {
     private lateinit var settingsButton: ImageButton
 
     private val selectedChunkPaths = linkedSetOf<String>()
-    private val timeFormatter = SimpleDateFormat("dd MMM yyyy HH:mm:ss", Locale.getDefault())
+    private val timeFormatter = SimpleDateFormat(TimeTravelConfig.FORMAT_DATE_DEBUG, Locale.US)
 
     private val connection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -168,9 +168,9 @@ class DebugChunksFragment : Fragment() {
     private fun renderSnapshot(snapshot: TimeTravelService.ChunkDebugSnapshot) {
         val history = snapshot.history
         val mode = when {
-            snapshot.recording -> "Recording"
-            snapshot.listeningEnabled -> "Live"
-            else -> "Paused"
+            snapshot.recording -> TimeTravelConfig.MODE_LABEL_RECORDING
+            snapshot.listeningEnabled -> TimeTravelConfig.MODE_LABEL_LIVE
+            else -> TimeTravelConfig.MODE_LABEL_PAUSED
         }
         val reencode = when {
             snapshot.historyReencoding -> " · Reencode ${formatShortFileSize(snapshot.historyReencodeProcessedBytes)} / ${formatShortFileSize(snapshot.historyReencodeTotalBytes)}"
@@ -190,19 +190,19 @@ class DebugChunksFragment : Fragment() {
                 if (activeChunks > 0) R.string.chunks_title_active else R.string.chunks_title,
             )
         summary.text =
-            "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)} · ${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)} · ${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)} · ${if ((history?.channelCount ?: snapshot.channelCount) >= 2) "stereo" else "mono"} · $mode$reencode"
+            "${(history?.format ?: snapshot.format.prefValue).uppercase(Locale.US)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${(history?.codec ?: snapshot.codec.prefValue).uppercase(Locale.US)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${sampleRateLabel(history?.sampleRate ?: snapshot.sampleRate)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${if ((history?.channelCount ?: snapshot.channelCount) >= 2) "stereo" else "mono"}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}$mode$reencode"
         metricPrimary.text = "${chunks.size} chunks"
         metricSecondary.text = "${formatShortFileSize(totalFileBytes)} retained"
         metricDetail.text =
             buildString {
                 append(formatShortFileSize(totalSampleBytes))
-                append(" samples")
+                append(TimeTravelConfig.STATUS_SAMPLES)
                 append(" · Active ")
                 append(activeChunks)
-                append(" · Merging ")
+                append(TimeTravelConfig.STATUS_MERGING)
                 append(operations.size)
                 history?.nextSegmentStartMillis?.let {
-                    append(" · Next ")
+                    append(TimeTravelConfig.STATUS_NEXT)
                     append(timeFormatter.format(Date(it)))
                 }
             }
@@ -242,7 +242,7 @@ class DebugChunksFragment : Fragment() {
             row.findViewById<TextView>(R.id.chunk_size).text =
                 "${formatShortFileSize(chunk.fileSizeBytes)} · ${formatShortTimer(((chunk.endedAtMillis - chunk.startedAtMillis).coerceAtLeast(0L) / 1000f))}"
             row.findViewById<TextView>(R.id.chunk_path).text =
-                "${chunk.filePath.substringAfterLast("/live-export-history/")} · ${formatShortFileSize(chunk.sampleBytes)} samples"
+                "${chunk.filePath.substringAfterLast(TimeTravelConfig.HISTORY_CACHE_PATH_SEGMENT)}${TimeTravelConfig.CODEC_SUMMARY_SEPARATOR}${formatShortFileSize(chunk.sampleBytes)}${TimeTravelConfig.STATUS_SAMPLES}"
             row.findViewById<TextView>(R.id.chunk_active).visibility = if (chunk.active) View.VISIBLE else View.GONE
             val affectingOperations = operations.filter { chunk.filePath in it.sourcePaths }
             val operationsText = row.findViewById<TextView>(R.id.chunk_operations)
@@ -374,9 +374,9 @@ class DebugChunksFragment : Fragment() {
 
     private fun operationLabelRes(kind: String): Int {
         return when (kind) {
-            "BACKGROUND_MERGE" -> R.string.chunks_operation_background_merge
-            "EXPORT_MERGE" -> R.string.chunks_operation_export_merge
-            "HISTORY_REENCODE" -> R.string.chunks_operation_history_reencode
+            TimeTravelConfig.OPERATION_BACKGROUND_MERGE -> R.string.chunks_operation_background_merge
+            TimeTravelConfig.OPERATION_EXPORT_MERGE -> R.string.chunks_operation_export_merge
+            TimeTravelConfig.OPERATION_HISTORY_REENCODE -> R.string.chunks_operation_history_reencode
             else -> R.string.chunks_operation_export_merge
         }
     }

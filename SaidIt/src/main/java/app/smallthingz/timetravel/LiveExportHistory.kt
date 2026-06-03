@@ -52,8 +52,8 @@ internal fun detectRawAmrCodec(
     if (size <= 0) return null
     val value = String(header, 0, size, Charsets.US_ASCII)
     return when {
-        value.startsWith("#!AMR-WB\n") -> ExportCodec.AMR_WB
-        value.startsWith("#!AMR\n") -> ExportCodec.AMR_NB
+        value.startsWith(TimeTravelConfig.AMR_WB_MAGIC_HEADER) -> ExportCodec.AMR_WB
+        value.startsWith(TimeTravelConfig.AMR_NB_MAGIC_HEADER) -> ExportCodec.AMR_NB
         else -> null
     }
 }
@@ -79,8 +79,8 @@ private val ADTS_SAMPLE_RATES_BY_INDEX =
 internal class LiveExportHistory(
     private val context: Context,
 ) {
-    private val historyRoot = File(File(context.noBackupFilesDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), "live-export-history")
-    private val legacyCacheRoot = File(File(context.cacheDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), "live-export-history")
+    private val historyRoot = File(File(context.noBackupFilesDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), TimeTravelConfig.HISTORY_CACHE_FOLDER_NAME)
+    private val legacyCacheRoot = File(File(context.cacheDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME), TimeTravelConfig.HISTORY_CACHE_FOLDER_NAME)
     private val segments = ArrayDeque<Segment>()
     private val pinnedFiles = LinkedHashMap<String, Int>()
     private val debugOperations = LinkedHashMap<String, DebugOperation>()
@@ -2329,7 +2329,7 @@ internal class LiveExportHistory(
 
         val keep = normalizedSegments.mapTo(HashSet()) { it.file.absolutePath }
         historyRoot.listFiles()?.forEach { file ->
-            if (file.isFile && (file.absolutePath !in keep || file.name.endsWith(TEMP_FILE_SUFFIX))) {
+            if (file.isFile && (file.absolutePath !in keep || file.name.endsWith(TimeTravelConfig.TEMP_FILE_SUFFIX))) {
                 file.delete()
             }
         }
@@ -2972,16 +2972,15 @@ internal class LiveExportHistory(
         const val MAX_EXPORT_COMPACTION_PARALLELISM = 4
         const val DEFAULT_EXPORT_COMPACTION_PARALLELISM = 4
         const val DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS = 5_000L
-        const val TEMP_FILE_SUFFIX = ".tmp"
-        val AMR_NB_MAGIC_HEADER = "#!AMR\n".toByteArray(Charsets.US_ASCII)
-        val AMR_WB_MAGIC_HEADER = "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
+        val AMR_NB_MAGIC_HEADER = TimeTravelConfig.AMR_NB_MAGIC_HEADER.toByteArray(Charsets.US_ASCII)
+        val AMR_WB_MAGIC_HEADER = TimeTravelConfig.AMR_WB_MAGIC_HEADER.toByteArray(Charsets.US_ASCII)
         val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
         val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")
 
         fun findAudioTrack(extractor: MediaExtractor): Int {
             for (index in 0 until extractor.trackCount) {
                 val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
-                if (mime?.startsWith("audio/") == true) {
+                if (mime?.startsWith(TimeTravelConfig.MIME_AUDIO_PREFIX) == true) {
                     return index
                 }
             }

@@ -133,6 +133,13 @@ private inline fun <K : Any, V : Any> ConcurrentHashMap<K, V>.cached(
     return existing ?: value
 }
 
+private const val LEGACY_CODEC_AAC = "aac"
+private const val LEGACY_CODEC_WAV = "wav"
+private const val LEGACY_AUTO_MERGE_CUSTOM = "custom"
+private const val LEGACY_RETENTION_TIME = "time"
+private const val LEGACY_EXPORT_MODE_RANGE = "range"
+private const val LEGACY_EXPORT_UNIT_SIZE = "size"
+
 enum class RetentionMode {
     SIZE,
     TIME,
@@ -228,8 +235,8 @@ enum class ExportCodec(
     companion object {
         fun fromPrefValue(value: String?): ExportCodec {
             return when (value) {
-                "aac" -> AAC_LC
-                "wav" -> PCM_16
+                LEGACY_CODEC_AAC -> AAC_LC
+                LEGACY_CODEC_WAV -> PCM_16
                 else -> entries.firstOrNull { it.prefValue == value } ?: PCM_16
             }
         }
@@ -337,7 +344,7 @@ enum class AutoMergeMode(
     companion object {
         fun fromPrefValue(value: String?): AutoMergeMode {
             return when (value) {
-                "custom" -> CUSTOM_TIME
+                LEGACY_AUTO_MERGE_CUSTOM -> CUSTOM_TIME
                 else -> entries.firstOrNull { it.prefValue == value } ?: RATIO
             }
         }
@@ -374,7 +381,7 @@ fun getConfiguredRetentionMode(context: Context): RetentionMode {
     if (stored in RetentionMode.entries.indices) return RetentionMode.entries[stored]
     val legacy = prefs.getString(TimeTravelConfig.RETENTION_MODE_KEY, null)
     return when (legacy) {
-        "time" -> RetentionMode.TIME
+        LEGACY_RETENTION_TIME -> RetentionMode.TIME
         else -> RetentionMode.SIZE
     }
 }
@@ -385,7 +392,7 @@ fun getConfiguredCustomExportMode(context: Context): CustomExportMode {
     if (stored in CustomExportMode.entries.indices) return CustomExportMode.entries[stored]
     val legacy = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_MODE_KEY, null)
     return when (legacy) {
-        "range" -> CustomExportMode.RANGE
+        LEGACY_EXPORT_MODE_RANGE -> CustomExportMode.RANGE
         else -> TimeTravelConfig.DEFAULT_CUSTOM_EXPORT_MODE
     }
 }
@@ -400,7 +407,7 @@ fun getConfiguredCustomExportUnit(context: Context): CustomExportUnit {
     if (stored in CustomExportUnit.entries.indices) return CustomExportUnit.entries[stored]
     val legacy = prefs.getString(TimeTravelConfig.CUSTOM_EXPORT_UNIT_KEY, null)
     return when (legacy) {
-        "size" -> CustomExportUnit.SIZE
+        LEGACY_EXPORT_UNIT_SIZE -> CustomExportUnit.SIZE
         else -> TimeTravelConfig.DEFAULT_CUSTOM_EXPORT_UNIT
     }
 }
@@ -772,9 +779,9 @@ fun formatDurationInput(seconds: Long): String {
     val minutes = total % 3600 / 60
     val secs = total % 60
     return if (hours > 0) {
-        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, secs)
+        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_HMS, hours, minutes, secs)
     } else {
-        String.format(Locale.US, "%d:%02d", minutes, secs)
+        String.format(Locale.US, TimeTravelConfig.FORMAT_DURATION_MS, minutes, secs)
     }
 }
 
@@ -1046,7 +1053,7 @@ fun sampleRateLabel(sampleRate: Int): String {
     return if (sampleRate % 1000 == 0) {
         "${sampleRate / 1000} kHz"
     } else {
-        String.format(Locale.US, "%.2f kHz", sampleRate / 1000f)
+        String.format(Locale.US, TimeTravelConfig.FORMAT_SAMPLE_RATE_KHZ, sampleRate / 1000f)
     }
 }
 

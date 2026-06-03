@@ -987,7 +987,7 @@ class TimeTravelFragment : Fragment() {
 
         private fun formatSizeInputMib(sizeBytes: Long): String {
             val mebibytes = sizeBytes.coerceAtLeast(0L) / (1024.0 * 1024.0)
-            return DecimalFormat("0.0", DecimalFormatSymbols(Locale.US)).format(mebibytes)
+            return DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US)).format(mebibytes)
         }
 
         private fun showExportClampDialog(

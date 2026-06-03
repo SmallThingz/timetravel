@@ -138,7 +138,7 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
     }
 
     companion object {
-        private const val DATABASE_NAME = "timetravel-recordings.db"
+        private const val DATABASE_NAME = TimeTravelConfig.DATABASE_FILE_NAME
         private const val DATABASE_VERSION = 2
         internal const val TABLE_RECORDINGS = "recordings"
         internal const val COLUMN_ID = "id"

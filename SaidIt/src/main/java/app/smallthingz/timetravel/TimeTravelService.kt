@@ -175,12 +175,12 @@ class TimeTravelService : Service() {
         liveExportHistory = LiveExportHistory(this)
         adoptPersistedBufferConfigurationIfNeeded()
         updateLiveExportHistoryConfiguration(restoredOrConfiguredMemorySize())
-        audioThread = HandlerThread("timeTravelAudioThread", Process.THREAD_PRIORITY_AUDIO).also { it.start() }
+        audioThread = HandlerThread(TimeTravelConfig.THREAD_NAME_AUDIO, Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
-        exportThread = HandlerThread("timeTravelExportThread", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
+        exportThread = HandlerThread(TimeTravelConfig.THREAD_NAME_EXPORT, Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
         exportHandler = Handler(exportThread.looper)
         exportWorkExecutor = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "timeTravelExportWork").apply {
+            Thread(runnable, TimeTravelConfig.THREAD_NAME_EXPORT_WORK).apply {
                 priority = Thread.NORM_PRIORITY
                 isDaemon = true
             }
@@ -1076,6 +1076,7 @@ class TimeTravelService : Service() {
 
     private fun currentCodecSummary(): String {
         return buildCodecSummary(
+            this,
             effectiveOutputFormat,
             effectiveOutputCodec,
             sampleRate,
@@ -1407,6 +1408,7 @@ class TimeTravelService : Service() {
                     outTarget,
                     exported.durationMillis,
                     buildCodecSummary(
+                        this@TimeTravelService,
                         exported.format,
                         exported.codec,
                         exported.sampleRate,
@@ -1613,7 +1615,7 @@ class TimeTravelService : Service() {
         chunk: LiveExportHistory.ReencodeSourceSegment,
         writer: AudioFileWriter,
     ) {
-        if (chunk.file.extension.equals("wav", ignoreCase = true)) {
+        if (chunk.file.extension.equals(ExportFormat.WAV.extension, ignoreCase = true)) {
             RandomAccessFile(chunk.file, "r").use { input ->
                 input.seek(REENCODE_WAV_HEADER_BYTES)
                 val buffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
@@ -2115,7 +2117,7 @@ class TimeTravelService : Service() {
     private fun findAudioTrack(extractor: MediaExtractor): Int {
         for (index in 0 until extractor.trackCount) {
             val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
-            if (mime?.startsWith("audio/") == true) {
+            if (mime?.startsWith(TimeTravelConfig.MIME_AUDIO_PREFIX) == true) {
                 return index
             }
         }
@@ -2338,7 +2340,7 @@ class TimeTravelService : Service() {
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
         const val HISTORY_COMPACTION_MIN_IDLE_DELAY_MS = 1_500L
         const val HISTORY_COMPACTION_MAX_IDLE_DELAY_MS = 30_000L
-        const val DEBUG_ACTION_PREFIX = "app.smallthingz.timetravel.debug."
+        const val DEBUG_ACTION_PREFIX = TimeTravelConfig.DEBUG_ACTION_PREFIX
         val nextExportTokenId = AtomicLong(1L)
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
         const val ACTION_DEBUG_DISABLE_LISTENING = "${DEBUG_ACTION_PREFIX}DISABLE_LISTENING"
@@ -2355,10 +2357,10 @@ class TimeTravelService : Service() {
         const val ACTION_DEBUG_LOG_STATE = "${DEBUG_ACTION_PREFIX}LOG_STATE"
         const val ACTION_DEBUG_DUMP_REPORT = "${DEBUG_ACTION_PREFIX}DUMP_REPORT"
         const val DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS = 5_000L
-        const val EXTRA_DEBUG_SECONDS = "seconds"
-        const val EXTRA_DEBUG_FORMAT = "format"
-        const val EXTRA_DEBUG_CODEC = "codec"
-        const val EXTRA_DEBUG_BITRATE_KBPS = "bitrate_kbps"
+        const val EXTRA_DEBUG_SECONDS = TimeTravelConfig.EXTRA_SECONDS
+        const val EXTRA_DEBUG_FORMAT = TimeTravelConfig.EXTRA_FORMAT
+        const val EXTRA_DEBUG_CODEC = TimeTravelConfig.EXTRA_CODEC
+        const val EXTRA_DEBUG_BITRATE_KBPS = TimeTravelConfig.EXTRA_BITRATE_KBPS
 
         const val STATE_READY = 0
         const val STATE_LISTENING = 1

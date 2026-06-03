@@ -195,4 +195,13 @@
         <item quantity="one">Removed %1$d missing entry.</item>
         <item quantity="other">Removed %1$d missing entries.</item>
     </plurals>
+
+    <string name="volume_internal_shared_storage">Internal shared storage</string>
+    <string name="volume_documents">Documents</string>
+    <string name="volume_storage_template">Storage %s</string>
+    <string name="fallback_display_name">TimeTravel</string>
+    <string name="app_storage_label">App storage</string>
+    <string name="mode_recording">Recording</string>
+    <string name="mode_live">Live</string>
+    <string name="mode_paused">Paused</string>
 </resources>

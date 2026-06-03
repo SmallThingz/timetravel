@@ -29,7 +29,7 @@ internal fun buildRecordingDetailsText(
     context: Context,
     recording: RecordingEntity,
 ): String {
-    val startedAt = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z", Locale.getDefault())
+    val startedAt = DateTimeFormatter.ofPattern(TimeTravelConfig.FORMAT_DATE_INFO, Locale.getDefault())
         .format(Instant.ofEpochMilli(recording.startedAtMillis).atZone(ZoneId.systemDefault()))
     return buildString {
         appendLine("${context.getString(R.string.recording_details_name)} ${recording.displayName}")

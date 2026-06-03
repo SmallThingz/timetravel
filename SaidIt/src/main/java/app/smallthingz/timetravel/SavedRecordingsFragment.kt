@@ -450,7 +450,7 @@ private class SavedRecordingAdapter(
     }
 
     private companion object {
-        const val PAYLOAD_SELECTION = "selection"
+        const val PAYLOAD_SELECTION = TimeTravelConfig.PAYLOAD_SELECTION
     }
 }
 

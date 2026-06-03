@@ -16,8 +16,8 @@ internal class PersistentAudioRingStore(
             throw IllegalStateException("Unable to create buffer cache directory: ${directory.absolutePath}")
         }
     }
-    private val metaFile = File(directory, "buffer.meta")
-    private val dataFile = File(directory, "buffer.pcm")
+    private val metaFile = File(directory, TimeTravelConfig.BUFFER_META_FILE_NAME)
+    private val dataFile = File(directory, TimeTravelConfig.BUFFER_PCM_FILE_NAME)
 
     private var metaAccess: RandomAccessFile? = null
     private var metaChannel: FileChannel? = null

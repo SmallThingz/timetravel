@@ -20,7 +20,7 @@ private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
 private val SANITIZE_ILLEGAL_REGEX = Regex("[\\\\/*?\"<>|]")
 private val SANITIZE_WHITESPACE_REGEX = Regex("\\s+")
 private val SUPPORTED_RECORDING_EXTENSIONS = ExportFormat.entries.map { it.extension }.toSet()
-private const val CODEC_SUMMARY_SEPARATOR = " • "
+private const val CODEC_SUMMARY_SEPARATOR = TimeTravelConfig.CODEC_SUMMARY_SEPARATOR
 
 enum class RecordingStorageType {
     FILE,
@@ -78,7 +78,7 @@ fun describeOutputDirectory(
     treeUri: Uri?,
 ): String {
     if (treeUri == null) {
-        return "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
+        return "${context.getString(R.string.app_storage_label)}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
     }
     val name = DocumentFile.fromTreeUri(context, treeUri)?.name
     return name ?: treeUri.toString()
@@ -103,7 +103,7 @@ fun buildOpenRecordingIntent(
     recording: RecordingEntity,
 ): Intent {
     return Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(buildRecordingUri(context, recording), recording.mimeType.ifBlank { "audio/*" })
+        setDataAndType(buildRecordingUri(context, recording), recording.mimeType.ifBlank { TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO })
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 }
@@ -115,7 +115,7 @@ fun buildShareRecordingIntent(
     val fileUri = buildRecordingUri(context, recording)
     return Intent(Intent.ACTION_SEND).apply {
         putExtra(Intent.EXTRA_STREAM, fileUri)
-        type = recording.mimeType.ifBlank { context.contentResolver.getType(fileUri) ?: "audio/*" }
+        type = recording.mimeType.ifBlank { context.contentResolver.getType(fileUri) ?: TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO }
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 }
@@ -211,7 +211,7 @@ private fun resolveRecordingCodecInfo(
         bitrate?.takeIf { it > 0 }?.let {
             append(CODEC_SUMMARY_SEPARATOR)
             append(it / 1000)
-            append(" kbps")
+            append(TimeTravelConfig.BITRATE_SUFFIX)
         }
     }
 }
@@ -225,7 +225,7 @@ private fun describeFileRecordingLocation(
     if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
         val relativePath = normalizedPath.removePrefix(appStoragePath).trimStart('/')
         return appendRelativePath(
-            "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
+            "${context.getString(R.string.app_storage_label)}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
             relativePath.replace('\\', '/').trim('/'),
         )
     }
@@ -268,9 +268,9 @@ private fun describeDocumentIdPath(
     describeAppStorageRelativePath(context, relativePath)?.let { return it }
 
     val rootLabel = when {
-        volumeId.equals("primary", ignoreCase = true) -> "Internal shared storage"
-        volumeId.equals("home", ignoreCase = true) -> "Documents"
-        else -> "Storage $volumeId"
+        volumeId.equals("primary", ignoreCase = true) -> context.getString(R.string.volume_internal_shared_storage)
+        volumeId.equals("home", ignoreCase = true) -> context.getString(R.string.volume_documents)
+        else -> context.getString(R.string.volume_storage_template, volumeId)
     }
     return appendRelativePath(rootLabel, relativePath)
 }
@@ -284,7 +284,7 @@ private fun describeAppStorageRelativePath(
     if (normalizedPath == appStorageRelativeRoot || normalizedPath.startsWith("$appStorageRelativeRoot/")) {
         val tail = normalizedPath.removePrefix(appStorageRelativeRoot).trimStart('/')
         return appendRelativePath(
-            "App storage/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
+            "${context.getString(R.string.app_storage_label)}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",
             tail.replace('\\', '/').trim('/'),
         )
     }
@@ -304,45 +304,20 @@ private fun appendRelativePath(
 }
  
 fun buildCodecSummary(
+    context: Context,
     format: ExportFormat,
     codec: ExportCodec,
     sampleRate: Int,
     channelCount: Int,
     bitrateKbps: Int? = null,
 ): String {
-    val channelLabel = if (channelCount >= 2) "Stereo" else "Mono"
+    val channelLabel = if (channelCount >= 2) context.getString(R.string.channel_mode_stereo) else context.getString(R.string.channel_mode_mono)
     val resolvedBitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
         ?.let { bitrateKbps ?: it }
     return buildString {
-        append(
-            when (codec) {
-                ExportCodec.PCM_16 -> "PCM 16-bit"
-                ExportCodec.AAC_LC -> "AAC-LC"
-                ExportCodec.AAC_ELD -> "AAC-ELD"
-                ExportCodec.HE_AAC -> "HE-AAC"
-                ExportCodec.HE_AAC_V2 -> "HE-AAC v2"
-                ExportCodec.XHE_AAC -> "xHE-AAC"
-                ExportCodec.AMR_WB -> "AMR-WB"
-                ExportCodec.AMR_NB -> "AMR-NB"
-                ExportCodec.OPUS -> "Opus"
-                ExportCodec.VORBIS -> "Vorbis"
-                ExportCodec.FLAC -> "FLAC"
-            },
-        )
+        append(context.getString(codec.labelRes))
         append(CODEC_SUMMARY_SEPARATOR)
-        append(
-            when (format) {
-                ExportFormat.WAV -> "WAV"
-                ExportFormat.M4A -> "M4A"
-                ExportFormat.THREE_GPP -> "3GP"
-                ExportFormat.OGG -> "Ogg"
-                ExportFormat.WEBM -> "WebM"
-                ExportFormat.AAC_ADTS -> "AAC ADTS"
-                ExportFormat.AMR_NB_FILE -> "AMR-NB"
-                ExportFormat.AMR_WB_FILE -> "AMR-WB"
-                ExportFormat.MPEG_2_TS -> "MPEG-TS"
-            },
-        )
+        append(context.getString(format.labelRes))
         append(CODEC_SUMMARY_SEPARATOR)
         append(sampleRateLabel(sampleRate))
         append(CODEC_SUMMARY_SEPARATOR)
@@ -350,7 +325,7 @@ fun buildCodecSummary(
         resolvedBitrateKbps?.let {
             append(CODEC_SUMMARY_SEPARATOR)
             append(it)
-            append(" kbps")
+            append(TimeTravelConfig.BITRATE_SUFFIX)
         }
     }
 }
@@ -759,12 +734,12 @@ private fun sanitizeBaseName(name: String): String {
         .replace(SANITIZE_ILLEGAL_REGEX, " ")
         .trim()
         .replace(SANITIZE_WHITESPACE_REGEX, " ")
-    return sanitized.ifEmpty { "TimeTravel" }
+    return sanitized.ifEmpty { TimeTravelConfig.FALLBACK_DISPLAY_NAME }
 }
 
 private fun guessMimeType(displayName: String): String {
     val ext = displayName.substringAfterLast('.', "").lowercase()
-    return ExportFormat.entries.firstOrNull { it.extension == ext }?.outputMimeType ?: "audio/*"
+    return ExportFormat.entries.firstOrNull { it.extension == ext }?.outputMimeType ?: TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO
 }
 
 private fun parseRecordingStartTimeMillis(value: String): Long? {

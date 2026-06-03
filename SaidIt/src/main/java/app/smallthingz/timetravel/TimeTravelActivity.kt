@@ -187,10 +187,10 @@ class TimeTravelActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val KEY_SELECTED_TAB = "selected_tab"
-        const val CAPTURE_FRAGMENT_TAG = "capture-fragment"
-        const val FILES_FRAGMENT_TAG = "files-fragment"
-        const val CHUNKS_FRAGMENT_TAG = "chunks-fragment"
+        const val KEY_SELECTED_TAB = TimeTravelConfig.KEY_SELECTED_TAB
+        const val CAPTURE_FRAGMENT_TAG = TimeTravelConfig.FRAGMENT_TAG_CAPTURE
+        const val FILES_FRAGMENT_TAG = TimeTravelConfig.FRAGMENT_TAG_FILES
+        const val CHUNKS_FRAGMENT_TAG = TimeTravelConfig.FRAGMENT_TAG_CHUNKS
         const val NAVIGATION_CHUNKS_ID = 0x7f0b0c01
         const val MENU_ORDER_CHUNKS = 2
     }

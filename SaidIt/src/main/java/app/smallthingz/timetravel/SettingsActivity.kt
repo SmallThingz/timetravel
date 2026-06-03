@@ -1057,7 +1057,7 @@ class SettingsActivity : AppCompatActivity() {
         val codec = currentCodec()
         val channelMode = currentChannelMode()
         val bitrateKbps = effectiveCodecBitrateKbps()
-        val estimatePrefix = if (format.isPcmContainer) "=" else "~"
+        val estimatePrefix = if (format.isPcmContainer) TimeTravelConfig.ESTIMATE_EXACT_PREFIX else TimeTravelConfig.ESTIMATE_APPROX_PREFIX
         val exportLimitBytes = exportFileSizeLimitBytes(format)
         val exportLimitDurationSeconds = estimateExportDurationSeconds(
             format,
@@ -1514,7 +1514,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun formatRetentionSizeMib(value: Double): String {
-        val formatter = DecimalFormat("0.###", DecimalFormatSymbols(Locale.US))
+        val formatter = DecimalFormat(TimeTravelConfig.FORMAT_RETENTION_SIZE_MIB, DecimalFormatSymbols(Locale.US))
         return formatter.format(value.coerceAtLeast(0.0))
     }
 

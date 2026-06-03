@@ -236,8 +236,8 @@ internal class RawAmrAudioFileWriter(
     override fun channelCount(): Int = configuredChannelCount
 
     private companion object {
-        val AMR_NB_MAGIC_HEADER = "#!AMR\n".toByteArray(Charsets.US_ASCII)
-        val AMR_WB_MAGIC_HEADER = "#!AMR-WB\n".toByteArray(Charsets.US_ASCII)
+        val AMR_NB_MAGIC_HEADER = TimeTravelConfig.AMR_NB_MAGIC_HEADER.toByteArray(Charsets.US_ASCII)
+        val AMR_WB_MAGIC_HEADER = TimeTravelConfig.AMR_WB_MAGIC_HEADER.toByteArray(Charsets.US_ASCII)
     }
 }
 
