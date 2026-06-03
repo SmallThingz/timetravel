@@ -2576,12 +2576,11 @@ internal class LiveExportHistory(
     }
 
     private fun parseStartedAtMillis(file: File): Long? {
-        return METADATA_NAME_REGEX.matchEntire(file.name)?.groupValues?.getOrNull(1)?.toLongOrNull()
-            ?: LEGACY_NAME_REGEX.matchEntire(file.name)?.groupValues?.getOrNull(1)?.toLongOrNull()
+        return parseNameFields(file.name)?.startedAtMillis
     }
 
     private fun parseSampleBytes(file: File): Long? {
-        return METADATA_NAME_REGEX.matchEntire(file.name)?.groupValues?.getOrNull(2)?.toLongOrNull()
+        return parseNameFields(file.name)?.sampleBytes
     }
 
     internal data class Config(
@@ -2974,9 +2973,6 @@ internal class LiveExportHistory(
         const val DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS = 5_000L
         val AMR_NB_MAGIC_HEADER = TimeTravelConfig.AMR_NB_MAGIC_HEADER.toByteArray(Charsets.US_ASCII)
         val AMR_WB_MAGIC_HEADER = TimeTravelConfig.AMR_WB_MAGIC_HEADER.toByteArray(Charsets.US_ASCII)
-        val METADATA_NAME_REGEX = Regex("""history-(\d+)-pcm-(\d+)\.[^.]+$""")
-        val LEGACY_NAME_REGEX = Regex("""history-(\d+)-\d+\.[^.]+$""")
-
         fun findAudioTrack(extractor: MediaExtractor): Int {
             for (index in 0 until extractor.trackCount) {
                 val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
@@ -2987,6 +2983,33 @@ internal class LiveExportHistory(
             return -1
         }
     }
+}
+
+private data class NameFields(val startedAtMillis: Long, val sampleBytes: Long?)
+
+private fun parseNameFields(name: String): NameFields? {
+    if (!name.startsWith("history-")) return null
+    val afterPrefix = name.removePrefix("history-")
+
+    // METADATA format: history-(digits)-pcm-(digits).(ext)
+    val firstDash = afterPrefix.indexOf('-')
+    if (firstDash < 0) return null
+    val startedStr = afterPrefix.substring(0, firstDash)
+    val started = startedStr.toLongOrNull() ?: return null
+    val rest = afterPrefix.substring(firstDash + 1)
+    if (rest.startsWith("pcm-")) {
+        val dot = rest.lastIndexOf('.')
+        if (dot < 0) return null
+        val bytesStr = rest.substring(4, dot)
+        val bytes = bytesStr.toLongOrNull() ?: return null
+        return NameFields(started, bytes)
+    }
+    // LEGACY format: history-(digits)-(digits).(ext)
+    val secondDash = rest.indexOf('-')
+    if (secondDash < 0) return null
+    val dot = rest.lastIndexOf('.')
+    if (dot < 0) return null
+    return NameFields(started, null)
 }
 
 private fun MediaFormat.getIntegerOrNull(key: String): Int? {

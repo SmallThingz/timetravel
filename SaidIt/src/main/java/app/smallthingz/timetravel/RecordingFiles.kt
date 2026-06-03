@@ -16,8 +16,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.RandomAccessFile
 
-private val RECORDING_SUFFIX_REGEX = Regex(" \\(\\d+\\)$")
-private val SANITIZE_ILLEGAL_REGEX = Regex("[\\\\/*?\"<>|]")
+private val ILLEGAL_FILENAME_CHARS = setOf('\\', '/', '*', '?', '"', '<', '>', '|')
 private val SANITIZE_WHITESPACE_REGEX = Regex("\\s+")
 private val SUPPORTED_RECORDING_EXTENSIONS = ExportFormat.entries.map { it.extension }.toSet()
 private const val CODEC_SUMMARY_SEPARATOR = TimeTravelConfig.CODEC_SUMMARY_SEPARATOR
@@ -730,10 +729,19 @@ private fun findAvailableDisplayName(
 }
 
 private fun sanitizeBaseName(name: String): String {
-    val sanitized = name
-        .replace(SANITIZE_ILLEGAL_REGEX, " ")
-        .trim()
-        .replace(SANITIZE_WHITESPACE_REGEX, " ")
+    val sanitized = buildString {
+        var prevWasSpace = false
+        for (c in name) {
+            val isWhitespace = c in ILLEGAL_FILENAME_CHARS || c == ' ' || c == '\t' || c == '\n' || c == '\r'
+            if (!isWhitespace) {
+                append(c)
+                prevWasSpace = false
+            } else if (!prevWasSpace) {
+                append(' ')
+                prevWasSpace = true
+            }
+        }
+    }.trim()
     return sanitized.ifEmpty { TimeTravelConfig.FALLBACK_DISPLAY_NAME }
 }
 
@@ -742,8 +750,17 @@ private fun guessMimeType(displayName: String): String {
     return ExportFormat.entries.firstOrNull { it.extension == ext }?.outputMimeType ?: TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO
 }
 
+private fun stripDuplicateSuffix(name: String): String {
+    if (!name.endsWith(")")) return name
+    val openParen = name.lastIndexOf(" (")
+    if (openParen < 0) return name
+    val suffix = name.substring(openParen + 2, name.length - 1)
+    if (suffix.all { it in '0'..'9' }) return name.substring(0, openParen)
+    return name
+}
+
 private fun parseRecordingStartTimeMillis(value: String): Long? {
-    val normalized = value.replace(RECORDING_SUFFIX_REGEX, "")
+    val normalized = stripDuplicateSuffix(value)
     normalized.toLongOrNull()?.let { return it }
     return null
 }
