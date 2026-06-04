@@ -41,6 +41,7 @@ internal class EncodedAudioFileWriter(
         } catch (e: Exception) {
             runCatching { enc.stop() }
             enc.release()
+            runCatching { parcelFileDescriptor?.close() }
             throw e
         }
     }
@@ -80,7 +81,7 @@ internal class EncodedAudioFileWriter(
             drainEncoder(endOfStream = true)
         } finally {
             runCatching { codec.stop() }
-            codec.release()
+            runCatching { codec.release() }
             if (muxerStarted) {
                 runCatching { muxer.stop() }
             }

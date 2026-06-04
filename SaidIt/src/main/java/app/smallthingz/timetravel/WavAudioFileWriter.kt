@@ -3,6 +3,7 @@ package app.smallthingz.timetravel
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -38,9 +39,9 @@ internal class WavAudioFileWriter(
     ) {
         var written = 0
         while (written < count) {
-            val buffer = ByteBuffer.wrap(bytes, offset + written, count - written)
-            channel.write(buffer)
-            written += count - written
+            val n = channel.write(ByteBuffer.wrap(bytes, offset + written, count - written))
+            if (n <= 0) throw IOException("Failed to write WAV data")
+            written += n
         }
         totalSampleBytesWritten += count.toLong()
     }

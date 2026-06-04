@@ -194,12 +194,10 @@ internal class AudioMemory {
             }
             filling = true
             fillingStartUptimeMillis = SystemClock.uptimeMillis()
-        }
 
-        val currentBuffer = current!!
-        val read = filler.consume(currentBuffer, offset, currentBuffer.size - offset).coerceAtLeast(0)
+            val currentBuffer = requireNotNull(current)
+            val read = filler.consume(currentBuffer, offset, currentBuffer.size - offset).coerceAtLeast(0)
 
-        synchronized(this) {
             if (offset + read >= currentBuffer.size) {
                 filled.add(currentBuffer)
                 current = null

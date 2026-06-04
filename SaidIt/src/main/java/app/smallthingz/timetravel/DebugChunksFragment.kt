@@ -59,7 +59,7 @@ class DebugChunksFragment : Fragment() {
         override fun snapshot(data: TimeTravelService.ChunkDebugSnapshot) {
             val fragment = weakFragment.get() ?: return
             if (!fragment.isAdded || fragment.view == null) return
-            fragment.renderSnapshot(data)
+            fragment.view?.post { fragment.renderSnapshot(data) }
         }
     }
 

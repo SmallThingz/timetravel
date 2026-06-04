@@ -19,8 +19,10 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
 ) : AudioFileWriter {
     protected val codec: MediaCodec
     private val bufferInfo = MediaCodec.BufferInfo()
-    protected val parcelFileDescriptor: ParcelFileDescriptor = openWritableParcelFileDescriptor(context, target)
-    protected val outputStream = BufferedOutputStream(FileOutputStream(parcelFileDescriptor.fileDescriptor), OUTPUT_BUFFER_BYTES)
+    protected var parcelFileDescriptor: ParcelFileDescriptor? = null
+        private set
+    protected var outputStream: BufferedOutputStream? = null
+        private set
     private var closed = false
     protected val ioScratch = ByteArray(OUTPUT_BUFFER_BYTES)
 
@@ -31,6 +33,10 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
         get() = writtenSampleBytes
 
     init {
+        val pfd = openWritableParcelFileDescriptor(context, target)
+        val os = BufferedOutputStream(FileOutputStream(pfd.fileDescriptor), OUTPUT_BUFFER_BYTES)
+        parcelFileDescriptor = pfd
+        outputStream = os
         val format = buildEncoderFormat(codecConfig, sampleRate, channelCount, bitrateKbps)
         codec = MediaCodec.createEncoderByType(requireNotNull(codecConfig.encoderMimeType)).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -71,20 +77,19 @@ internal abstract class MediaCodecElementaryAudioFileWriter(
         try {
             signalEndOfInput()
             drainEncoder(endOfStream = true)
-            outputStream.flush()
+            outputStream!!.flush()
         } finally {
             runCatching { codec.stop() }
             codec.release()
-            runCatching { outputStream.close() }
-            runCatching { parcelFileDescriptor.close() }
+            runCatching { outputStream!!.close() }
+            runCatching { parcelFileDescriptor!!.close() }
         }
     }
 
     protected fun cleanupResources() {
-        runCatching { codec.stop() }
-        codec.release()
-        runCatching { outputStream.close() }
-        runCatching { parcelFileDescriptor.close() }
+        runCatching { runCatching { codec.stop() }; codec.release() }
+        runCatching { outputStream?.close() }
+        runCatching { parcelFileDescriptor?.close() }
     }
 
     protected open fun onOutputFormatChanged(outputFormat: MediaFormat) = Unit
@@ -201,8 +206,8 @@ internal class AdtsAudioFileWriter(
         presentationTimeUs: Long,
     ) {
         fillAdtsHeader(adtsHeaderScratch, configuredSampleRate, configuredChannelCount, size)
-        outputStream.write(adtsHeaderScratch, 0, adtsHeaderScratch.size)
-        writeByteBufferToStream(buffer, size, outputStream, ioScratch)
+        outputStream!!.write(adtsHeaderScratch, 0, adtsHeaderScratch.size)
+        writeByteBufferToStream(buffer, size, outputStream!!, ioScratch)
     }
 
     override fun sampleRate(): Int = configuredSampleRate
@@ -232,7 +237,7 @@ internal class RawAmrAudioFileWriter(
             require(isExportConfigurationSupported(format, codecConfig, configuredSampleRate, configuredChannelCount)) {
                 "Unsupported AMR configuration: ${codecConfig.prefValue} ${configuredSampleRate}Hz ${configuredChannelCount}ch"
             }
-            outputStream.write(
+            outputStream!!.write(
                 if (codecConfig == ExportCodec.AMR_WB) AMR_WB_MAGIC_HEADER else AMR_NB_MAGIC_HEADER,
             )
         } catch (e: Exception) {
@@ -246,7 +251,7 @@ internal class RawAmrAudioFileWriter(
         size: Int,
         presentationTimeUs: Long,
     ) {
-        writeByteBufferToStream(buffer, size, outputStream, ioScratch)
+        writeByteBufferToStream(buffer, size, outputStream!!, ioScratch)
     }
 
     override fun sampleRate(): Int = configuredSampleRate
@@ -274,7 +279,7 @@ internal class TsAudioFileWriter(
     channelCount = configuredChannelCount,
     bitrateKbps = bitrateKbps,
 ) {
-    private val packetizer = MpegTsAacPacketizer(outputStream, configuredSampleRate, configuredChannelCount)
+    private val packetizer = MpegTsAacPacketizer(outputStream!!, configuredSampleRate, configuredChannelCount)
 
     init {
         try {
@@ -346,7 +351,7 @@ internal class MpegTsAacPacketizer(
 
         fillAdtsHeader(adtsHeaderScratch, sampleRate, channelCount, size)
         fillPesHeader(pesHeaderScratch, presentationTimeUs.coerceAtLeast(0L), size)
-        packetizePayload(AUDIO_PID, pesHeaderScratch, pesHeaderScratch.size)
+        packetizePayload(AUDIO_PID, pesHeaderScratch, 0, pesHeaderScratch.size)
         packetizePayload(AUDIO_PID, adtsHeaderScratch, 0, adtsHeaderScratch.size)
         packetizePayload(AUDIO_PID, buffer, size)
     }

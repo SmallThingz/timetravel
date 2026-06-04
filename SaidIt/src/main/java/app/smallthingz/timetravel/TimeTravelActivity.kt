@@ -88,9 +88,13 @@ class TimeTravelActivity : AppCompatActivity() {
         scheduleRecorderCapabilityCacheWarm(applicationContext)
     }
 
+    private var permissionsRequested = false
+
     override fun onStart() {
         super.onStart()
         permissionDeniedDialog?.dismiss()
+        if (permissionsRequested) return
+        permissionsRequested = true
         permissionLauncher.launch(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 arrayOf(

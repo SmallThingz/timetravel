@@ -4,7 +4,10 @@ import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 
-private val sizeFormatter = DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
+private val sizeFormatter = object : ThreadLocal<DecimalFormat>() {
+    override fun initialValue(): DecimalFormat =
+        DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
+}
 
 fun formatShortTimer(seconds: Float): String {
     val totalSeconds = seconds.toInt().coerceAtLeast(0)
@@ -29,7 +32,7 @@ private fun pad2(value: Int): String {
 
 fun formatShortFileSize(size: Long): String {
     val mebibytes = size.coerceAtLeast(0L) / (1024.0 * 1024.0)
-    return "${sizeFormatter.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
+    return "${sizeFormatter.get()!!.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
 }
 
 fun formatSavedRecordingDuration(durationMillis: Long): String {

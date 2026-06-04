@@ -291,10 +291,10 @@ internal class PersistentAudioRingStore(
         force()
         metaMap = null
         dataMap = null
-        metaChannel?.close()
-        dataChannel?.close()
-        metaAccess?.close()
-        dataAccess?.close()
+        runCatching { metaChannel?.close() }
+        runCatching { dataChannel?.close() }
+        runCatching { metaAccess?.close() }
+        runCatching { dataAccess?.close() }
         metaChannel = null
         dataChannel = null
         metaAccess = null
@@ -354,8 +354,8 @@ internal class PersistentAudioRingStore(
         clearContents: Boolean,
     ) {
         dataMap = null
-        dataChannel?.close()
-        dataAccess?.close()
+        runCatching { dataChannel?.close() }
+        runCatching { dataAccess?.close() }
         dataChannel = null
         dataAccess = null
 
@@ -383,9 +383,18 @@ internal class PersistentAudioRingStore(
 
     private fun ensureMetaMapped() {
         if (metaMap != null) return
-        metaAccess = RandomAccessFile(metaFile, "rwd").also { it.setLength(META_FILE_BYTES.toLong()) }
-        metaChannel = requireNotNull(metaAccess).channel
-        metaMap = requireNotNull(metaChannel).map(FileChannel.MapMode.READ_WRITE, 0, META_FILE_BYTES.toLong())
+        val access = RandomAccessFile(metaFile, "rwd")
+        try {
+            access.setLength(META_FILE_BYTES.toLong())
+            val channel = access.channel
+            val mapped = channel.map(FileChannel.MapMode.READ_WRITE, 0, META_FILE_BYTES.toLong())
+            metaAccess = access
+            metaChannel = channel
+            metaMap = mapped
+        } catch (e: Exception) {
+            runCatching { access.close() }
+            throw e
+        }
         if (metaMap?.readMagic() != MAGIC || metaMap?.readVersion() != VERSION) {
             metaMap?.writeMagic()
             metaMap?.writeVersion()

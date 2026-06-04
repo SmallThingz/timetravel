@@ -98,6 +98,7 @@ internal class RecordingPlayerDialog(
 
             override fun onStopTrackingTouch(seekBar: SeekBar) {
                 dragging = false
+                if (!prepared) return
                 mediaPlayer?.seekTo(seekBar.progress)
                 scheduleProgressUpdate()
             }
@@ -124,8 +125,8 @@ internal class RecordingPlayerDialog(
     }
 
     fun show() {
-        handle.dialog.show()
         if (released) return
+        handle.dialog.show()
         val player = MediaPlayer()
         mediaPlayer = player
         player.setAudioAttributes(

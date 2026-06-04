@@ -56,12 +56,10 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
         oldVersion: Int,
         newVersion: Int,
     ) {
-        var migrated = false
         if (oldVersion < 2 && newVersion >= 2) {
             db.migrateToVersion2()
-            migrated = true
         }
-        if (!migrated && oldVersion != newVersion) {
+        if (oldVersion < newVersion) {
             db.recreateSchema()
         }
     }
