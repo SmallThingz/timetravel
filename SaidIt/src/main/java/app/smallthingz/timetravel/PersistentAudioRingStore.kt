@@ -92,7 +92,7 @@ internal class PersistentAudioRingStore(
 
         val writePosition = meta.readWritePosition()
         val lastWriteAtMillis = meta.readLastWriteAtMillis()
-        val startPosition = if (filledBytes >= mappedCapacityBytes) writePosition else 0
+        val startPosition = ringStartPosition(writePosition, filledBytes, mappedCapacityBytes)
         val scratch = ioScratch
         var restored = 0
         var remaining = filledBytes
@@ -142,11 +142,7 @@ internal class PersistentAudioRingStore(
             return
         }
 
-        var readPosition = if (filledBytes >= capacityBytes) {
-            meta.readWritePosition()
-        } else {
-            0
-        }
+        var readPosition = ringStartPosition(meta.readWritePosition(), filledBytes, capacityBytes)
         var unread = filledBytes
 
         while (unread > 0 && remainingTake > 0L) {
@@ -367,13 +363,21 @@ internal class PersistentAudioRingStore(
         bytesPerSample: Int,
         sameFormat: Boolean,
     ) {
-        val meta = metaMap
+        val existingMeta = metaMap
         val oldCapacityBytes = mappedCapacityBytes
-        val oldFilledBytes = meta?.readFilledBytes()?.coerceIn(0, oldCapacityBytes) ?: 0
-        val oldWritePosition = meta?.readWritePosition()?.coerceIn(0, oldCapacityBytes) ?: 0
+        val oldFilledBytes = existingMeta?.readFilledBytes()?.coerceIn(0, oldCapacityBytes) ?: 0
+        val oldWritePosition = existingMeta?.readWritePosition()?.coerceIn(0, oldCapacityBytes) ?: 0
 
         if (sameFormat && capacityBytes > oldCapacityBytes && canGrowWithoutCopy(oldCapacityBytes, oldFilledBytes, oldWritePosition)) {
             remap(capacityBytes, sampleRate, channelCount, bytesPerSample, clearContents = false)
+            if (oldFilledBytes == oldCapacityBytes && oldWritePosition == 0) {
+                metaMap?.writeWritePosition(oldCapacityBytes)
+            }
+            return
+        }
+
+        if (sameFormat && capacityBytes > oldCapacityBytes && oldFilledBytes == oldCapacityBytes && oldWritePosition > 0) {
+            growWrappedRingWithSmallestCopy(capacityBytes, sampleRate, channelCount, bytesPerSample, oldCapacityBytes, oldWritePosition)
             return
         }
 
@@ -413,6 +417,75 @@ internal class PersistentAudioRingStore(
         return oldWritePosition == 0
     }
 
+    private fun growWrappedRingWithSmallestCopy(
+        newCapacityBytes: Int,
+        sampleRate: Int,
+        channelCount: Int,
+        bytesPerSample: Int,
+        oldCapacityBytes: Int,
+        oldWritePosition: Int,
+    ) {
+        val oldStartPosition = oldWritePosition
+        val headLength = oldCapacityBytes - oldStartPosition
+        val tailLength = oldWritePosition
+        val growthBytes = newCapacityBytes - oldCapacityBytes
+        remap(newCapacityBytes, sampleRate, channelCount, bytesPerSample, clearContents = false)
+        val meta = metaMap ?: return
+
+        if (headLength <= tailLength) {
+            copyWithinMappedFile(
+                sourceOffset = oldStartPosition,
+                targetOffset = oldStartPosition + growthBytes,
+                count = headLength,
+            )
+            meta.writeWritePosition(oldWritePosition)
+        } else {
+            val afterOldEnd = minOf(tailLength, growthBytes)
+            copyWithinMappedFile(sourceOffset = 0, targetOffset = oldCapacityBytes, count = afterOldEnd)
+            val remainingTail = tailLength - afterOldEnd
+            if (remainingTail > 0) {
+                copyWithinMappedFile(sourceOffset = afterOldEnd, targetOffset = 0, count = remainingTail)
+            }
+            meta.writeWritePosition(tailLength - afterOldEnd)
+        }
+        meta.writeFilledBytes(oldCapacityBytes)
+        meta.writeLastWriteAtMillis(System.currentTimeMillis())
+        force()
+    }
+
+    private fun copyWithinMappedFile(
+        sourceOffset: Int,
+        targetOffset: Int,
+        count: Int,
+    ) {
+        val dv = dataMap ?: return
+        if (count <= 0 || sourceOffset == targetOffset) return
+        val scratch = ioScratch
+        if (targetOffset > sourceOffset && targetOffset < sourceOffset + count) {
+            var remaining = count
+            while (remaining > 0) {
+                val chunkSize = minOf(remaining, scratch.size)
+                val chunkSource = sourceOffset + remaining - chunkSize
+                val chunkTarget = targetOffset + remaining - chunkSize
+                dv.position(chunkSource)
+                dv.get(scratch, 0, chunkSize)
+                dv.position(chunkTarget)
+                dv.put(scratch, 0, chunkSize)
+                remaining -= chunkSize
+            }
+        } else {
+            var copied = 0
+            while (copied < count) {
+                val chunkSize = minOf(count - copied, scratch.size)
+                dv.position(sourceOffset + copied)
+                dv.get(scratch, 0, chunkSize)
+                dv.position(targetOffset + copied)
+                dv.put(scratch, 0, chunkSize)
+                copied += chunkSize
+            }
+        }
+    }
+
     private fun readNewestBytes(count: Int): ByteArray {
         val meta = metaMap ?: return ByteArray(0)
         val dv = dataMap ?: return ByteArray(0)
@@ -420,28 +493,35 @@ internal class PersistentAudioRingStore(
         val take = count.coerceIn(0, filledBytes)
         if (take <= 0) return ByteArray(0)
         val result = ByteArray(take)
-        var readPosition = if (filledBytes >= mappedCapacityBytes) meta.readWritePosition() else 0
-        var skip = filledBytes - take
+        var readPosition = ringStartPosition(meta.readWritePosition(), take, mappedCapacityBytes)
         var remaining = take
         var writeOffset = 0
         while (remaining > 0) {
-            val chunkSize = minOf(skip + remaining, ioScratch.size, mappedCapacityBytes - readPosition)
+            val chunkSize = minOf(remaining, ioScratch.size, mappedCapacityBytes - readPosition)
             dv.position(readPosition)
             dv.get(ioScratch, 0, chunkSize)
-            if (skip < chunkSize) {
-                val chunkOffset = skip
-                val copied = chunkSize - chunkOffset
-                System.arraycopy(ioScratch, chunkOffset, result, writeOffset, copied)
-                writeOffset += copied
-                remaining -= copied
-                skip = 0
-            } else {
-                skip -= chunkSize
-            }
+            System.arraycopy(ioScratch, 0, result, writeOffset, chunkSize)
+            writeOffset += chunkSize
+            remaining -= chunkSize
             readPosition += chunkSize
             if (readPosition >= mappedCapacityBytes) readPosition = 0
         }
         return result
+    }
+
+    private fun ringStartPosition(
+        writePosition: Int,
+        filledBytes: Int,
+        capacityBytes: Int,
+    ): Int {
+        if (capacityBytes <= 0 || filledBytes <= 0) return 0
+        val normalizedWrite = writePosition.floorMod(capacityBytes)
+        return (normalizedWrite - filledBytes).floorMod(capacityBytes)
+    }
+
+    private fun Int.floorMod(modulus: Int): Int {
+        val value = this % modulus
+        return if (value < 0) value + modulus else value
     }
 
     private fun remap(
