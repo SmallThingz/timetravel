@@ -84,10 +84,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
@@ -112,6 +112,12 @@ class NotifyFileReceiver(
                 PackageManager.PERMISSION_GRANTED
             ) return@launch
             NotificationManagerCompat.from(context).notify(43, buildCaptureNotification(context, saved))
+        }
+    }
+
+    override fun fileFailed(message: String) {
+        scope.launch(Dispatchers.Main) {
+            Toast.makeText(context, message.ifBlank { context.getString(R.string.save_failed) }, Toast.LENGTH_LONG).show()
         }
     }
 }
@@ -140,6 +146,7 @@ private data class ExportRange(
 private data class ExportUiConfig(
     val format: ExportFormat,
     val codec: ExportCodec,
+    val sampleFormat: PcmSampleFormat,
     val sampleRate: Int,
     val channelCount: Int,
     val bitrateKbps: Int?,
@@ -203,7 +210,11 @@ fun CaptureScreen() {
     val connection = remember {
         object : ServiceConnection {
             override fun onServiceConnected(className: ComponentName, binder: IBinder) {
-                val typedBinder = binder as TimeTravelService.BackgroundRecorderBinder
+                val typedBinder = binder as? TimeTravelService.BackgroundRecorderBinder
+                    ?: run {
+                        service = null
+                        return
+                    }
                 service = typedBinder.service
                 service?.getState(stateCallback)
             }
@@ -271,7 +282,7 @@ fun CaptureScreen() {
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         if (isRecording) {
             RecordingOverlay(
                 recordedSeconds = recordedSeconds,
@@ -393,11 +404,11 @@ private fun MainCaptureContent(
     val exportConfig = remember(context, service) { currentExportConfig(context, service) }
     val currentBytes = estimateExportSizeBytes(
         exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, displayedCurrentSeconds.toLong(), exportConfig.bitrateKbps,
+        exportConfig.channelCount, displayedCurrentSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
     )
     val limitBytes = estimateExportSizeBytes(
         exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, displayedLimitSeconds.toLong(), exportConfig.bitrateKbps,
+        exportConfig.channelCount, displayedLimitSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
     )
     val configuredLimitBytes =
         when (retentionMode.value) {
@@ -453,10 +464,13 @@ private fun MainCaptureContent(
 
         Text(
             text = timerText,
-            style = MaterialTheme.typography.displayLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontFamily = FontFamily.Monospace,
             textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -464,10 +478,13 @@ private fun MainCaptureContent(
 
         Text(
             text = summaryText,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
             color = summaryColor,
             fontFamily = FontFamily.Monospace,
             textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -509,17 +526,22 @@ private fun MainCaptureContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
-                    onClick = onClearBuffer,
-                    enabled = clearEnabled,
+                Surface(
                     modifier = Modifier.size(52.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_delete),
-                        contentDescription = stringResource(R.string.clear_buffer),
-                        tint = if (clearEnabled) MaterialTheme.colorScheme.onSecondaryContainer
-                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                    )
+                    IconButton(
+                        onClick = onClearBuffer,
+                        enabled = clearEnabled,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_delete),
+                            contentDescription = stringResource(R.string.clear_buffer),
+                            tint = if (clearEnabled) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.width(8.dp))
@@ -565,7 +587,7 @@ private fun RecordingOverlay(
         ) {
             Text(
                 text = formatShortTimer(recordedSeconds),
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.Center,
@@ -658,14 +680,16 @@ private fun ListenCircle(
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(282.dp)
-            .graphicsLayer(
-                scaleX = pulseScale * pressScale,
-                scaleY = pulseScale * pressScale,
-            ),
+        modifier = Modifier.size(192.dp),
     ) {
-        Canvas(modifier = Modifier.size(282.dp)) {
+        Canvas(
+            modifier = Modifier
+                .size(192.dp)
+                .graphicsLayer(
+                    scaleX = pulseScale,
+                    scaleY = pulseScale,
+                ),
+        ) {
             val canvasSize = size.minDimension
             val ringWidth = canvasSize * 0.002f
             drawCircle(
@@ -686,12 +710,16 @@ private fun ListenCircle(
 
         Box(
             modifier = Modifier
-                .size(232.dp)
+                .size(156.dp)
                 .clip(CircleShape)
                 .drawBehind {
                     drawCircle(fillColor)
                     drawCircle(strokeColor, style = Stroke(2.dp.toPx()))
                 }
+                .graphicsLayer(
+                    scaleX = pressScale,
+                    scaleY = pressScale,
+                )
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -709,14 +737,14 @@ private fun ListenCircle(
                     ),
                     contentDescription = null,
                     tint = contentColor,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(36.dp),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = stringResource(
                         if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary,
                     ),
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleMedium,
                     color = contentColor,
                     textAlign = TextAlign.Center,
                 )
@@ -1131,7 +1159,7 @@ private class SaveResultReceiver(
 
     override fun fileFailed(message: String) {
         setSaving(false)
-        Toast.makeText(context, message.ifBlank { context.getString(R.string.save_failed) }, Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, message.ifBlank { context.getString(R.string.save_failed) }, Toast.LENGTH_LONG).show()
     }
 
     override fun fileCancelled() {
@@ -1143,6 +1171,7 @@ private fun currentExportConfig(context: Context, recorder: TimeTravelService?):
     val activeConfig = recorder?.getConfigurationSnapshot()
     val format = activeConfig?.format ?: getConfiguredOutputFormat(context)
     val codec = activeConfig?.codec ?: getConfiguredOutputCodec(context)
+    val sampleFormat = activeConfig?.sampleFormat ?: getConfiguredPcmSampleFormat(context)
     val sourceMode = activeConfig?.sourceMode ?: getConfiguredAudioSourceMode(context)
     val channelMode = activeConfig?.channelMode ?: getConfiguredChannelMode(context)
     val routeMode = activeConfig?.routeMode ?: getConfiguredInputRouteMode(context)
@@ -1151,6 +1180,7 @@ private fun currentExportConfig(context: Context, recorder: TimeTravelService?):
     return ExportUiConfig(
         format = format,
         codec = codec,
+        sampleFormat = sampleFormat,
         sampleRate = sampleRate,
         channelCount = channelMode.channelCount,
         bitrateKbps = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
@@ -1165,7 +1195,7 @@ private fun currentBufferExportBytes(
     val exportConfig = currentExportConfig(context, recorder)
     return estimateExportSizeBytes(
         exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, memorizedSeconds.coerceAtLeast(0f).toLong(), exportConfig.bitrateKbps,
+        exportConfig.channelCount, memorizedSeconds.coerceAtLeast(0f).toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
     )
 }
 
@@ -1173,7 +1203,7 @@ private fun sizeBytesToExportSeconds(sizeBytes: Long, context: Context): Float {
     val exportConfig = currentExportConfig(context, null)
     return estimateExportDurationSeconds(
         exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, sizeBytes, exportConfig.bitrateKbps,
+        exportConfig.channelCount, sizeBytes, exportConfig.bitrateKbps, exportConfig.sampleFormat,
     ).toFloat()
 }
 

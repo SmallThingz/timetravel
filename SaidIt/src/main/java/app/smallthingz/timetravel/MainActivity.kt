@@ -3,7 +3,6 @@ package app.smallthingz.timetravel
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import androidx.activity.enableEdgeToEdge
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -75,10 +74,9 @@ class MainActivity : ComponentActivity() {
     private var permissionsRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         applyPhonePortraitOnly()
-        themeMode = getConfiguredThemeMode(this)
         super.onCreate(savedInstanceState)
+        themeMode = getConfiguredThemeMode(this)
         setContent {
             val systemDarkTheme = isSystemInDarkTheme()
             TimeTravelTheme(darkTheme = themeMode.isDark(systemDarkTheme)) {

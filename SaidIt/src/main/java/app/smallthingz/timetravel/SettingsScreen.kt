@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,12 +79,6 @@ data class SettingsSnapshot(
     var channelMode: ChannelMode? = null,
     var route: InputRouteMode? = null,
     var sampleRate: Int = 0,
-    var historyChunkSeconds: Int = 10,
-    var autoMergeMode: AutoMergeMode = AutoMergeMode.RATIO,
-    var autoMergeDivisor: Int = defaultAutoMergeDivisor(),
-    var autoMergeCustomSeconds: Int = defaultAutoMergeCustomSeconds(),
-    var autoMergeCustomSizeMib: Double = defaultAutoMergeCustomSizeMib(),
-    var autoMergeEagerEnabled: Boolean = true,
     var exportDirectoryUri: String? = null,
     var persistentBufferEnabled: Boolean = true,
     var aggressiveRestartEnabled: Boolean = true,
@@ -102,12 +97,6 @@ data class SettingsSnapshot(
         channelMode = other.channelMode
         route = other.route
         sampleRate = other.sampleRate
-        historyChunkSeconds = other.historyChunkSeconds
-        autoMergeMode = other.autoMergeMode
-        autoMergeDivisor = other.autoMergeDivisor
-        autoMergeCustomSeconds = other.autoMergeCustomSeconds
-        autoMergeCustomSizeMib = other.autoMergeCustomSizeMib
-        autoMergeEagerEnabled = other.autoMergeEagerEnabled
         exportDirectoryUri = other.exportDirectoryUri
         persistentBufferEnabled = other.persistentBufferEnabled
         aggressiveRestartEnabled = other.aggressiveRestartEnabled
@@ -143,16 +132,10 @@ fun SettingsScreen(
     var selectedChannelMode by remember { mutableStateOf(ChannelMode.MONO) }
     var selectedRoute by remember { mutableStateOf(InputRouteMode.AUTO) }
     var selectedSampleRate by remember { mutableIntStateOf(48_000) }
-    var selectedAutoMergeMode by remember { mutableStateOf(AutoMergeMode.RATIO) }
 
     var activeRetentionMode by remember { mutableStateOf(RetentionMode.TIME) }
     var retentionTimeSecondsValue by remember { mutableIntStateOf(0) }
     var retentionSizeMbValue by remember { mutableStateOf(0.0) }
-    var historyChunkSecondsValue by remember { mutableIntStateOf(10) }
-    var autoMergeDivisorValue by remember { mutableIntStateOf(defaultAutoMergeDivisor()) }
-    var autoMergeCustomSecondsValue by remember { mutableIntStateOf(defaultAutoMergeCustomSeconds()) }
-    var autoMergeCustomSizeMibValue by remember { mutableStateOf(defaultAutoMergeCustomSizeMib()) }
-    var autoMergeEagerEnabled by remember { mutableStateOf(true) }
     var selectedExportTreeUri by remember { mutableStateOf<Uri?>(null) }
 
     // Available options lists (recomputed on changes)
@@ -166,14 +149,10 @@ fun SettingsScreen(
     // Text inputs
     var retentionTimeText by remember { mutableStateOf("") }
     var retentionSizeText by remember { mutableStateOf("") }
-    var historyChunkText by remember { mutableStateOf("") }
-    var autoMergeValueText by remember { mutableStateOf("") }
 
     // Errors
     var retentionTimeError by remember { mutableStateOf<String?>(null) }
     var retentionSizeError by remember { mutableStateOf<String?>(null) }
-    var historyChunkError by remember { mutableStateOf<String?>(null) }
-    var autoMergeValueError by remember { mutableStateOf<String?>(null) }
     var sampleRateUnsupported by remember { mutableStateOf(false) }
 
     var bitrateKbps by remember { mutableIntStateOf(128) }
@@ -191,7 +170,6 @@ fun SettingsScreen(
     var sourceLabels by remember { mutableStateOf(availableSourceModes.map { context.getString(it.labelRes) }) }
     var channelModeLabels by remember { mutableStateOf(ChannelMode.entries.map { context.getString(it.labelRes) }) }
     var routeLabels by remember { mutableStateOf(InputRouteMode.entries.map { context.getString(it.labelRes) }) }
-    var autoMergeLabels by remember { mutableStateOf(AutoMergeMode.entries.map { context.getString(it.labelRes) }) }
     var sampleRateLabels by remember { mutableStateOf(emptyList<String>()) }
 
     // Selection labels
@@ -203,13 +181,10 @@ fun SettingsScreen(
     var selectedChannelModeLabel by remember { mutableStateOf("") }
     var selectedRouteLabel by remember { mutableStateOf("") }
     var selectedSampleRateLabel by remember { mutableStateOf("") }
-    var selectedAutoMergeLabel by remember { mutableStateOf(context.getString(AutoMergeMode.RATIO.labelRes)) }
 
     fun clearErrors() {
         retentionTimeError = null
         retentionSizeError = null
-        historyChunkError = null
-        autoMergeValueError = null
         sampleRateUnsupported = false
     }
 
@@ -240,16 +215,6 @@ fun SettingsScreen(
         val resolved = (preferredKbps ?: currentBitrate ?: defaultBitrateKbpsVal).coerceIn(range)
         bitrateRange = range
         bitrateKbps = resolved
-    }
-
-    fun refreshAutoMergeValueUi() {
-        autoMergeValueError = null
-        when (selectedAutoMergeMode) {
-            AutoMergeMode.RATIO -> autoMergeValueText = autoMergeDivisorValue.toString()
-            AutoMergeMode.CUSTOM_TIME -> autoMergeValueText = formatDurationInput(autoMergeCustomSecondsValue)
-            AutoMergeMode.CUSTOM_SIZE -> autoMergeValueText = formatRetentionSizeMib(autoMergeCustomSizeMibValue)
-            AutoMergeMode.OFF -> {}
-        }
     }
 
     fun refreshExportDirectoryUi() {
@@ -340,12 +305,6 @@ fun SettingsScreen(
         snapshot.channelMode = selectedChannelMode
         snapshot.route = selectedRoute
         snapshot.sampleRate = selectedSampleRate
-        snapshot.historyChunkSeconds = historyChunkSecondsValue
-        snapshot.autoMergeMode = selectedAutoMergeMode
-        snapshot.autoMergeDivisor = autoMergeDivisorValue
-        snapshot.autoMergeCustomSeconds = autoMergeCustomSecondsValue
-        snapshot.autoMergeCustomSizeMib = autoMergeCustomSizeMibValue
-        snapshot.autoMergeEagerEnabled = autoMergeEagerEnabled
         snapshot.exportDirectoryUri = selectedExportTreeUri?.toString()
     }
 
@@ -389,11 +348,6 @@ fun SettingsScreen(
             retentionTimeText = estimatedDuration
             if (!preserveActiveInputs) retentionSizeText = formatRetentionSizeMib(retentionSizeMbValue)
         }
-    }
-
-    fun refreshHistorySettingsUi() {
-        historyChunkText = formatDurationInput(historyChunkSecondsValue)
-        refreshAutoMergeValueUi()
     }
 
     fun activateRetentionMode(mode: RetentionMode) {
@@ -451,25 +405,18 @@ fun SettingsScreen(
         activeRetentionMode = prev.retentionMode
         retentionTimeSecondsValue = prev.retentionTime
         retentionSizeMbValue = prev.retentionSizeMb
-        historyChunkSecondsValue = prev.historyChunkSeconds
-        selectedAutoMergeMode = prev.autoMergeMode
-        autoMergeDivisorValue = prev.autoMergeDivisor
-        autoMergeCustomSecondsValue = prev.autoMergeCustomSeconds
-        autoMergeCustomSizeMibValue = prev.autoMergeCustomSizeMib
-        autoMergeEagerEnabled = prev.autoMergeEagerEnabled
         selectedExportTreeUri = prev.exportDirectoryUri?.let(Uri::parse)
 
         selectedTheme = prev.themeMode
         selectedThemeLabel = context.getString(prev.themeMode.labelRes)
+        onThemeChanged(prev.themeMode)
         selectedFormat = prev.format ?: availableFormats.first()
         selectedFormatLabel = context.getString((prev.format ?: availableFormats.first()).labelRes)
         selectedCodec = prev.codec ?: availableCodecs.first()
         selectedCodecLabel = context.getString((prev.codec ?: availableCodecs.first()).labelRes)
         selectedRoute = prev.route ?: availableRouteModes.first()
         selectedRouteLabel = context.getString((prev.route ?: availableRouteModes.first()).labelRes)
-        selectedAutoMergeLabel = context.getString(prev.autoMergeMode.labelRes)
 
-        refreshHistorySettingsUi()
         if (capabilityUiReady) {
             refreshCodecOptions(
                 preferredCodec = prev.codec,
@@ -532,63 +479,8 @@ fun SettingsScreen(
             return false
         }
 
-        val historyChunkSeconds = parseDurationInput(historyChunkText.trim())
-        if (historyChunkSeconds == null) {
-            historyChunkError = context.getString(R.string.retention_time_invalid)
-            return false
-        }
-        val historyChunkRange = historyChunkSecondsRange()
-        if (historyChunkSeconds !in historyChunkRange) {
-            historyChunkError = context.getString(
-                R.string.history_chunk_range_invalid,
-                formatDurationInput(historyChunkRange.first),
-                formatDurationInput(historyChunkRange.last),
-            )
-            return false
-        }
-
-        val autoMergeDivisor = when (selectedAutoMergeMode) {
-            AutoMergeMode.RATIO -> autoMergeValueText.trim().toIntOrNull()
-            else -> autoMergeDivisorValue
-        }
-        val autoMergeCustomSeconds = when (selectedAutoMergeMode) {
-            AutoMergeMode.CUSTOM_TIME -> parseDurationInput(autoMergeValueText.trim())
-            else -> autoMergeCustomSecondsValue
-        }
-        val autoMergeCustomSizeMib = when (selectedAutoMergeMode) {
-            AutoMergeMode.CUSTOM_SIZE -> parseRetentionSizeMib(autoMergeValueText.trim())
-            else -> autoMergeCustomSizeMibValue
-        }
-        val divisorRange = autoMergeDivisorRange()
-        if (selectedAutoMergeMode == AutoMergeMode.RATIO) {
-            if (autoMergeDivisor == null || autoMergeDivisor !in divisorRange) {
-                autoMergeValueError = context.getString(R.string.auto_merge_divisor_invalid, divisorRange.first, divisorRange.last)
-                return false
-            }
-        }
-        val customRange = autoMergeCustomSecondsRange()
-        if (selectedAutoMergeMode == AutoMergeMode.CUSTOM_TIME) {
-            if (autoMergeCustomSeconds == null) { autoMergeValueError = context.getString(R.string.retention_time_invalid); return false }
-            if (autoMergeCustomSeconds !in customRange) {
-                autoMergeValueError = context.getString(R.string.history_chunk_range_invalid, formatDurationInput(customRange.first), formatDurationInput(customRange.last))
-                return false
-            }
-        }
-        val customSizeRange = autoMergeCustomSizeRangeMib()
-        if (selectedAutoMergeMode == AutoMergeMode.CUSTOM_SIZE) {
-            if (autoMergeCustomSizeMib == null) { autoMergeValueError = context.getString(R.string.auto_merge_custom_size_invalid); return false }
-            if (autoMergeCustomSizeMib !in customSizeRange) {
-                autoMergeValueError = context.getString(R.string.auto_merge_custom_size_range_invalid, formatRetentionSizeMib(customSizeRange.start), formatRetentionSizeMib(customSizeRange.endInclusive))
-                return false
-            }
-        }
-
         retentionTimeSecondsValue = retentionTime
         retentionSizeMbValue = sizeMb
-        historyChunkSecondsValue = historyChunkSeconds
-        autoMergeDivisorValue = autoMergeDivisor ?: autoMergeDivisorValue
-        autoMergeCustomSecondsValue = autoMergeCustomSeconds ?: autoMergeCustomSecondsValue
-        autoMergeCustomSizeMibValue = autoMergeCustomSizeMib ?: autoMergeCustomSizeMibValue
 
         setConfiguredThemeMode(context, selectedTheme)
         getRecorderPreferences(context).edit()
@@ -603,13 +495,7 @@ fun SettingsScreen(
             .putString(PrefKey.CHANNEL_MODE, channelMode.prefValue)
             .putString(PrefKey.INPUT_ROUTE, route.prefValue)
             .putInt(PrefKey.SAMPLE_RATE, sampleRate)
-            .putInt(PrefKey.HISTORY_CHUNK_SECONDS, historyChunkSecondsValue)
-            .putString(PrefKey.AUTO_MERGE_MODE, selectedAutoMergeMode.prefValue)
-            .putInt(PrefKey.AUTO_MERGE_DIVISOR, autoMergeDivisorValue)
-            .putInt(PrefKey.AUTO_MERGE_CUSTOM_SECONDS, autoMergeCustomSecondsValue)
-            .putString(PrefKey.AUTO_MERGE_CUSTOM_SIZE_MIB, formatRetentionSizeMib(autoMergeCustomSizeMibValue))
-            .putBoolean(PrefKey.AUTO_MERGE_EAGER_ENABLED, autoMergeEagerEnabled)
-            .putBoolean(PrefKey.BUFFER_DISK_CACHE_ENABLED, currentSnapshot.persistentBufferEnabled)
+            .putBoolean(PrefKey.BUFFER_DISK_CACHE_ENABLED, true)
             .putBoolean(PrefKey.AGGRESSIVE_RESTART_ENABLED, currentSnapshot.aggressiveRestartEnabled)
             .putBoolean(PrefKey.WAKE_LOCK_ENABLED, currentSnapshot.wakeLockEnabled)
             .apply()
@@ -658,23 +544,11 @@ fun SettingsScreen(
         ).takeIf { it > 0 }
             ?: getPreferredSampleRate(context, configuredSourceVal, configuredRouteVal, configuredFormat, configuredCodec, configuredChannelModeVal)
         val configuredBitrateKbpsVal = getConfiguredCodecBitrateKbps(context, configuredCodec, configuredRateVal, configuredChannelModeVal.channelCount) ?: 0
-        val configuredHistoryChunkSecondsVal = getConfiguredHistoryChunkSeconds(context)
-        val configuredAutoMergeModeVal = getConfiguredAutoMergeMode(context)
-        val configuredAutoMergeDivisorVal = getConfiguredAutoMergeDivisor(context)
-        val configuredAutoMergeCustomSecondsVal = getConfiguredAutoMergeCustomSeconds(context)
-        val configuredAutoMergeCustomSizeMibVal = getConfiguredAutoMergeCustomSizeMib(context)
-        val configuredAutoMergeEagerEnabledVal = isConfiguredAutoMergeEagerEnabled(context)
         val configuredExportTreeUriVal = getConfiguredExportTreeUri(context)
 
         activeRetentionMode = configuredMode
         retentionTimeSecondsValue = configuredTime
         retentionSizeMbValue = bytesToMegabytes(storedSizeBytes)
-        historyChunkSecondsValue = configuredHistoryChunkSecondsVal
-        selectedAutoMergeMode = configuredAutoMergeModeVal
-        autoMergeDivisorValue = configuredAutoMergeDivisorVal
-        autoMergeCustomSecondsValue = configuredAutoMergeCustomSecondsVal
-        autoMergeCustomSizeMibValue = configuredAutoMergeCustomSizeMibVal
-        autoMergeEagerEnabled = configuredAutoMergeEagerEnabledVal
         selectedExportTreeUri = configuredExportTreeUriVal
 
         selectedTheme = configuredThemeMode
@@ -709,10 +583,6 @@ fun SettingsScreen(
         channelModeLabels = availableChannelModes.map { context.getString(it.labelRes) }
         selectedChannelModeLabel = context.getString(configuredChannelModeVal.labelRes)
 
-        autoMergeLabels = AutoMergeMode.entries.map { context.getString(it.labelRes) }
-        selectedAutoMergeLabel = context.getString(configuredAutoMergeModeVal.labelRes)
-        refreshHistorySettingsUi()
-
         availableSampleRates = buildList {
             add(configuredRateVal)
             addAll(standardSampleRates())
@@ -727,7 +597,7 @@ fun SettingsScreen(
         refreshMoveRecordingsAvailability()
         refreshBatteryOptimizationUi()
 
-        currentSnapshot.persistentBufferEnabled = isDiskBufferCacheEnabled(context)
+        currentSnapshot.persistentBufferEnabled = true
         currentSnapshot.aggressiveRestartEnabled = isAggressiveRestartEnabled(context)
         currentSnapshot.wakeLockEnabled = isWakeLockEnabled(context)
 
@@ -755,7 +625,12 @@ fun SettingsScreen(
     val connection = remember {
         object : android.content.ServiceConnection {
             override fun onServiceConnected(className: ComponentName, binder: IBinder) {
-                val typedBinder = binder as TimeTravelService.BackgroundRecorderBinder
+                val typedBinder = binder as? TimeTravelService.BackgroundRecorderBinder
+                    ?: run {
+                        service = null
+                        serviceBound = false
+                        return
+                    }
                 service = typedBinder.service
                 serviceBound = true
             }
@@ -836,24 +711,25 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = {
-                        if (hasUnsavedChanges) persistSettings(showFeedback = false)
-                        onBack()
+                        if (hasUnsavedChanges) restorePreviousSettings() else onBack()
                     }) {
                         Icon(
-                            painter = painterResource(if (hasUnsavedChanges) R.drawable.ic_check else R.drawable.ic_close),
-                            contentDescription = stringResource(if (hasUnsavedChanges) R.string.done else R.string.close),
+                            painter = painterResource(if (hasUnsavedChanges) R.drawable.ic_undo else R.drawable.ic_close),
+                            contentDescription = stringResource(if (hasUnsavedChanges) R.string.undo else R.string.close),
                         )
                     }
                     Spacer(Modifier.weight(1f))
                     Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.weight(1f))
                     IconButton(
-                        onClick = { restorePreviousSettings() },
+                        onClick = {
+                            if (hasUnsavedChanges && persistSettings(showFeedback = false)) onBack()
+                        },
                         enabled = hasUnsavedChanges,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_undo),
-                            contentDescription = stringResource(R.string.undo),
+                            painter = painterResource(R.drawable.ic_check),
+                            contentDescription = stringResource(R.string.done),
                             tint = if (hasUnsavedChanges) MaterialTheme.colorScheme.onSurface
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                         )
@@ -876,6 +752,7 @@ fun SettingsScreen(
                 onOptionSelected = { label ->
                     selectedThemeLabel = label
                     selectedTheme = AppThemeMode.entries.first { context.getString(it.labelRes) == label }
+                    onThemeChanged(selectedTheme)
                     saveCurrentToSnapshot(currentSnapshot)
                     pushUndoState()
                 },
@@ -959,20 +836,36 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SettingsDropdown(
-                    label = stringResource(R.string.codec_label),
-                    selectedValue = selectedCodecLabel,
-                    options = codecLabels,
-                    onOptionSelected = { label ->
-                        selectedCodecLabel = label
-                        selectedCodec = availableCodecs.first { context.getString(it.labelRes) == label }
-                        refreshSourceModes()
-                        refreshBitrateField()
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                if (selectedFormat.isPcmContainer) {
+                    SettingsDropdown(
+                        label = stringResource(R.string.sample_format_label),
+                        selectedValue = selectedSampleFormatLabel,
+                        options = sampleFormatLabels,
+                        onOptionSelected = { label ->
+                            selectedSampleFormatLabel = label
+                            selectedSampleFormat = PcmSampleFormat.entries.first { context.getString(it.labelRes) == label }
+                            refreshRetentionFields(preserveActiveInputs = true)
+                            saveCurrentToSnapshot(currentSnapshot)
+                            pushUndoState()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    SettingsDropdown(
+                        label = stringResource(R.string.codec_label),
+                        selectedValue = selectedCodecLabel,
+                        options = codecLabels,
+                        onOptionSelected = { label ->
+                            selectedCodecLabel = label
+                            selectedCodec = availableCodecs.first { context.getString(it.labelRes) == label }
+                            refreshSourceModes()
+                            refreshBitrateField()
+                            saveCurrentToSnapshot(currentSnapshot)
+                            pushUndoState()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 SettingsDropdown(
                     label = stringResource(R.string.sample_rate_label),
                     selectedValue = selectedSampleRateLabel,
@@ -1009,19 +902,6 @@ fun SettingsScreen(
                     )
                 }
             }
-            SettingsDropdown(
-                label = stringResource(R.string.sample_format_label),
-                selectedValue = selectedSampleFormatLabel,
-                options = sampleFormatLabels,
-                onOptionSelected = { label ->
-                    selectedSampleFormatLabel = label
-                    selectedSampleFormat = PcmSampleFormat.entries.first { context.getString(it.labelRes) == label }
-                    refreshRetentionFields(preserveActiveInputs = true)
-                    saveCurrentToSnapshot(currentSnapshot)
-                    pushUndoState()
-                },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
-            )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1053,78 +933,6 @@ fun SettingsScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
-
-            HorizontalDivider(Modifier.padding(vertical = 24.dp))
-
-            SectionTitle(stringResource(R.string.history_settings_title))
-            Text(
-                text = stringResource(R.string.history_chunk_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                SettingsTextField(
-                    label = stringResource(R.string.history_chunk_label),
-                    value = historyChunkText,
-                    onValueChange = { v ->
-                        historyChunkText = v
-                        parseDurationInput(v.trim())?.let { historyChunkSecondsValue = it }
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    error = historyChunkError,
-                    modifier = Modifier.weight(1f),
-                )
-                SettingsDropdown(
-                    label = stringResource(R.string.auto_merge_label),
-                    selectedValue = selectedAutoMergeLabel,
-                    options = autoMergeLabels,
-                    onOptionSelected = { label ->
-                        selectedAutoMergeLabel = label
-                        selectedAutoMergeMode = AutoMergeMode.entries.first { context.getString(it.labelRes) == label }
-                        refreshAutoMergeValueUi()
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            if (selectedAutoMergeMode != AutoMergeMode.OFF) {
-                SettingsTextField(
-                    label = when (selectedAutoMergeMode) {
-                        AutoMergeMode.RATIO -> stringResource(R.string.auto_merge_ratio_value_label)
-                        AutoMergeMode.CUSTOM_TIME -> stringResource(R.string.auto_merge_custom_time_value_label)
-                        AutoMergeMode.CUSTOM_SIZE -> stringResource(R.string.auto_merge_custom_size_value_label)
-                        AutoMergeMode.OFF -> ""
-                    },
-                    value = autoMergeValueText,
-                    onValueChange = { v ->
-                        autoMergeValueText = v
-                        when (selectedAutoMergeMode) {
-                            AutoMergeMode.RATIO -> v.trim().toIntOrNull()?.let { autoMergeDivisorValue = it }
-                            AutoMergeMode.CUSTOM_TIME -> parseDurationInput(v.trim())?.let { autoMergeCustomSecondsValue = it }
-                            AutoMergeMode.CUSTOM_SIZE -> parseRetentionSizeMib(v.trim())?.let { autoMergeCustomSizeMibValue = it }
-                            AutoMergeMode.OFF -> {}
-                        }
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    error = autoMergeValueError,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
-                )
-            }
-            SwitchRow(
-                label = stringResource(R.string.auto_merge_eager_label),
-                summary = stringResource(R.string.auto_merge_eager_summary),
-                checked = autoMergeEagerEnabled,
-                onCheckedChange = { autoMergeEagerEnabled = it; saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
-            )
-
-            HorizontalDivider(Modifier.padding(vertical = 24.dp))
 
             SectionTitle(stringResource(R.string.storage_settings_title))
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1173,12 +981,6 @@ fun SettingsScreen(
 
             SectionTitle(stringResource(R.string.background_persistence_title))
             SwitchRow(
-                label = stringResource(R.string.persistent_buffer_cache_label),
-                summary = stringResource(R.string.persistent_buffer_cache_summary),
-                checked = currentSnapshot.persistentBufferEnabled,
-                onCheckedChange = { currentSnapshot.persistentBufferEnabled = it; saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
-            )
-            SwitchRow(
                 label = stringResource(R.string.aggressive_restart_label),
                 summary = stringResource(R.string.aggressive_restart_summary),
                 checked = currentSnapshot.aggressiveRestartEnabled,
@@ -1218,7 +1020,7 @@ fun SettingsScreen(
 private fun SectionTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(horizontal = 16.dp),
     )
 }
@@ -1232,6 +1034,7 @@ private fun SettingsDropdown(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
 
     Box(modifier = modifier) {
         OutlinedTextField(
@@ -1240,7 +1043,22 @@ private fun SettingsDropdown(
             readOnly = true,
             label = { Text(label) },
             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth().clickable(onClick = { expanded = true }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = { expanded = true },
+                ),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = { expanded = true },
+                ),
         )
         DropdownMenu(
             expanded = expanded,
@@ -1295,7 +1113,7 @@ private fun SwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Text(label, style = MaterialTheme.typography.bodyMedium)
             Text(
                 summary,
                 style = MaterialTheme.typography.bodySmall,

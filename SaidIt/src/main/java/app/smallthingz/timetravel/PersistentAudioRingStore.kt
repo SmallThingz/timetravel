@@ -361,6 +361,10 @@ internal class PersistentAudioRingStore(
     ) {
         val existingMeta = metaMap
         val oldCapacityBytes = mappedCapacityBytes
+        if (oldCapacityBytes <= 0) {
+            remap(capacityBytes, sampleRate, channelCount, bytesPerSample, clearContents = true)
+            return
+        }
         val oldFilledBytes = existingMeta?.readFilledBytes()?.coerceIn(0, oldCapacityBytes) ?: 0
         val oldWritePosition = existingMeta?.readWritePosition()?.coerceIn(0, oldCapacityBytes) ?: 0
 

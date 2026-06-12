@@ -34,19 +34,6 @@ private const val MP4_CONTAINER_BYTES_PER_AAC_ACCESS_UNIT = 8L
 private const val AAC_SAMPLES_PER_ACCESS_UNIT = 1024L
 private const val WAV_MAX_EXPORT_BYTES = 0xFFFF_FFFFL - WAV_HEADER_BYTES
 private const val MUXED_MAX_EXPORT_BYTES = (4L * 1024L * 1024L * 1024L) - (8L * 1024L * 1024L)
-private const val DEFAULT_HISTORY_CHUNK_SECONDS = 10
-private const val MIN_HISTORY_CHUNK_SECONDS = 2
-private const val MAX_HISTORY_CHUNK_SECONDS = 300
-private const val DEFAULT_AUTO_MERGE_DIVISOR = 100
-private const val MIN_AUTO_MERGE_DIVISOR = 2
-private const val MAX_AUTO_MERGE_DIVISOR = 600
-private const val DEFAULT_AUTO_MERGE_CUSTOM_SECONDS = 60
-private const val MIN_AUTO_MERGE_CUSTOM_SECONDS = 10
-private const val MAX_AUTO_MERGE_CUSTOM_SECONDS = 3600
-private const val DEFAULT_AUTO_MERGE_CUSTOM_SIZE_MIB = 64.0
-private const val MIN_AUTO_MERGE_CUSTOM_SIZE_MIB = 1.0
-private const val MAX_AUTO_MERGE_CUSTOM_SIZE_MIB = 4096.0
-private const val DEFAULT_AUTO_MERGE_EAGER_ENABLED = true
 private const val MAX_PERSISTENT_PCM_BUFFER_BYTES = Int.MAX_VALUE.toLong()
 private const val PREFERRED_DEFAULT_SAMPLE_RATE = 44_100
 private const val CAPABILITY_WARM_THREAD_NAME = "timetravel-capability-warm"
@@ -136,7 +123,6 @@ private inline fun <K : Any, V : Any> ConcurrentHashMap<K, V>.cached(
     return existing ?: value
 }
 
-private const val LEGACY_AUTO_MERGE_CUSTOM = "custom"
 private const val LEGACY_RETENTION_TIME = "time"
 private const val LEGACY_EXPORT_MODE_RANGE = "range"
 private const val LEGACY_EXPORT_UNIT_SIZE = "size"
@@ -409,32 +395,6 @@ enum class AppThemeMode(
     }
 }
 
-enum class AutoMergeMode(
-    @param:StringRes @field:StringRes val labelRes: Int,
-) {
-    OFF(R.string.auto_merge_mode_off),
-    RATIO(R.string.auto_merge_mode_ratio),
-    CUSTOM_TIME(R.string.auto_merge_mode_custom_time),
-    CUSTOM_SIZE(R.string.auto_merge_mode_custom_size),
-    ;
-
-    val prefValue: String get() = name.lowercase()
-
-    companion object {
-        private val byPrefValue = entries.associateBy { it.prefValue }
-
-        fun fromPrefValue(value: String?): AutoMergeMode {
-            return when (value) {
-                LEGACY_AUTO_MERGE_CUSTOM -> CUSTOM_TIME
-                else -> {
-                    val v = value ?: return RATIO
-                    byPrefValue[v] ?: RATIO
-                }
-            }
-        }
-    }
-}
-
 enum class CustomExportMode {
     RANGE,
     PAST,
@@ -501,7 +461,7 @@ fun setConfiguredCustomExportUnit(context: Context, unit: CustomExportUnit) {
 }
 
 fun isDiskBufferCacheEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(PrefKey.BUFFER_DISK_CACHE_ENABLED, true)
+    return true
 }
 
 fun isAggressiveRestartEnabled(context: Context): Boolean {
@@ -541,99 +501,6 @@ fun getConfiguredRetentionSeconds(context: Context): Long {
 fun getConfiguredRetentionSizeBytes(context: Context): Long {
     return getRecorderPreferences(context).getLong(PrefKey.AUDIO_MEMORY_SIZE, TimeTravelConfig.DEFAULT_RETENTION_SIZE_BYTES)
         .coerceAtLeast(1L)
-}
-
-fun getConfiguredHistoryChunkSeconds(context: Context): Int {
-    return getRecorderPreferences(context)
-        .getInt(PrefKey.HISTORY_CHUNK_SECONDS, DEFAULT_HISTORY_CHUNK_SECONDS)
-        .coerceIn(MIN_HISTORY_CHUNK_SECONDS, MAX_HISTORY_CHUNK_SECONDS)
-}
-
-fun getConfiguredAutoMergeMode(context: Context): AutoMergeMode {
-    return AutoMergeMode.fromPrefValue(
-        getRecorderPreferences(context).getString(PrefKey.AUTO_MERGE_MODE, AutoMergeMode.RATIO.prefValue),
-    )
-}
-
-fun getConfiguredAutoMergeDivisor(context: Context): Int {
-    return getRecorderPreferences(context)
-        .getInt(PrefKey.AUTO_MERGE_DIVISOR, DEFAULT_AUTO_MERGE_DIVISOR)
-        .coerceIn(MIN_AUTO_MERGE_DIVISOR, MAX_AUTO_MERGE_DIVISOR)
-}
-
-fun getConfiguredAutoMergeCustomSeconds(context: Context): Int {
-    return getRecorderPreferences(context)
-        .getInt(PrefKey.AUTO_MERGE_CUSTOM_SECONDS, DEFAULT_AUTO_MERGE_CUSTOM_SECONDS)
-        .coerceIn(MIN_AUTO_MERGE_CUSTOM_SECONDS, MAX_AUTO_MERGE_CUSTOM_SECONDS)
-}
-
-fun getConfiguredAutoMergeCustomSizeMib(context: Context): Double {
-    return getRecorderPreferences(context)
-        .getString(PrefKey.AUTO_MERGE_CUSTOM_SIZE_MIB, null)
-        ?.trim()
-        ?.replace(',', '.')
-        ?.toDoubleOrNull()
-        ?.coerceIn(MIN_AUTO_MERGE_CUSTOM_SIZE_MIB, MAX_AUTO_MERGE_CUSTOM_SIZE_MIB)
-        ?: DEFAULT_AUTO_MERGE_CUSTOM_SIZE_MIB
-}
-
-fun isConfiguredAutoMergeEagerEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(
-        PrefKey.AUTO_MERGE_EAGER_ENABLED,
-        DEFAULT_AUTO_MERGE_EAGER_ENABLED,
-    )
-}
-
-fun configuredAutoMergeTargetSampleBytes(
-    context: Context,
-    retentionBytes: Long,
-    sampleRate: Int,
-    channelCount: Int,
-    baseChunkSeconds: Int,
-): Long? {
-    val bytesPerSecond = bytesPerSecond(sampleRate, channelCount).coerceAtLeast(1L)
-    val baseChunkBytes = baseChunkSeconds.toLong().coerceAtLeast(1L) * bytesPerSecond
-    if (retentionBytes <= 0L || baseChunkBytes <= 0L) {
-        return null
-    }
-    val requestedTargetBytes =
-        when (getConfiguredAutoMergeMode(context)) {
-        AutoMergeMode.OFF -> null
-        AutoMergeMode.RATIO -> {
-            val divisor = getConfiguredAutoMergeDivisor(context).coerceAtLeast(1)
-            (retentionBytes / divisor).coerceAtLeast(baseChunkBytes)
-        }
-        AutoMergeMode.CUSTOM_TIME -> {
-            getConfiguredAutoMergeCustomSeconds(context).toLong().coerceAtLeast(1L) * bytesPerSecond
-        }
-        AutoMergeMode.CUSTOM_SIZE -> {
-            val mib = getConfiguredAutoMergeCustomSizeMib(context)
-            if (mib <= 0.0) {
-                null
-            } else {
-                (mib * 1024.0 * 1024.0).toLong()
-            }
-        }
-    } ?: return null
-    val boundedTargetBytes = minOf(requestedTargetBytes, retentionBytes)
-    val wholeChunkTargetBytes = (boundedTargetBytes / baseChunkBytes) * baseChunkBytes
-    return wholeChunkTargetBytes.takeIf { it > baseChunkBytes }
-}
-
-fun autoMergeCustomSizeRangeMib(): ClosedFloatingPointRange<Double> {
-    return MIN_AUTO_MERGE_CUSTOM_SIZE_MIB..MAX_AUTO_MERGE_CUSTOM_SIZE_MIB
-}
-
-fun defaultAutoMergeCustomSizeMib(): Double {
-    return DEFAULT_AUTO_MERGE_CUSTOM_SIZE_MIB
-}
-
-fun defaultAutoMergeDivisor(): Int {
-    return DEFAULT_AUTO_MERGE_DIVISOR
-}
-
-fun defaultAutoMergeCustomSeconds(): Int {
-    return DEFAULT_AUTO_MERGE_CUSTOM_SECONDS
 }
 
 fun getConfiguredOutputFormat(context: Context): ExportFormat {
@@ -1120,12 +987,6 @@ fun supportedInputRouteModes(context: Context): List<InputRouteMode> {
 private val STANDARD_SAMPLE_RATES_LIST = STANDARD_SAMPLE_RATES.toList()
 
 fun standardSampleRates(): List<Int> = STANDARD_SAMPLE_RATES_LIST
-
-fun historyChunkSecondsRange(): IntRange = MIN_HISTORY_CHUNK_SECONDS..MAX_HISTORY_CHUNK_SECONDS
-
-fun autoMergeDivisorRange(): IntRange = MIN_AUTO_MERGE_DIVISOR..MAX_AUTO_MERGE_DIVISOR
-
-fun autoMergeCustomSecondsRange(): IntRange = MIN_AUTO_MERGE_CUSTOM_SECONDS..MAX_AUTO_MERGE_CUSTOM_SECONDS
 
 fun isRecorderCapabilityCacheWarm(): Boolean = capabilityCacheWarm
 

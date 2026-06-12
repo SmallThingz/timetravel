@@ -7,15 +7,12 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -82,11 +79,18 @@ fun AboutDialog(onDismiss: () -> Unit = {}) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_app_icon_preview),
-                    contentDescription = context.getString(R.string.app_name),
-                    modifier = Modifier.size(208.dp),
-                )
+                Surface(
+                    modifier = Modifier.size(112.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_brand_mark),
+                        contentDescription = context.getString(R.string.app_name),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(18.dp),
+                    )
+                }
                 Spacer(Modifier.size(16.dp))
                 Text(
                     text = versionText,
@@ -94,25 +98,29 @@ fun AboutDialog(onDismiss: () -> Unit = {}) {
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.size(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = GITHUB_REPO_URL.removePrefix("https://"),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.clickable { openGithub(context) },
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    IconButton(
-                        onClick = { openGithub(context) },
-                        modifier = Modifier.size(40.dp),
+                Surface(
+                    onClick = { openGithub(context) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     ) {
+                        Text(
+                            text = GITHUB_REPO_URL.removePrefix("https://"),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.size(8.dp))
                         Icon(
                             painter = painterResource(R.drawable.ic_github),
-                            contentDescription = null,
+                            contentDescription = context.getString(R.string.github_repo),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
