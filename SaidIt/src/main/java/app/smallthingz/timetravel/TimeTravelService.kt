@@ -13,9 +13,6 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
-import android.media.MediaCodec
-import android.media.MediaExtractor
-import android.media.MediaFormat
 import android.os.Binder
 import android.os.Build
 import android.os.Handler
@@ -29,16 +26,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileDescriptor
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.io.PrintWriter
-import java.io.RandomAccessFile
-import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
@@ -48,7 +40,7 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelService : Service() {
@@ -66,6 +58,9 @@ class TimeTravelService : Service() {
 
     @Volatile
     private var channelMode = ChannelMode.MONO
+
+    @Volatile
+    private var pcmSampleFormat = PcmSampleFormat.PCM_16
 
     @Volatile
     private var outputFormat = ExportFormat.WAV
@@ -104,12 +99,6 @@ class TimeTravelService : Service() {
     private var historyReencodeTotalBytes = 0L
 
     @Volatile
-    private var historyReencodeStartedAtMillis = 0L
-
-    @Volatile
-    private var historyReencodeVisibleUntilElapsedRealtime = 0L
-
-    @Volatile
     private var activeExportToken: ExportCancellationToken? = null
 
     @Volatile
@@ -127,9 +116,8 @@ class TimeTravelService : Service() {
     @Volatile
     private var cachedPersistentPcmSizeBytes = 0L
 
-    private var historyCompactionIdleDelayMs = HISTORY_COMPACTION_MIN_IDLE_DELAY_MS
-
     private val audioMemory = AudioMemory()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private lateinit var audioThread: HandlerThread
@@ -138,36 +126,8 @@ class TimeTravelService : Service() {
     private lateinit var exportHandler: Handler
     private lateinit var exportWorkExecutor: ExecutorService
     private lateinit var persistentAudioRingStore: PersistentAudioRingStore
-    private lateinit var liveExportHistory: LiveExportHistory
 
     private var wakeLock: PowerManager.WakeLock? = null
-    private val historyCompactor: Runnable = object : Runnable {
-        override fun run() {
-            val compacted =
-                try {
-                    if (::liveExportHistory.isInitialized && !historyReencodePending && !historyReencoding) {
-                        liveExportHistory.compactIfNeeded()
-                    } else {
-                        false
-                    }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "History compaction pass failed", t)
-                    false
-                }
-
-            if (!::exportHandler.isInitialized) {
-                return
-            }
-            if (compacted) {
-                historyCompactionIdleDelayMs = HISTORY_COMPACTION_MIN_IDLE_DELAY_MS
-                exportHandler.post(this)
-            } else {
-                historyCompactionIdleDelayMs =
-                    (historyCompactionIdleDelayMs * 2L).coerceAtMost(HISTORY_COMPACTION_MAX_IDLE_DELAY_MS)
-                exportHandler.postDelayed(this, historyCompactionIdleDelayMs)
-            }
-        }
-    }
 
     private var statePollListeningEnabled = false
     private var statePollRecording = false
@@ -197,6 +157,11 @@ class TimeTravelService : Service() {
 
     private val statePollMainTask: Runnable = object : Runnable {
         override fun run() {
+            if (historyReencodePending && !historyReencoding && statePollRetainedBytes <= 0L) {
+                historyReencodePending = false
+                historyReencodeProcessedBytes = 0L
+                historyReencodeTotalBytes = 0L
+            }
             statePollCallback?.state(
                 statePollListeningEnabled,
                 statePollRecording,
@@ -214,9 +179,7 @@ class TimeTravelService : Service() {
     override fun onCreate() {
         loadConfiguration()
         persistentAudioRingStore = PersistentAudioRingStore(this)
-        liveExportHistory = LiveExportHistory(this)
         adoptPersistedBufferConfigurationIfNeeded()
-        updateLiveExportHistoryConfiguration(restoredOrConfiguredMemorySize())
         audioThread = HandlerThread(TimeTravelConfig.THREAD_NAME_AUDIO, Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread(TimeTravelConfig.THREAD_NAME_EXPORT, Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
@@ -227,11 +190,9 @@ class TimeTravelService : Service() {
                 isDaemon = true
             }
         }
-        scheduleHistoryCompaction(immediate = true)
         audioHandler.post {
             restorePersistedBufferIfNeeded()
         }
-        scheduleRecorderCapabilityCacheWarm(applicationContext)
 
         if (isListeningEnabled()) {
             innerStartListening()
@@ -244,16 +205,13 @@ class TimeTravelService : Service() {
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
 
-        if (::exportHandler.isInitialized) {
-            exportHandler.removeCallbacks(historyCompactor)
-        }
         if (::exportWorkExecutor.isInitialized) {
             exportWorkExecutor.shutdownNow()
         }
-        liveExportHistory.closePreservingHistory()
         persistentAudioRingStore.close()
         audioThread.quitSafely()
         exportThread.quitSafely()
+        serviceScope.cancel()
         scheduleRestartIfNeeded()
         super.onDestroy()
     }
@@ -283,7 +241,6 @@ class TimeTravelService : Service() {
         }
         val stats = audioMemory.getStats(fillRate)
         val persisted = if (::persistentAudioRingStore.isInitialized) persistentAudioRingStore.peekSnapshot() else null
-        val history = if (::liveExportHistory.isInitialized) liveExportHistory.debugSnapshot() else null
         writer.println("TimeTravelService")
         writer.println("  state=$state")
         writer.println("  listeningEnabled=${isListeningEnabled()}")
@@ -299,14 +256,7 @@ class TimeTravelService : Service() {
                 "sampleRate=${persisted?.sampleRate ?: 0} channelCount=${persisted?.channelCount ?: 0} " +
                 "lastWrite=${persisted?.lastWriteAtMillis ?: 0}",
         )
-        writer.println(
-            "  history segments=${history?.segmentCount ?: 0} totalSampleBytes=${history?.totalSampleBytes ?: 0} " +
-                "currentSegmentSampleBytes=${history?.currentSegmentSampleBytes ?: 0} " +
-                "nextSegmentStart=${history?.nextSegmentStartMillis ?: 0}",
-        )
-        history?.segmentFiles?.forEach { fileName ->
-            writer.println("    historyFile=$fileName")
-        }
+        writer.println("  rawHistoryFile=${TimeTravelConfig.BUFFER_PCM_FILE_NAME}")
     }
 
     fun enableListening() {
@@ -321,9 +271,9 @@ class TimeTravelService : Service() {
             .putBoolean(PrefKey.AUDIO_MEMORY_ENABLED, false)
             .apply()
         if (state == STATE_RECORDING) {
-            stopRecording(TimeTravelFragment.NotifyFileReceiver(this))
+            stopRecording(TimeTravelFragment.NotifyFileReceiver(this, serviceScope))
         }
-        innerPauseListening()
+        innerStopListening()
     }
 
     private fun isListeningEnabled(): Boolean {
@@ -336,6 +286,7 @@ class TimeTravelService : Service() {
         var selectedRouteMode = getConfiguredInputRouteMode(this)
         var selectedFormat = getConfiguredOutputFormat(this)
         var selectedCodec = getConfiguredOutputCodec(this)
+        val selectedSampleFormat = getConfiguredPcmSampleFormat(this)
 
         val requestedRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedFormat, selectedCodec, selectedChannelMode)
         val resolvedConfig = resolveOperationalConfiguration(
@@ -356,7 +307,8 @@ class TimeTravelService : Service() {
         }
 
         sampleRate = resolvedConfig?.sampleRate ?: 48_000
-        fillRate = sampleRate * selectedChannelMode.channelCount * 2
+        pcmSampleFormat = selectedSampleFormat
+        fillRate = sampleRate * selectedChannelMode.channelCount * selectedSampleFormat.bytesPerSample
         sourceMode = selectedSourceMode
         channelMode = selectedChannelMode
         audioSource = selectedSourceMode.sourceValue
@@ -365,11 +317,9 @@ class TimeTravelService : Service() {
         outputBitrateKbps = getConfiguredCodecBitrateKbps(this, outputCodec, sampleRate, channelMode.channelCount) ?: -1
         inputRouteMode = selectedRouteMode
         refreshCachedBufferSizing()
-        updateLiveExportHistoryConfiguration()
     }
 
     private fun refreshCachedBufferSizing() {
-        val bitrateKbps = configuredCodecBitrateKbps()
         cachedRetentionSampleBytes =
             getConfiguredMemorySizeBytes(
                 context = this,
@@ -377,7 +327,8 @@ class TimeTravelService : Service() {
                 channelMode = channelMode,
                 format = effectiveOutputFormat,
                 codec = effectiveOutputCodec,
-                bitrateKbps = bitrateKbps,
+                bitrateKbps = null,
+                sampleFormat = pcmSampleFormat,
             )
         cachedWorkingMemorySizeBytes =
             getConfiguredWorkingMemorySizeBytes(
@@ -386,7 +337,8 @@ class TimeTravelService : Service() {
                 channelMode = channelMode,
                 format = effectiveOutputFormat,
                 codec = effectiveOutputCodec,
-                bitrateKbps = bitrateKbps,
+                bitrateKbps = null,
+                sampleFormat = pcmSampleFormat,
             )
         cachedPersistentPcmSizeBytes =
             getConfiguredPersistentPcmSizeBytes(
@@ -395,21 +347,9 @@ class TimeTravelService : Service() {
                 channelMode = channelMode,
                 format = effectiveOutputFormat,
                 codec = effectiveOutputCodec,
-                bitrateKbps = bitrateKbps,
+                bitrateKbps = null,
+                sampleFormat = pcmSampleFormat,
             )
-    }
-
-    private fun scheduleHistoryCompaction(immediate: Boolean) {
-        if (!::exportHandler.isInitialized) {
-            return
-        }
-        exportHandler.removeCallbacks(historyCompactor)
-        if (immediate) {
-            historyCompactionIdleDelayMs = HISTORY_COMPACTION_MIN_IDLE_DELAY_MS
-            exportHandler.post(historyCompactor)
-        } else {
-            exportHandler.postDelayed(historyCompactor, historyCompactionIdleDelayMs)
-        }
     }
 
     private fun resolveOperationalConfiguration(
@@ -535,7 +475,6 @@ class TimeTravelService : Service() {
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
             syncPersistentBufferFromMemory()
-            liveExportHistory.pause()
             releaseAudioRecord()
         }
     }
@@ -555,7 +494,6 @@ class TimeTravelService : Service() {
         audioHandler.post {
             audioHandler.removeCallbacks(audioReader)
             syncPersistentBufferFromMemory()
-            liveExportHistory.pause()
             releaseAudioRecord()
         }
     }
@@ -565,7 +503,7 @@ class TimeTravelService : Service() {
         val minBuffer = AudioRecord.getMinBufferSize(
             sampleRate,
             channelMode.inputChannelMask,
-            AudioFormat.ENCODING_PCM_16BIT,
+            pcmSampleFormat.audioEncoding,
         )
         if (minBuffer <= 0) {
             Log.e(TAG, "AudioRecord min buffer invalid for $sampleRate Hz")
@@ -577,7 +515,7 @@ class TimeTravelService : Service() {
                 .setAudioSource(audioSource)
                 .setAudioFormat(
                     AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setEncoding(pcmSampleFormat.audioEncoding)
                         .setChannelMask(channelMode.inputChannelMask)
                         .setSampleRate(sampleRate)
                         .build(),
@@ -673,18 +611,6 @@ class TimeTravelService : Service() {
         val startedAtMillis = System.currentTimeMillis() - 1000L * (bytesAvailable - skipBytes) / maxOf(fillRate, 1)
         val exportFormat = effectiveOutputFormat
         val exportCodec = effectiveOutputCodec
-        val exportConfig = LiveExportHistory.Config(
-            format = exportFormat,
-            codec = exportCodec,
-            sampleRate = sampleRate,
-            channelCount = channelMode.channelCount,
-            bitrateKbps = getConfiguredCodecBitrateKbps(this@TimeTravelService, exportCodec, sampleRate, channelMode.channelCount),
-        )
-        val historySnapshot = liveExportHistory.snapshotForRange(
-            skipSampleBytes = skipBytes,
-            requestedSampleBytes = useBytes,
-            reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
-        )
         val exportToken = ExportCancellationToken(nextExportTokenId.getAndIncrement())
         activeExportToken = exportToken
         activeExportReceiver = receiver
@@ -705,33 +631,21 @@ class TimeTravelService : Service() {
                             return@Callable Unit
                         }
                         var durationMillis = 0L
-                        if (historySnapshot != null && historySnapshot.config == exportConfig) {
-                            liveExportHistory.exportSnapshotOptimized(
-                                snapshot = historySnapshot,
-                                outputTarget = outTarget,
-                                preferredParallelism = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
-                                shouldCancel = { exportToken.cancelled.get() },
-                            )
-                            ensureExportNotCancelled(exportToken)
-                            requireExportedOutput(outTarget)
-                            durationMillis = (historySnapshot.requestedSampleBytes * bytesToSeconds * 1000f).toLong()
-                        } else {
-                            val readSucceeded =
-                                createAudioFileWriter(outTarget).use { writer ->
-                                    val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
-                                        ensureExportNotCancelled(exportToken)
-                                        writer.write(array, offset, count)
-                                        count
-                                    }
+                        val readSucceeded =
+                            createAudioFileWriter(outTarget).use { writer ->
+                                val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
                                     ensureExportNotCancelled(exportToken)
-                                    durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                                    didRead
+                                    writer.write(array, offset, count)
+                                    count
                                 }
-                            if (!readSucceeded) {
-                                throw IOException("Requested PCM range not available in fallback buffer")
+                                ensureExportNotCancelled(exportToken)
+                                durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                                didRead
                             }
-                            requireExportedOutput(outTarget)
+                        if (!readSucceeded) {
+                            throw IOException("Requested PCM range not available in raw buffer")
                         }
+                        requireExportedOutput(outTarget)
                         ensureExportNotCancelled(exportToken)
                         notifyReceiver(
                             receiver,
@@ -747,49 +661,12 @@ class TimeTravelService : Service() {
                         deleteOutputTarget(outTarget)
                         notifyReceiverCancelled(receiver)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Fast export failed for ${outTarget?.displayName ?: newFileName}; falling back to PCM export", e)
+                        Log.e(TAG, "Error while exporting raw history into ${outTarget?.displayName ?: newFileName}", e)
+                        val message = getString(R.string.error_during_writing_history_into) + (outTarget?.displayName ?: newFileName)
+                        showToast(message)
+                        notifyReceiverFailure(receiver, message)
                         deleteIfEmpty(outTarget)
-                        try {
-                            val fallbackTarget = requireNotNull(outTarget)
-                            var durationMillis = 0L
-                            val readSucceeded =
-                                createAudioFileWriter(fallbackTarget).use { writer ->
-                                    val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
-                                        ensureExportNotCancelled(exportToken)
-                                        writer.write(array, offset, count)
-                                        count
-                                    }
-                                    ensureExportNotCancelled(exportToken)
-                                    durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
-                                    didRead
-                                }
-                            if (!readSucceeded) {
-                                throw IOException("Requested PCM range not available in fallback buffer")
-                            }
-                            requireExportedOutput(fallbackTarget)
-                            ensureExportNotCancelled(exportToken)
-                            notifyReceiver(
-                                receiver,
-                                buildRecordingEntity(
-                                    this@TimeTravelService,
-                                    fallbackTarget,
-                                    durationMillis,
-                                    currentCodecSummary(),
-                                ),
-                            )
-                        } catch (fallbackCancelled: InterruptedIOException) {
-                            Log.i(TAG, "Fallback export cancelled for ${outTarget?.displayName ?: newFileName}")
-                            deleteOutputTarget(outTarget)
-                            notifyReceiverCancelled(receiver)
-                        } catch (fallbackError: Exception) {
-                            Log.e(TAG, "Error while exporting history into ${outTarget?.displayName ?: newFileName}", fallbackError)
-                            val message = getString(R.string.error_during_writing_history_into) + (outTarget?.displayName ?: newFileName)
-                            showToast(message)
-                            notifyReceiverFailure(receiver, message)
-                            deleteIfEmpty(outTarget)
-                        }
                     } finally {
-                        historySnapshot?.let { liveExportHistory.releaseSnapshot(it) }
                         if (exportToken.cancelled.get()) {
                             deleteOutputTarget(outTarget)
                         }
@@ -858,7 +735,7 @@ class TimeTravelService : Service() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error while priming recording into ${recordingTarget?.displayName}", e)
-                    stopRecording(TimeTravelFragment.NotifyFileReceiver(this@TimeTravelService))
+                    stopRecording(TimeTravelFragment.NotifyFileReceiver(this@TimeTravelService, serviceScope))
                 }
             }
         }
@@ -893,6 +770,7 @@ class TimeTravelService : Service() {
         val newRouteMode = getConfiguredInputRouteMode(this)
         val newFormat = getConfiguredOutputFormat(this)
         val newCodec = getConfiguredOutputCodec(this)
+        val newSampleFormat = getConfiguredPcmSampleFormat(this)
         val newSampleRate = resolveOperationalSampleRate(
             this,
             getConfiguredSampleRate(this, newSourceMode, newRouteMode, newFormat, newCodec, newChannelMode),
@@ -902,22 +780,13 @@ class TimeTravelService : Service() {
             newCodec,
             newChannelMode,
         )
-        val newBitrateKbps = getConfiguredCodecBitrateKbps(this, newCodec, newSampleRate, newChannelMode.channelCount)
-        val currentBitrateKbps = outputBitrateKbps
         val captureConfigChanged =
             newSourceMode != sourceMode ||
                 newChannelMode != channelMode ||
-                newRouteMode != inputRouteMode
-        val outputConfigChanged = newFormat != outputFormat || newCodec != outputCodec
-        val historyEncodingChanged =
-            outputConfigChanged ||
+                newRouteMode != inputRouteMode ||
                 newSampleRate != sampleRate ||
-                newBitrateKbps != currentBitrateKbps
+                newSampleFormat != pcmSampleFormat
         val hasRetainedBuffer = availableBufferedSampleBytes() > 0L
-        if (historyEncodingChanged && hasRetainedBuffer) {
-            historyReencodePending = true
-            historyReencoding = false
-        }
         updateWakeLockState()
 
         if (state != STATE_LISTENING || !isListeningEnabled()) {
@@ -926,24 +795,13 @@ class TimeTravelService : Service() {
             }
             loadConfiguration()
             audioHandler.post {
-                if (historyEncodingChanged && hasRetainedBuffer) {
-                    historyReencodeProcessedBytes = 0L
-                    historyReencodeTotalBytes = availableBufferedSampleBytes()
-                    updateLiveExportHistoryConfiguration()
-                    syncPersistentBufferFromMemory()
-                    return@post
-                }
                 historyReencodePending = false
                 historyReencoding = false
                 historyReencodeProcessedBytes = 0L
                 historyReencodeTotalBytes = 0L
                 restorePersistedBufferIfNeeded()
             }
-            return if (historyEncodingChanged && hasRetainedBuffer) {
-                ApplySettingsResult.REENCODE_REQUIRED
-            } else {
-                ApplySettingsResult.APPLIED_NOW
-            }
+            return ApplySettingsResult.APPLIED_NOW
         }
 
         if (captureConfigChanged) {
@@ -953,19 +811,14 @@ class TimeTravelService : Service() {
         loadConfiguration()
         audioHandler.post {
             audioMemory.allocate(configuredWorkingMemorySizeBytes())
-            historyReencodePending = historyEncodingChanged && hasRetainedBuffer
+            historyReencodePending = false
             historyReencoding = false
             historyReencodeProcessedBytes = 0L
-            historyReencodeTotalBytes = if (historyReencodePending) availableBufferedSampleBytes() else 0L
-            updateLiveExportHistoryConfiguration()
+            historyReencodeTotalBytes = 0L
             syncPersistentBufferFromMemory()
         }
 
-        return if (historyEncodingChanged && hasRetainedBuffer) {
-            ApplySettingsResult.REENCODE_REQUIRED
-        } else {
-            ApplySettingsResult.APPLIED_NOW
-        }
+        return ApplySettingsResult.APPLIED_NOW
     }
 
     fun reloadConfiguration(): Boolean {
@@ -1058,36 +911,14 @@ class TimeTravelService : Service() {
     }
 
     private val effectiveOutputFormat: ExportFormat
-        get() = if (outputFormat in supportedFormats()) outputFormat else supportedFormats().firstOrNull() ?: ExportFormat.WAV
+        get() = ExportFormat.WAV
 
     private val effectiveOutputCodec: ExportCodec
-        get() = if (isCodecSupported(effectiveOutputFormat, outputCodec, sampleRate, channelMode)) {
-            outputCodec
-        } else {
-            supportedCodecs(effectiveOutputFormat).firstOrNull { isCodecSupported(effectiveOutputFormat, it, sampleRate, channelMode) } ?: ExportCodec.PCM_16
-        }
+        get() = ExportCodec.PCM_16
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
-        val format = effectiveOutputFormat
-        val codec = effectiveOutputCodec
-        val bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount)
-        return when {
-            format.isPcmContainer -> WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount)
-            format.usesMuxer -> EncodedAudioFileWriter(
-                this,
-                target,
-                format,
-                codec,
-                sampleRate,
-                channelMode.channelCount,
-                bitrateKbps,
-            )
-            format.isRawAacAdts -> AdtsAudioFileWriter(this, target, codec, sampleRate, channelMode.channelCount, bitrateKbps)
-            format.isRawAmr -> RawAmrAudioFileWriter(this, target, codec, sampleRate, channelMode.channelCount, bitrateKbps)
-            format.isTransportStream -> TsAudioFileWriter(this, target, codec, sampleRate, channelMode.channelCount, bitrateKbps)
-            else -> throw IOException("Unsupported output format: ${format.prefValue}")
-        }
+        return WavAudioFileWriter(this, target, sampleRate, channelMode.channelCount, pcmSampleFormat)
     }
 
     private fun deleteIfEmpty(target: RecordingOutputTarget?) {
@@ -1136,7 +967,7 @@ class TimeTravelService : Service() {
             effectiveOutputCodec,
             sampleRate,
             channelMode.channelCount,
-            getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount),
+            null,
         )
     }
 
@@ -1158,10 +989,6 @@ class TimeTravelService : Service() {
     }
 
     private fun availableBufferedSampleBytes(): Long {
-        val historyBytes = if (::liveExportHistory.isInitialized) liveExportHistory.countRetainedSampleBytes() else 0L
-        if (historyBytes > 0L) {
-            return historyBytes
-        }
         return maxOf(
             if (::persistentAudioRingStore.isInitialized) persistentAudioRingStore.countFilledBytes() else 0L,
             audioMemory.countFilled(),
@@ -1199,9 +1026,6 @@ class TimeTravelService : Service() {
     }
 
     private fun canExportBufferedAudio(): Boolean {
-        if (historyReencodePending || historyReencoding) {
-            return false
-        }
         return availableBufferedSampleBytes() > 0L || state == STATE_LISTENING || state == STATE_PAUSED
     }
 
@@ -1237,10 +1061,6 @@ class TimeTravelService : Service() {
             writer.write(array, offset, read)
         }
         if (read > 0) {
-            val sealedSegment = liveExportHistory.append(array, offset, read, System.currentTimeMillis())
-            if (sealedSegment) {
-                scheduleHistoryCompaction(immediate = true)
-            }
             if (isDiskBufferCacheEnabled(this@TimeTravelService)) {
                 persistentAudioRingStore.append(
                     array = array,
@@ -1249,6 +1069,7 @@ class TimeTravelService : Service() {
                     capacityBytes = configuredPersistentPcmSizeBytes(),
                     sampleRate = sampleRate,
                     channelCount = channelMode.channelCount,
+                    sampleFormat = pcmSampleFormat,
                 )
             }
         }
@@ -1273,7 +1094,7 @@ class TimeTravelService : Service() {
             val errorMessage = getString(R.string.error_during_recording_into) + fileName
             Log.e(TAG, errorMessage, e)
             showToast(errorMessage)
-            stopRecording(TimeTravelFragment.NotifyFileReceiver(this))
+            stopRecording(TimeTravelFragment.NotifyFileReceiver(this, serviceScope))
         }
     }
 
@@ -1299,9 +1120,6 @@ class TimeTravelService : Service() {
         val listeningEnabled = state == STATE_LISTENING || state == STATE_RECORDING
         val recording = state == STATE_RECORDING
         audioHandler.post {
-            val rawHistory = if (::liveExportHistory.isInitialized) liveExportHistory.debugSnapshot() else null
-            val visibleReencodeOperation =
-                buildReencodeDebugOperation(rawHistory)
             val snapshot =
                 ChunkDebugSnapshot(
                     listeningEnabled = listeningEnabled,
@@ -1310,46 +1128,11 @@ class TimeTravelService : Service() {
                     codec = effectiveOutputCodec,
                     sampleRate = sampleRate,
                     channelCount = channelMode.channelCount,
-                    history = rawHistory?.let { history ->
-                        ChunkHistorySnapshot(
-                            segmentCount = history.segmentCount,
-                            totalSampleBytes = history.totalSampleBytes,
-                            currentSegmentSampleBytes = history.currentSegmentSampleBytes,
-                            nextSegmentStartMillis = history.nextSegmentStartMillis,
-                            format = history.format,
-                            codec = history.codec,
-                            sampleRate = history.sampleRate,
-                            channelCount = history.channelCount,
-                            chunks = history.chunks.map { chunk ->
-                                ChunkHistoryItem(
-                                    fileName = chunk.fileName,
-                                    filePath = chunk.filePath,
-                                    startedAtMillis = chunk.startedAtMillis,
-                                    endedAtMillis = chunk.endedAtMillis,
-                                    sampleBytes = chunk.sampleBytes,
-                                    fileSizeBytes = chunk.fileSizeBytes,
-                                    format = chunk.format,
-                                    codec = chunk.codec,
-                                    sampleRate = chunk.sampleRate,
-                                    channelCount = chunk.channelCount,
-                                    active = chunk.active,
-                                )
-                            },
-                            operations = (history.operations.map { operation ->
-                                ChunkOperationItem(
-                                    id = operation.id,
-                                    kind = operation.kind.name,
-                                    sourcePaths = operation.sourcePaths,
-                                    targetSampleBytes = operation.targetSampleBytes,
-                                    startedAtMillis = operation.startedAtMillis,
-                                )
-                            } + listOfNotNull(visibleReencodeOperation)),
-                        )
-                    },
-                    historyReencodePending = historyReencodePending,
-                    historyReencoding = historyReencoding,
-                    historyReencodeProcessedBytes = historyReencodeProcessedBytes,
-                    historyReencodeTotalBytes = historyReencodeTotalBytes,
+                    history = null,
+                    historyReencodePending = false,
+                    historyReencoding = false,
+                    historyReencodeProcessedBytes = 0L,
+                    historyReencodeTotalBytes = 0L,
                 )
             mainHandler.post {
                 callback.snapshot(snapshot)
@@ -1363,23 +1146,8 @@ class TimeTravelService : Service() {
         if (!isDebuggableBuild()) {
             return
         }
-        exportHandler.post {
-            val mergedCount =
-                try {
-                    if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactAllChunksNow() else 0
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Debug history compaction failed", t)
-                    0
-                }
-            val message =
-                if (mergedCount > 0) {
-                    getString(R.string.chunks_merge_done)
-                } else {
-                    getString(R.string.chunks_merge_failed)
-                }
-            mainHandler.post {
-                callback?.completed(mergedCount > 0, message)
-            }
+        mainHandler.post {
+            callback?.completed(false, getString(R.string.chunks_merge_failed))
         }
     }
 
@@ -1390,27 +1158,8 @@ class TimeTravelService : Service() {
         if (!isDebuggableBuild()) {
             return
         }
-        audioHandler.post {
-            val deletedCount =
-                try {
-                    if (::liveExportHistory.isInitialized) {
-                        liveExportHistory.debugDeleteChunks(filePaths)
-                    } else {
-                        0
-                    }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Debug chunk delete failed", t)
-                    0
-                }
-            val message =
-                if (deletedCount > 0) {
-                    resources.getQuantityString(R.plurals.chunks_deleted, deletedCount, deletedCount)
-                } else {
-                    getString(R.string.chunks_delete_failed)
-                }
-            mainHandler.post {
-                callback?.completed(deletedCount > 0, message)
-            }
+        mainHandler.post {
+            callback?.completed(false, getString(R.string.chunks_delete_failed))
         }
     }
 
@@ -1422,41 +1171,8 @@ class TimeTravelService : Service() {
         if (!isDebuggableBuild()) {
             return
         }
-        exportHandler.post {
-            try {
-                if (!::liveExportHistory.isInitialized) {
-                    throw IOException("History unavailable")
-                }
-                val descriptor = liveExportHistory.debugChunkExportDescriptor(filePath)
-                    ?: throw IOException("Chunk unavailable")
-                val displayName = buildRecordingBaseName(descriptor.startedAtMillis) + CHUNK_EXPORT_NAME_SEPARATOR + descriptor.extension
-                val outTarget = createOutputTarget(this@TimeTravelService, displayName, descriptor.mimeType, descriptor.startedAtMillis)
-                val exported = liveExportHistory.debugExportChunkToTarget(filePath, outTarget)
-                    ?: throw IOException("Chunk export failed")
-                requireExportedOutput(outTarget)
-                val recording = buildRecordingEntity(
-                    this@TimeTravelService,
-                    outTarget,
-                    exported.durationMillis,
-                    buildCodecSummary(
-                        this@TimeTravelService,
-                        exported.format,
-                        exported.codec,
-                        exported.sampleRate,
-                        exported.channelCount,
-                        exported.bitrateKbps,
-                    ),
-                )
-                notifyReceiver(receiver, recording)
-                mainHandler.post {
-                    callback?.completed(true, getString(R.string.chunks_export_done))
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Debug chunk export failed", e)
-                mainHandler.post {
-                    callback?.completed(false, getString(R.string.chunks_export_failed))
-                }
-            }
+        mainHandler.post {
+            callback?.completed(false, getString(R.string.chunks_export_failed))
         }
     }
 
@@ -1470,298 +1186,16 @@ class TimeTravelService : Service() {
             historyReencodeProcessedBytes = 0L
             historyReencodeTotalBytes = 0L
             audioMemory.clear()
-            liveExportHistory.clear()
             persistentAudioRingStore.clear()
         }
     }
 
     fun startHistoryReencode(): Boolean {
-        if (historyReencoding || !historyReencodePending) {
-            return false
-        }
-        historyReencoding = true
-        historyReencodeStartedAtMillis = System.currentTimeMillis()
-        historyReencodeVisibleUntilElapsedRealtime = 0L
-        historyReencodeProcessedBytes = 0L
-        historyReencodeTotalBytes = availableBufferedSampleBytes()
-        exportHandler.post { performHistoryReencode() }
-        return true
+        return false
     }
 
     private val bytesToSeconds: Float
         get() = if (fillRate > 0) 1f / fillRate else 0f
-
-    private fun updateLiveExportHistoryConfiguration(memorySizeOverride: Long? = null) {
-        if (!::liveExportHistory.isInitialized) {
-            return
-        }
-        val codec = effectiveOutputCodec
-        val retentionBytes = memorySizeOverride ?: configuredRetentionSampleBytes()
-        if (memorySizeOverride != null) {
-            cachedRetentionSampleBytes = retentionBytes
-        }
-        liveExportHistory.updateConfiguration(
-            format = effectiveOutputFormat,
-            codec = codec,
-            sampleRate = sampleRate,
-            channelCount = channelMode.channelCount,
-            bitrateKbps = getConfiguredCodecBitrateKbps(this, codec, sampleRate, channelMode.channelCount),
-            retentionBytes = retentionBytes,
-            segmentDurationMillis = getConfiguredHistoryChunkSeconds(this).toLong() * 1000L,
-            compactionTargetSampleBytes = configuredAutoMergeTargetSampleBytes(
-                context = this,
-                retentionBytes = retentionBytes,
-                sampleRate = sampleRate,
-                channelCount = channelMode.channelCount,
-                baseChunkSeconds = getConfiguredHistoryChunkSeconds(this),
-            ),
-            eagerAutoMergeEnabled = isConfiguredAutoMergeEagerEnabled(this),
-        )
-    }
-
-    private fun restoredOrConfiguredMemorySize(): Long {
-        val configured = configuredRetentionSampleBytes()
-        val restored = persistentAudioRingStore.peekSnapshot()?.capacityBytes?.toLong() ?: 0L
-        return maxOf(configured, restored)
-    }
-
-    private fun performHistoryReencode() {
-        val expectedConfig = LiveExportHistory.Config(
-            format = effectiveOutputFormat,
-            codec = effectiveOutputCodec,
-            sampleRate = sampleRate,
-            channelCount = channelMode.channelCount,
-            bitrateKbps = configuredCodecBitrateKbps(),
-        )
-        val snapshot =
-            try {
-                createHistoryReencodeSnapshot(expectedConfig)
-            } catch (e: Exception) {
-                Log.e(TAG, "Unable to snapshot retained PCM for history re-encode", e)
-                completeHistoryReencode(false, getString(R.string.reencode_history_failed))
-                return
-            }
-
-        if (snapshot == null) {
-            historyReencodePending = false
-            completeHistoryReencode(true, null)
-            return
-        }
-
-        val processedBytes = AtomicLong(0L)
-        var importedRanges: List<LiveExportHistory.HistoryReencodeReplacementRange> = emptyList()
-        try {
-            importedRanges =
-                snapshot.sourceRanges.mapIndexed { index, range ->
-                    LiveExportHistory.HistoryReencodeReplacementRange(
-                        sourcePaths = range.sourcePaths,
-                        importedSegments = encodeHistoryRangeParallel(snapshot, range, processedBytes, index),
-                    )
-                }
-            val installed = liveExportHistory.replaceSourceSegmentsWithImportedRanges(importedRanges, expectedConfig)
-            if (!installed) {
-                throw IOException("Unable to install re-encoded history segments")
-            }
-            historyReencodePending = false
-            completeHistoryReencode(true, getString(R.string.reencode_history_done))
-        } catch (e: Exception) {
-            Log.e(TAG, "History re-encode failed", e)
-            importedRanges.flatMap { it.importedSegments }.forEach { it.file.delete() }
-            liveExportHistory.releasePinnedSourcePaths(snapshot.sourcePaths)
-            completeHistoryReencode(false, getString(R.string.reencode_history_failed))
-        } finally {
-            snapshot.rootDirectory.deleteRecursively()
-        }
-    }
-
-    private fun createHistoryReencodeSnapshot(
-        expectedConfig: LiveExportHistory.Config,
-    ): HistoryReencodeSnapshot? {
-        val historySnapshot = liveExportHistory.snapshotForHistoryReencode(
-            expectedConfig = expectedConfig,
-            reopenForContinuedCapture = state == STATE_LISTENING || state == STATE_RECORDING,
-        ) ?: return null
-        val retainedBytes = historySnapshot.totalSampleBytes
-        if (retainedBytes <= 0L) {
-            liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
-            return null
-        }
-
-        val rootDirectory = File(noBackupFilesDir, "${TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME}/$REENCODE_WORKSPACE_PREFIX${SystemClock.elapsedRealtime()}").also { directory ->
-            if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
-                liveExportHistory.releasePinnedSourcePaths(historySnapshot.sourcePaths)
-                throw IOException("Unable to create re-encode workspace: ${directory.absolutePath}")
-            }
-        }
-        historyReencodeTotalBytes = retainedBytes
-        return HistoryReencodeSnapshot(
-            rootDirectory = rootDirectory,
-            sourceRanges = historySnapshot.sourceRanges,
-            sourcePaths = historySnapshot.sourcePaths,
-        )
-    }
-
-    private fun encodeHistoryRangeParallel(
-        snapshot: HistoryReencodeSnapshot,
-        range: LiveExportHistory.ReencodeSourceRange,
-        processedBytes: AtomicLong,
-        rangeIndex: Int,
-    ): List<LiveExportHistory.ImportedSegment> {
-        val sourceSegments = range.sourceSegments
-        val parallelism = minOf(sourceSegments.size, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)).coerceAtLeast(1)
-        val executor = Executors.newFixedThreadPool(parallelism)
-        val futures = ArrayList<Future<LiveExportHistory.ImportedSegment>>(sourceSegments.size)
-        try {
-            sourceSegments.forEachIndexed { index, chunk ->
-                futures += executor.submit<LiveExportHistory.ImportedSegment> {
-                    val targetFile = File(snapshot.rootDirectory, "$REENCODE_ENCODED_FILE_PREFIX$rangeIndex-$index." + effectiveOutputFormat.extension + REENCODE_TEMP_EXTENSION)
-                    val target = RecordingOutputTarget(
-                        id = targetFile.absolutePath,
-                        displayName = targetFile.name,
-                        mimeType = effectiveOutputFormat.outputMimeType,
-                        storageType = RecordingStorageType.FILE,
-                        directoryId = snapshot.rootDirectory.absolutePath,
-                        startedAtMillis = chunk.startedAtMillis,
-                        file = targetFile,
-                    )
-                    createAudioFileWriter(target).use { writer ->
-                        transcodeHistorySegmentToWriter(chunk, writer)
-                    }
-                    historyReencodeProcessedBytes = processedBytes.addAndGet(chunk.sampleBytes)
-                    LiveExportHistory.ImportedSegment(
-                        file = targetFile,
-                        startedAtMillis = chunk.startedAtMillis,
-                        sampleBytes = chunk.sampleBytes,
-                    )
-                }
-            }
-            return futures.map { it.get() }.sortedBy { it.startedAtMillis }
-        } finally {
-            executor.shutdownNow()
-        }
-    }
-
-    @Throws(IOException::class)
-    private fun transcodeHistorySegmentToWriter(
-        chunk: LiveExportHistory.ReencodeSourceSegment,
-        writer: AudioFileWriter,
-    ) {
-        if (chunk.file.extension.equals(ExportFormat.WAV.extension, ignoreCase = true)) {
-            RandomAccessFile(chunk.file, RANDOM_ACCESS_READ_MODE).use { input ->
-                input.seek(REENCODE_WAV_HEADER_BYTES)
-                val buffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
-                var remaining = chunk.sampleBytes
-                while (remaining > 0L) {
-                    val requested = minOf(buffer.size.toLong(), remaining).toInt()
-                    val read = input.read(buffer, 0, requested)
-                    if (read <= 0) {
-                        throw IOException("Short PCM read while re-encoding ${chunk.file.name}")
-                    }
-                    writer.write(buffer, 0, read)
-                    remaining -= read.toLong()
-                }
-            }
-            return
-        }
-
-        val extractor = MediaExtractor()
-        var decoder: MediaCodec? = null
-        try {
-            extractor.setDataSource(chunk.file.absolutePath)
-            val trackIndex = findAudioTrack(extractor)
-            if (trackIndex < 0) {
-                throw IOException("No audio track in ${chunk.file.name}")
-            }
-            extractor.selectTrack(trackIndex)
-            val inputFormat = extractor.getTrackFormat(trackIndex)
-            val mime = inputFormat.getString(MediaFormat.KEY_MIME) ?: throw IOException("Missing mime for ${chunk.file.name}")
-            decoder = MediaCodec.createDecoderByType(mime).apply {
-                configure(inputFormat, null, null, 0)
-                start()
-            }
-            val bufferInfo = MediaCodec.BufferInfo()
-            val pcmBuffer = ByteArray(REENCODE_IO_BUFFER_BYTES)
-            var extractorDone = false
-            var decoderDone = false
-            while (!decoderDone) {
-                if (!extractorDone) {
-                    val inputIndex = decoder.dequeueInputBuffer(REENCODE_CODEC_TIMEOUT_US)
-                    if (inputIndex >= 0) {
-                        val inputBuffer = decoder.getInputBuffer(inputIndex) ?: throw IOException("Decoder input buffer missing")
-                        inputBuffer.clear()
-                        val sampleSize = extractor.readSampleData(inputBuffer, 0)
-                        if (sampleSize < 0) {
-                            decoder.queueInputBuffer(inputIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                            extractorDone = true
-                        } else {
-                            decoder.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime.coerceAtLeast(0L), extractor.sampleFlags)
-                            extractor.advance()
-                        }
-                    }
-                }
-
-                when (val outputIndex = decoder.dequeueOutputBuffer(bufferInfo, REENCODE_CODEC_TIMEOUT_US)) {
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Unit
-                    else -> if (outputIndex >= 0) {
-                        val outputBuffer = decoder.getOutputBuffer(outputIndex) ?: throw IOException("Decoder output buffer missing")
-                        if (bufferInfo.size > 0) {
-                            outputBuffer.position(bufferInfo.offset)
-                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                            var remaining = bufferInfo.size
-                            while (remaining > 0) {
-                                val count = minOf(remaining, pcmBuffer.size)
-                                outputBuffer.get(pcmBuffer, 0, count)
-                                writer.write(pcmBuffer, 0, count)
-                                remaining -= count
-                            }
-                        }
-                        decoder.releaseOutputBuffer(outputIndex, false)
-                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                            decoderDone = true
-                        }
-                    }
-                }
-            }
-        } finally {
-            runCatching { extractor.release() }
-            runCatching { decoder?.stop() }
-            runCatching { decoder?.release() }
-        }
-    }
-
-    private fun completeHistoryReencode(
-        success: Boolean,
-        message: String?,
-    ) {
-        historyReencoding = false
-        historyReencodeVisibleUntilElapsedRealtime = android.os.SystemClock.elapsedRealtime() + DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS
-        if (!success) {
-            historyReencodeProcessedBytes = 0L
-        } else if (!historyReencodePending) {
-            historyReencodeProcessedBytes = historyReencodeTotalBytes
-        }
-        if (isDebuggableBuild()) {
-            writeDebugReport("reencode-complete:" + success)
-        }
-        message?.let(::showToast)
-    }
-
-    private fun buildReencodeDebugOperation(history: LiveExportHistory.DebugSnapshot?): ChunkOperationItem? {
-        val show =
-            historyReencoding ||
-                android.os.SystemClock.elapsedRealtime() < historyReencodeVisibleUntilElapsedRealtime
-        if (!show) {
-            return null
-        }
-        return ChunkOperationItem(
-            id = HISTORY_REENCODE_OPERATION_ID,
-            kind = HISTORY_REENCODE_OPERATION_KIND,
-            sourcePaths = history?.chunks?.filterNot { it.active }?.map { it.filePath }.orEmpty(),
-            targetSampleBytes = historyReencodeTotalBytes.coerceAtLeast(historyReencodeProcessedBytes),
-            startedAtMillis = historyReencodeStartedAtMillis.takeIf { it > 0L } ?: System.currentTimeMillis(),
-        )
-    }
 
     inner class BackgroundRecorderBinder : Binder() {
         val service: TimeTravelService
@@ -1773,14 +1207,20 @@ class TimeTravelService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                FOREGROUND_NOTIFICATION_ID,
-                buildNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-            )
+        if (state == STATE_LISTENING || state == STATE_RECORDING) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    FOREGROUND_NOTIFICATION_ID,
+                    buildNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                )
+            } else {
+                startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification())
+            }
         } else {
-            startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification())
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
         }
         handleDebugCommand(intent)
         return START_STICKY
@@ -1839,10 +1279,10 @@ class TimeTravelService : Service() {
             if (audioMemory.countFilled() == 0L && snapshot.sampleRate > 0 && snapshot.channelCount > 0) {
                 sampleRate = snapshot.sampleRate
                 channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
-                fillRate = sampleRate * channelMode.channelCount * 2
+                pcmSampleFormat = PcmSampleFormat.entries.firstOrNull { it.bytesPerSample == snapshot.bytesPerSample } ?: PcmSampleFormat.PCM_16
+                fillRate = sampleRate * channelMode.channelCount * pcmSampleFormat.bytesPerSample
             }
         }
-        updateLiveExportHistoryConfiguration(targetMemorySize)
         if (audioMemory.allocatedMemorySize != workingMemorySize) {
             audioMemory.allocate(workingMemorySize)
         }
@@ -1855,6 +1295,7 @@ class TimeTravelService : Service() {
             capacityBytes = minOf(targetMemorySize, workingMemorySize),
             sampleRate = sampleRate,
             channelCount = channelMode.channelCount,
+            sampleFormat = pcmSampleFormat,
         )
         if (restored.restoredBytes > 0) {
             if (!isListeningEnabled() && state == STATE_READY) {
@@ -1868,7 +1309,6 @@ class TimeTravelService : Service() {
             persistentAudioRingStore.clear()
             return
         }
-        liveExportHistory.checkpoint()
         persistentAudioRingStore.checkpoint()
     }
 
@@ -1889,7 +1329,6 @@ class TimeTravelService : Service() {
                     .onFailure { Log.e(TAG, "Error while closing recording file during shutdown", it) }
             }
             syncPersistentBufferFromMemory()
-            liveExportHistory.pause()
             releaseAudioRecord()
         }
     }
@@ -1934,7 +1373,6 @@ class TimeTravelService : Service() {
                 ACTION_DEBUG_DISABLE_LISTENING -> mainHandler.post { disableListening() }
                 ACTION_DEBUG_CLEAR_BUFFER -> if (state != STATE_RECORDING) {
                     audioMemory.clear()
-                    liveExportHistory.clear()
                     persistentAudioRingStore.clear()
                 }
                 ACTION_DEBUG_INJECT_BUFFER -> injectDebugBuffer(seconds)
@@ -1944,33 +1382,7 @@ class TimeTravelService : Service() {
                 }
                 ACTION_DEBUG_EXPORT_FULL -> exportDebug(FULL_BUFFER_SECONDS)
                 ACTION_DEBUG_EXPORT_SECONDS -> exportDebug(seconds)
-                ACTION_DEBUG_MERGE_ALL -> exportHandler.post {
-                    val mergedCount =
-                        try {
-                            if (::liveExportHistory.isInitialized) liveExportHistory.debugCompactAllChunksNow() else 0
-                        } catch (t: Throwable) {
-                            Log.w(TAG, "Debug merge-all failed", t)
-                            0
-                    }
-                    writeDebugReport("merge-all:" + mergedCount)
-                }
-                ACTION_DEBUG_REENCODE_ALL -> exportHandler.post {
-                    val started =
-                        try {
-                            if (availableBufferedSampleBytes() > 0L && !historyReencoding) {
-                                historyReencodePending = true
-                                historyReencodeProcessedBytes = 0L
-                                historyReencodeTotalBytes = availableBufferedSampleBytes()
-                                startHistoryReencode()
-                            } else {
-                                false
-                            }
-                        } catch (t: Throwable) {
-                            Log.w(TAG, "Debug reencode-all failed to start", t)
-                            false
-                        }
-                    writeDebugReport("reencode-all-start:" + started)
-                }
+                ACTION_DEBUG_MERGE_ALL -> writeDebugReport("merge-all:0")
                 ACTION_DEBUG_SET_OUTPUT_CONFIG -> {
                     val prefs = getRecorderPreferences(this@TimeTravelService)
                     val format = intent.getStringExtra(EXTRA_DEBUG_FORMAT)
@@ -2036,14 +1448,9 @@ class TimeTravelService : Service() {
         val totalBytes = (seconds * fillRate).toLong().coerceAtLeast(0L)
         val chunk = ByteArray(64 * 1024)
         var remaining = totalBytes
-        var endedAtMillis = System.currentTimeMillis() - (seconds * 1000f).toLong()
-        var shouldCompactHistory = false
         while (remaining > 0L) {
             val count = minOf(chunk.size.toLong(), remaining).toInt()
             audioMemory.write(chunk, 0, count)
-            if (liveExportHistory.append(chunk, 0, count, endedAtMillis)) {
-                shouldCompactHistory = true
-            }
             if (isDiskBufferCacheEnabled(this)) {
                 persistentAudioRingStore.append(
                     array = chunk,
@@ -2052,17 +1459,13 @@ class TimeTravelService : Service() {
                     capacityBytes = persistentBytes,
                     sampleRate = sampleRate,
                     channelCount = channelMode.channelCount,
+                    sampleFormat = pcmSampleFormat,
                 )
             }
             remaining -= count.toLong()
-            endedAtMillis += maxOf(1L, count.toLong() * 1000L / maxOf(fillRate, 1))
-        }
-        if (shouldCompactHistory) {
-            scheduleHistoryCompaction(immediate = true)
         }
         state = STATE_PAUSED
         updateWakeLockState()
-        updateLiveExportHistoryConfiguration(logicalRetentionBytes)
         syncPersistentBufferFromMemory()
         Log.d(
             TAG,
@@ -2074,7 +1477,7 @@ class TimeTravelService : Service() {
     private fun logDebugState() {
         val stats = audioMemory.getStats(fillRate)
         val persisted = persistentAudioRingStore.peekSnapshot()
-        val historyBytes = if (::liveExportHistory.isInitialized) liveExportHistory.countRetainedSampleBytes() else 0L
+        val historyBytes = 0L
         Log.d(
             TAG,
             "debug-state state=$state filled=${stats.filled} total=${stats.total} overwriting=${stats.overwriting} " +
@@ -2089,14 +1492,6 @@ class TimeTravelService : Service() {
         val reportFile = resolveDebugReportFile()
         val stats = audioMemory.getStats(fillRate)
         val persisted = persistentAudioRingStore.peekSnapshot()
-        val history = liveExportHistory.debugSnapshot()
-        val debugOperations =
-            buildList {
-                addAll(history.operations.map { it.kind.name })
-                if (buildReencodeDebugOperation(history) != null) {
-                    add(HISTORY_REENCODE_OPERATION_KIND)
-                }
-            }
         val status =
             buildString {
                 append("reason=").append(reason)
@@ -2111,12 +1506,12 @@ class TimeTravelService : Service() {
                 append(" persistedFilled=").append(persisted?.filledBytes ?: 0)
                 append(" persistedCapacity=").append(persisted?.capacityBytes ?: 0)
                 append(" persistedLastWrite=").append(persisted?.lastWriteAtMillis ?: 0)
-                append(" historySegments=").append(history.segmentCount)
-                append(" historyTotalSampleBytes=").append(history.totalSampleBytes)
-                append(" historyCurrentSegmentBytes=").append(history.currentSegmentSampleBytes)
-                append(" historyNextSegmentStart=").append(history.nextSegmentStartMillis ?: 0)
-                append(" historyFiles=").append(history.segmentFiles.joinToString(","))
-                append(" debugOperations=").append(debugOperations.joinToString(","))
+                append(" historySegments=0")
+                append(" historyTotalSampleBytes=0")
+                append(" historyCurrentSegmentBytes=0")
+                append(" historyNextSegmentStart=0")
+                append(" historyFiles=")
+                append(" debugOperations=")
                 append(" exportDir=").append(describeConfiguredOutputDirectory(this@TimeTravelService))
             }
         reportFile.appendText(status + "\n---\n")
@@ -2137,17 +1532,7 @@ class TimeTravelService : Service() {
             val clazz = Class.forName(DEBUG_STATUS_STORE_CLASS_NAME)
             val method = clazz.getMethod("write", Context::class.java, String::class.java)
             method.invoke(null, this, status)
-        }
-    }
-
-    private fun findAudioTrack(extractor: MediaExtractor): Int {
-        for (index in 0 until extractor.trackCount) {
-            val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
-            if (mime?.startsWith(TimeTravelConfig.MIME_AUDIO_PREFIX) == true) {
-                return index
-            }
-        }
-        return -1
+        }.onFailure { Log.w(TAG, "storeDebugStatus failed — class $DEBUG_STATUS_STORE_CLASS_NAME not available", it) }
     }
 
     private fun isDebuggableBuild(): Boolean {
@@ -2158,7 +1543,8 @@ class TimeTravelService : Service() {
         val snapshot = persistentAudioRingStore.peekSnapshot() ?: return
         sampleRate = snapshot.sampleRate
         channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
-        fillRate = sampleRate * channelMode.channelCount * 2
+        pcmSampleFormat = PcmSampleFormat.entries.firstOrNull { it.bytesPerSample == snapshot.bytesPerSample } ?: PcmSampleFormat.PCM_16
+        fillRate = sampleRate * channelMode.channelCount * pcmSampleFormat.bytesPerSample
     }
 
     private fun updateWakeLockState() {
@@ -2192,6 +1578,9 @@ class TimeTravelService : Service() {
     }
 
     private fun scheduleRestartIfNeeded() {
+        if (!isListeningEnabled()) {
+            return
+        }
         if (!isAggressiveRestartEnabled(this)) {
             return
         }
@@ -2202,7 +1591,7 @@ class TimeTravelService : Service() {
                 state == STATE_RECORDING ||
                 audioMemory.countFilled() > 0 ||
                 persistentAudioRingStore.hasData()
-        if (!shouldKeepBuffer && !isListeningEnabled()) {
+        if (!shouldKeepBuffer) {
             return
         }
 
@@ -2320,14 +1709,6 @@ class TimeTravelService : Service() {
         val sampleRate: Int,
     )
 
-    private data class HistoryReencodeSnapshot(
-        // Captured before re-encode starts so background migration only rewrites chunks
-        // that existed under the old config, while newly written chunks keep flowing.
-        val rootDirectory: File,
-        val sourceRanges: List<LiveExportHistory.ReencodeSourceRange>,
-        val sourcePaths: List<String>,
-    )
-
     private data class ExportCancellationToken(
         val id: Long,
         val cancelled: AtomicBoolean = AtomicBoolean(false),
@@ -2360,9 +1741,6 @@ class TimeTravelService : Service() {
         const val NOTIFICATION_CHANNEL_ID = "TimeTravelRecorderChannel"
         const val FOREGROUND_NOTIFICATION_ID = 458
         const val MIN_AUDIO_RECORD_BUFFER_SIZE = 16 * 1024
-        const val REENCODE_IO_BUFFER_BYTES = 256 * 1024
-        const val REENCODE_CODEC_TIMEOUT_US = 10_000L
-        const val REENCODE_WAV_HEADER_BYTES = 44L
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
         const val HISTORY_COMPACTION_MIN_IDLE_DELAY_MS = 1_500L
         const val HISTORY_COMPACTION_MAX_IDLE_DELAY_MS = 30_000L
@@ -2376,23 +1754,15 @@ class TimeTravelService : Service() {
         const val ACTION_DEBUG_EXPORT_FULL = "${DEBUG_ACTION_PREFIX}EXPORT_FULL"
         const val ACTION_DEBUG_EXPORT_SECONDS = "${DEBUG_ACTION_PREFIX}EXPORT_SECONDS"
         const val ACTION_DEBUG_MERGE_ALL = "${DEBUG_ACTION_PREFIX}MERGE_ALL"
-        const val ACTION_DEBUG_REENCODE_ALL = "${DEBUG_ACTION_PREFIX}REENCODE_ALL"
         const val ACTION_DEBUG_SET_OUTPUT_CONFIG = "${DEBUG_ACTION_PREFIX}SET_OUTPUT_CONFIG"
         const val ACTION_DEBUG_APPLY_SETTINGS = "${DEBUG_ACTION_PREFIX}APPLY_SETTINGS"
         const val ACTION_DEBUG_CHECKPOINT = "${DEBUG_ACTION_PREFIX}CHECKPOINT"
         const val ACTION_DEBUG_LOG_STATE = "${DEBUG_ACTION_PREFIX}LOG_STATE"
         const val ACTION_DEBUG_DUMP_REPORT = "${DEBUG_ACTION_PREFIX}DUMP_REPORT"
-        const val DEBUG_OPERATION_VISIBLE_AFTER_COMPLETE_MS = 5_000L
         const val EXTRA_DEBUG_SECONDS = TimeTravelConfig.EXTRA_SECONDS
         const val EXTRA_DEBUG_FORMAT = TimeTravelConfig.EXTRA_FORMAT
         const val EXTRA_DEBUG_CODEC = TimeTravelConfig.EXTRA_CODEC
         const val EXTRA_DEBUG_BITRATE_KBPS = TimeTravelConfig.EXTRA_BITRATE_KBPS
-        const val REENCODE_WORKSPACE_PREFIX = "history-reencode-"
-        const val REENCODE_ENCODED_FILE_PREFIX = "encoded-"
-        const val REENCODE_TEMP_EXTENSION = ".tmp"
-        const val RANDOM_ACCESS_READ_MODE = "r"
-        const val HISTORY_REENCODE_OPERATION_ID = "history-reencode"
-        const val HISTORY_REENCODE_OPERATION_KIND = "HISTORY_REENCODE"
         const val DEBUG_REPORT_FILE_NAME = "debug-report.txt"
         const val DEBUG_STATUS_STORE_CLASS_NAME = "app.smallthingz.timetravel.DebugStatusStore"
         const val WAKE_LOCK_TAG_SUFFIX = ":timeTravelBuffer"

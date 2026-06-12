@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
 import android.text.Editable
+import android.util.Log
 import android.text.InputType
 import android.text.TextWatcher
 import android.text.method.DigitsKeyListener
@@ -49,6 +50,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var retentionSizeLayout: TextInputLayout
     private lateinit var formatLayout: TextInputLayout
     private lateinit var codecLayout: TextInputLayout
+    private lateinit var sampleFormatLayout: TextInputLayout
     private lateinit var sampleRateLayout: TextInputLayout
     private lateinit var audioSourceLayout: TextInputLayout
     private lateinit var channelModeLayout: TextInputLayout
@@ -62,6 +64,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var themeDropdown: MaterialAutoCompleteTextView
     private lateinit var formatDropdown: MaterialAutoCompleteTextView
     private lateinit var codecDropdown: MaterialAutoCompleteTextView
+    private lateinit var sampleFormatDropdown: MaterialAutoCompleteTextView
     private lateinit var sampleRateDropdown: MaterialAutoCompleteTextView
     private lateinit var audioSourceDropdown: MaterialAutoCompleteTextView
     private lateinit var channelModeDropdown: MaterialAutoCompleteTextView
@@ -106,6 +109,7 @@ class SettingsActivity : AppCompatActivity() {
     private var availableThemes: List<AppThemeMode> = emptyList()
     private var availableFormats: List<ExportFormat> = emptyList()
     private var availableCodecs: List<ExportCodec> = emptyList()
+    private var availableSampleFormats: List<PcmSampleFormat> = emptyList()
     private var availableSourceModes: List<AudioSourceMode> = emptyList()
     private var availableChannelModes: List<ChannelMode> = emptyList()
     private var availableRouteModes: List<InputRouteMode> = emptyList()
@@ -129,6 +133,7 @@ class SettingsActivity : AppCompatActivity() {
         var retentionSizeMb: Double = 0.0,
         var format: ExportFormat? = null,
         var codec: ExportCodec? = null,
+        var sampleFormat: PcmSampleFormat = PcmSampleFormat.PCM_16,
         var bitrateKbps: Int = 0,
         var source: AudioSourceMode? = null,
         var channelMode: ChannelMode? = null,
@@ -153,6 +158,7 @@ class SettingsActivity : AppCompatActivity() {
             retentionSizeMb = other.retentionSizeMb
             format = other.format
             codec = other.codec
+            sampleFormat = other.sampleFormat
             bitrateKbps = other.bitrateKbps
             source = other.source
             channelMode = other.channelMode
@@ -220,6 +226,7 @@ class SettingsActivity : AppCompatActivity() {
         retentionSizeLayout = findViewById(R.id.retention_size_layout)
         formatLayout = findViewById(R.id.format_layout)
         codecLayout = findViewById(R.id.codec_layout)
+        sampleFormatLayout = findViewById(R.id.sample_format_layout)
         sampleRateLayout = findViewById(R.id.sample_rate_layout)
         audioSourceLayout = findViewById(R.id.audio_source_layout)
         channelModeLayout = findViewById(R.id.channel_mode_layout)
@@ -233,6 +240,7 @@ class SettingsActivity : AppCompatActivity() {
         themeDropdown = findViewById(R.id.theme_dropdown)
         formatDropdown = findViewById(R.id.format_dropdown)
         codecDropdown = findViewById(R.id.codec_dropdown)
+        sampleFormatDropdown = findViewById(R.id.sample_format_dropdown)
         sampleRateDropdown = findViewById(R.id.sample_rate_dropdown)
         audioSourceDropdown = findViewById(R.id.audio_source_dropdown)
         channelModeDropdown = findViewById(R.id.channel_mode_dropdown)
@@ -436,6 +444,14 @@ class SettingsActivity : AppCompatActivity() {
                 pushUndoState()
             }
         }
+        sampleFormatDropdown.setOnItemClickListener { _, _, _, _ ->
+            if (!bindingUi) {
+                updateDropdownSelection(sampleFormatDropdown)
+                refreshRetentionFields(preserveActiveInputs = true)
+                saveCurrentToSnapshot(currentSettings)
+                pushUndoState()
+            }
+        }
         inputRouteDropdown.setOnItemClickListener { _, _, _, _ ->
             if (!bindingUi) {
                 updateDropdownSelection(inputRouteDropdown)
@@ -582,6 +598,7 @@ class SettingsActivity : AppCompatActivity() {
         )
         val configuredFormat = getConfiguredOutputFormat(this)
         val configuredCodec = getConfiguredOutputCodec(this)
+        val configuredSampleFormat = getConfiguredPcmSampleFormat(this)
         val configuredRoute = getConfiguredInputRouteMode(this)
         val configuredSource = getConfiguredAudioSourceMode(this)
         val configuredChannelMode = getConfiguredChannelMode(this)
@@ -642,6 +659,7 @@ class SettingsActivity : AppCompatActivity() {
             availableFormats.map { getString(it.labelRes) },
             getString((configuredFormat.takeIf { it in availableFormats } ?: availableFormats.first()).labelRes),
         )
+        formatLayout.isVisible = availableFormats.size > 1
 
         availableRouteModes = InputRouteMode.entries
         setDropdownItems(
@@ -655,6 +673,14 @@ class SettingsActivity : AppCompatActivity() {
             codecDropdown,
             availableCodecs.map { getString(it.labelRes) },
             getString((configuredCodec.takeIf { it in availableCodecs } ?: availableCodecs.first()).labelRes),
+        )
+        codecLayout.isVisible = availableCodecs.size > 1
+
+        availableSampleFormats = PcmSampleFormat.entries
+        setDropdownItems(
+            sampleFormatDropdown,
+            availableSampleFormats.map { getString(it.labelRes) },
+            getString(configuredSampleFormat.labelRes),
         )
 
         availableSourceModes = AudioSourceMode.availableModes()
@@ -764,6 +790,7 @@ class SettingsActivity : AppCompatActivity() {
         snapshot.retentionSizeMb = retentionSizeMbValue
         snapshot.format = currentFormat()
         snapshot.codec = currentCodec()
+        snapshot.sampleFormat = currentSampleFormat()
         snapshot.bitrateKbps = effectiveCodecBitrateKbps() ?: 0
         snapshot.source = currentSourceMode()
         snapshot.channelMode = currentChannelMode()
@@ -818,6 +845,7 @@ class SettingsActivity : AppCompatActivity() {
             availableFormats.map { getString(it.labelRes) },
             getString(previous.format?.labelRes ?: availableFormats.first().labelRes),
         )
+        formatLayout.isVisible = availableFormats.size > 1
         setDropdownItems(
             codecDropdown,
             availableCodecs.map { getString(it.labelRes) },
@@ -870,6 +898,7 @@ class SettingsActivity : AppCompatActivity() {
     ) {
         val format = currentFormat()
         availableCodecs = supportedCodecs(format)
+        codecLayout.isVisible = availableCodecs.size > 1
         val selectedCodec = preferredCodec?.takeIf { it in availableCodecs } ?: availableCodecs.first()
         setDropdownItems(
             codecDropdown,
@@ -1056,6 +1085,7 @@ class SettingsActivity : AppCompatActivity() {
         val format = currentFormat()
         val codec = currentCodec()
         val channelMode = currentChannelMode()
+        val sampleFormat = currentSampleFormat()
         val bitrateKbps = effectiveCodecBitrateKbps()
         val estimatePrefix = if (format.isPcmContainer) TimeTravelConfig.ESTIMATE_EXACT_PREFIX else TimeTravelConfig.ESTIMATE_APPROX_PREFIX
         val exportLimitBytes = exportFileSizeLimitBytes(format)
@@ -1066,9 +1096,10 @@ class SettingsActivity : AppCompatActivity() {
             channelMode.channelCount,
             exportLimitBytes,
             bitrateKbps,
+            sampleFormat,
         )
         val estimatedSizeMb = bytesToMegabytes(
-            estimateExportSizeBytes(format, codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps),
+            estimateExportSizeBytes(format, codec, sampleRate, channelMode.channelCount, retentionTimeSecondsValue.toLong(), bitrateKbps, sampleFormat),
         )
         val estimatedDuration = formatDurationInput(
             estimateExportDurationSeconds(
@@ -1078,6 +1109,7 @@ class SettingsActivity : AppCompatActivity() {
                 channelMode.channelCount,
                 rawMegabytesToBytes(retentionSizeMbValue),
                 bitrateKbps,
+                sampleFormat,
             ),
         )
 
@@ -1117,6 +1149,7 @@ class SettingsActivity : AppCompatActivity() {
         val themeMode = currentThemeMode()
         val format = currentFormat()
         val codec = currentCodec()
+        val sampleFormat = currentSampleFormat()
         val channelMode = currentChannelMode()
         val route = currentRouteMode()
         val source = currentSourceMode()
@@ -1247,6 +1280,7 @@ class SettingsActivity : AppCompatActivity() {
             .putLong(PrefKey.AUDIO_MEMORY_SIZE, sizeBytes)
             .putString(PrefKey.OUTPUT_FORMAT, format.prefValue)
             .putString(PrefKey.OUTPUT_CODEC, codec.prefValue)
+            .putString(PrefKey.PCM_SAMPLE_FORMAT, sampleFormat.prefValue)
             .putInt(PrefKey.OUTPUT_BITRATE_KBPS, bitrateKbps ?: (effectiveCodecBitrateKbps() ?: 0))
             .putInt(PrefKey.AUDIO_SOURCE, source.sourceValue)
             .putString(PrefKey.CHANNEL_MODE, channelMode.prefValue)
@@ -1308,6 +1342,7 @@ class SettingsActivity : AppCompatActivity() {
         formatLayout.error = null
         sampleRateLayout.error = null
         codecLayout.error = null
+        sampleFormatLayout.error = null
         audioSourceLayout.error = null
         channelModeLayout.error = null
         inputRouteLayout.error = null
@@ -1346,6 +1381,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun currentCodec(): ExportCodec {
         val selected = codecDropdown.text?.toString().orEmpty()
         return availableCodecs.firstOrNull { getString(it.labelRes) == selected } ?: availableCodecs.first()
+    }
+
+    private fun currentSampleFormat(): PcmSampleFormat {
+        val selected = sampleFormatDropdown.text?.toString().orEmpty()
+        return availableSampleFormats.firstOrNull { getString(it.labelRes) == selected } ?: PcmSampleFormat.PCM_16
     }
 
     private fun currentBitrateKbpsOrNull(): Int? {
@@ -1444,7 +1484,7 @@ class SettingsActivity : AppCompatActivity() {
             runCatching {
                 startActivity(intent)
                 true
-            }.getOrDefault(false)
+            }.onFailure { Log.w(TAG, "Failed to launch intent: $intent", it) }.getOrDefault(false)
         }
 
         if (!launched) {
@@ -1518,6 +1558,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private companion object {
+        const val TAG = "SettingsActivity"
         const val BYTES_IN_MEGABYTE = 1024L * 1024L
         const val DIGITS_NUMERIC = "0123456789"
         const val DIGITS_NUMERIC_COLON = "0123456789:"

@@ -52,6 +52,8 @@ import com.google.android.material.shape.RelativeCornerSize
 import com.google.android.material.shape.ShapeAppearanceModel
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -1159,9 +1161,9 @@ class TimeTravelFragment : Fragment() {
 
     private fun dp(value: Int): Int = (resources.displayMetrics.density * value).toInt()
 
-    class NotifyFileReceiver(private val context: Context) : TimeTravelService.AudioFileReceiver {
+    class NotifyFileReceiver(private val context: Context, private val scope: CoroutineScope) : TimeTravelService.AudioFileReceiver {
         override fun fileReady(recording: RecordingEntity) {
-            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            scope.launch(Dispatchers.IO) {
                 val saved = RecordingRepository.register(context, recording)
                 if (
                     ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=

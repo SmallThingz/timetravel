@@ -12,10 +12,12 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import android.util.Log
 import java.io.IOException
 import java.io.InputStream
 import java.io.RandomAccessFile
 
+private val TAG = "RecordingFiles"
 private val ILLEGAL_FILENAME_CHARS = setOf('\\', '/', '*', '?', '"', '<', '>', '|')
 private val SUPPORTED_RECORDING_EXTENSIONS = ExportFormat.entries.map { it.extension }.toSet()
 
@@ -147,7 +149,8 @@ fun resolveRecordingCodecInfo(file: File): String {
             bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull(),
             sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull(),
         )
-    }.getOrElse {
+    }.getOrElse { e ->
+        Log.w(TAG, "resolveRecordingCodecInfo(file=$file) failed, trying fallback", e)
         resolveRecordingCodecInfo(
             extension = file.extension,
             bitrate = runCatching {
@@ -174,7 +177,8 @@ fun resolveRecordingCodecInfo(
             bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull(),
             sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull(),
         )
-    }.getOrElse {
+    }.getOrElse { e ->
+        Log.w(TAG, "resolveRecordingCodecInfo(uri=$uri) failed, trying fallback", e)
         resolveRecordingCodecInfo(
             extension = displayName.substringAfterLast('.', ""),
             bitrate = runCatching {
@@ -260,10 +264,15 @@ private fun describeDocumentRecordingLocation(
     val documentUri = Uri.parse(recording.id)
     val directoryUri = recording.directoryId.takeIf { it.isNotBlank() }?.let(Uri::parse)
 
-    describeDocumentIdPath(context, runCatching { DocumentsContract.getDocumentId(documentUri) }.getOrNull())?.let {
+    describeDocumentIdPath(context, runCatching {
+        DocumentsContract.getDocumentId(documentUri)
+    }.onFailure { Log.w(TAG, "getDocumentId failed for $documentUri", it) }.getOrNull())?.let {
         return it
     }
-    describeDocumentIdPath(context, directoryUri?.let { runCatching { DocumentsContract.getTreeDocumentId(it) }.getOrNull() })?.let {
+    describeDocumentIdPath(context, directoryUri?.let {
+        runCatching { DocumentsContract.getTreeDocumentId(it) }
+            .onFailure { Log.w(TAG, "getTreeDocumentId failed for $it", it) }.getOrNull()
+    })?.let {
         val normalizedBasePath = it.trimEnd('/')
         return if (normalizedBasePath.endsWith("/${recording.displayName}") || normalizedBasePath == recording.displayName) {
             normalizedBasePath
@@ -380,7 +389,7 @@ fun resolveRecordingDurationMillis(file: File): Long {
     val metadataDuration = runCatching {
         retriever.setDataSource(file.absolutePath)
         retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-    }.getOrNull().also {
+    }.onFailure { Log.w(TAG, "resolveRecordingDurationMillis(file=$file) failed", it) }.getOrNull().also {
         runCatching { retriever.release() }
     }
 
@@ -404,13 +413,14 @@ fun resolveRecordingDurationMillis(
     val metadataDuration = runCatching {
         retriever.setDataSource(context, uri)
         retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-    }.getOrNull().also {
+    }.onFailure { Log.w(TAG, "resolveRecordingDurationMillis(uri=$uri) failed", it) }.getOrNull().also {
         runCatching { retriever.release() }
     }
 
     if (metadataDuration != null && metadataDuration > 0L) {
         return metadataDuration
     }
+
     if (displayName.endsWith(        ".${ExportFormat.WAV.extension}", ignoreCase = true)) {
         return context.contentResolver.openInputStream(uri)?.use(::readWavDurationMillis).orEmptyDuration()
     }
@@ -575,13 +585,14 @@ fun copyRecordingToConfiguredDirectory(
             storageType = target.storageType.name,
             directoryId = target.directoryId,
         )
-    } catch (_: IOException) {
+    } catch (e: IOException) {
+        Log.w(TAG, "exportToTarget failed for ${target.displayName}", e)
         runCatching {
             when (target.storageType) {
                 RecordingStorageType.FILE -> target.file?.delete()
                 RecordingStorageType.DOCUMENT -> DocumentFile.fromSingleUri(context, requireNotNull(target.uri))?.delete()
             }
-        }
+        }.onFailure { Log.w(TAG, "Failed to clean up partial export for ${target.displayName}", it) }
         null
     }
 }
@@ -802,7 +813,7 @@ private fun readWavDurationMillis(file: File): Long {
             val byteRate = sampleRate.toLong() * channelCount.toLong() * bitsPerSample.toLong() / 8L
             if (byteRate <= 0L) 0L else dataSize * 1000L / byteRate
         }
-    }.getOrDefault(0L)
+    }.onFailure { Log.w(TAG, "readWavDurationMillis(file=$file) failed", it) }.getOrDefault(0L)
 }
 
 private fun readWavDurationMillis(input: InputStream): Long {
@@ -822,7 +833,7 @@ private fun readWavDurationMillis(input: InputStream): Long {
         val dataSize = littleEndianInt(header, 40).toLong() and 0xFFFF_FFFFL
         val byteRate = sampleRate.toLong() * channelCount.toLong() * bitsPerSample.toLong() / 8L
         if (byteRate <= 0L) 0L else dataSize * 1000L / byteRate
-    }.getOrDefault(0L)
+    }.onFailure { Log.w(TAG, "readWavDurationMillis(input) failed", it) }.getOrDefault(0L)
 }
 
 private fun Long?.orEmptyDuration(): Long = this ?: 0L

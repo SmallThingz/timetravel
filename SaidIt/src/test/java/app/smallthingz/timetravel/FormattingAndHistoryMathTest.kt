@@ -11,12 +11,12 @@ class FormattingAndHistoryMathTest {
         val firstMissingAt = createdAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS - 1L
         val oldRecording = RecordingEntity(
             id = "id",
-            displayName = "clip.m4a",
-            mimeType = "audio/mp4",
+            displayName = "clip.wav",
+            mimeType = "audio/wav",
             startedAtMillis = 500L,
             durationMillis = 1_000L,
             sizeBytes = 2_000L,
-            codecSummary = "aac",
+            codecSummary = "PCM 16-bit",
             storageType = RecordingStorageType.FILE.name,
             directoryId = "dir",
             createdAtMillis = createdAt,
@@ -32,12 +32,12 @@ class FormattingAndHistoryMathTest {
     fun mergeObservedRecording_preservesOriginalCreationTime_andClearsMissingState() {
         val existing = RecordingEntity(
             id = "id",
-            displayName = "clip.m4a",
-            mimeType = "audio/mp4",
+            displayName = "clip.wav",
+            mimeType = "audio/wav",
             startedAtMillis = 500L,
             durationMillis = 1_000L,
             sizeBytes = 2_000L,
-            codecSummary = "aac",
+            codecSummary = "PCM 16-bit",
             storageType = RecordingStorageType.FILE.name,
             directoryId = "dir",
             createdAtMillis = 10L,
@@ -76,18 +76,15 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
-    fun liveExportHistoryConfig_convertsBetweenBytesAndDurationConsistently() {
-        val config = LiveExportHistory.Config(
-            format = ExportFormat.WAV,
-            codec = ExportCodec.PCM_16,
-            sampleRate = 48_000,
-            channelCount = 2,
-            bitrateKbps = null,
-        )
-
-        assertEquals(192_000L, config.durationUsToSampleBytes(1_000_000L))
-        assertEquals(1_000_000L, config.bytesToDurationUs(192_000L))
-        assertEquals(1_000L, config.bytesToDurationMillis(192_000L))
+    fun wavSampleFormatBytes_roundTripCorrectly() {
+        val stereo48k = { sr: Int, ch: Int, fmt: PcmSampleFormat ->
+            val bytes = bytesForRetentionSeconds(100, sr, ch, fmt)
+            val secs = retentionSecondsForBytes(bytes, sr, ch, fmt)
+            assertEquals(100L, secs)
+        }
+        stereo48k(48_000, 2, PcmSampleFormat.PCM_16)
+        stereo48k(48_000, 2, PcmSampleFormat.PCM_8)
+        stereo48k(44_100, 1, PcmSampleFormat.PCM_FLOAT)
     }
 
     @Test
@@ -101,9 +98,13 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
-    fun defaultCodecBitrate_prefersOpusMonoAt96Kbps() {
-        assertEquals(96, defaultCodecBitrateKbps(ExportCodec.OPUS, 48_000, 1))
-        assertEquals(160, defaultCodecBitrateKbps(ExportCodec.OPUS, 48_000, 2))
+    fun pcmSampleFormat_constantsAreCorrect() {
+        assertEquals(1, PcmSampleFormat.PCM_8.bytesPerSample)
+        assertEquals(2, PcmSampleFormat.PCM_16.bytesPerSample)
+        assertEquals(4, PcmSampleFormat.PCM_FLOAT.bytesPerSample)
+        assertEquals(8, PcmSampleFormat.PCM_8.bitsPerSample)
+        assertEquals(16, PcmSampleFormat.PCM_16.bitsPerSample)
+        assertEquals(32, PcmSampleFormat.PCM_FLOAT.bitsPerSample)
     }
 
     @Test
@@ -113,28 +114,34 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
-    fun estimateExportDuration_scalesWithRequestedSize() {
-        val nineHundredMiB = 900L * 1024L * 1024L
-        val nineThousandMiB = 9_000L * 1024L * 1024L
-
+    fun estimateExportDurationPcm_scalesWithSizeAndFormat() {
         val smaller = estimateExportDurationSeconds(
-            format = ExportFormat.OGG,
-            codec = ExportCodec.OPUS,
-            sampleRate = 48_000,
+            format = ExportFormat.WAV,
+            codec = ExportCodec.PCM_16,
+            sampleRate = 44_100,
             channelCount = 1,
-            sizeBytes = nineHundredMiB,
-            bitrateKbps = 96,
+            sizeBytes = 1_000_000L,
+            sampleFormat = PcmSampleFormat.PCM_16,
         )
         val larger = estimateExportDurationSeconds(
-            format = ExportFormat.OGG,
-            codec = ExportCodec.OPUS,
-            sampleRate = 48_000,
+            format = ExportFormat.WAV,
+            codec = ExportCodec.PCM_16,
+            sampleRate = 44_100,
             channelCount = 1,
-            sizeBytes = nineThousandMiB,
-            bitrateKbps = 96,
+            sizeBytes = 10_000_000L,
+            sampleFormat = PcmSampleFormat.PCM_16,
         )
-
         assertTrue(larger > smaller)
+
+        val pcm8 = estimateExportDurationSeconds(
+            format = ExportFormat.WAV,
+            codec = ExportCodec.PCM_16,
+            sampleRate = 44_100,
+            channelCount = 1,
+            sizeBytes = 1_000_000L,
+            sampleFormat = PcmSampleFormat.PCM_8,
+        )
+        assertTrue(pcm8 > smaller)
     }
 
     @Test
@@ -147,10 +154,9 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
-    fun codecFormatMatrix_keepsExpectedContainers() {
-        assertTrue(ExportFormat.THREE_GPP in ExportCodec.AMR_WB.supportedFormats)
-        assertTrue(ExportFormat.AMR_WB_FILE in ExportCodec.AMR_WB.supportedFormats)
-        assertTrue(ExportFormat.OGG in ExportCodec.OPUS.supportedFormats)
+    fun wavCodecFormatMatrix_hasPcmOnly() {
+        assertTrue(ExportFormat.WAV in ExportCodec.PCM_16.supportedFormats)
+        assertTrue(ExportFormat.WAV.isPcmContainer)
     }
 
     @Test
@@ -167,45 +173,42 @@ class FormattingAndHistoryMathTest {
     }
 
     @Test
-    fun rawContainerConstraints_enforceOnlySupportedConfigurations() {
-        assertTrue(isExportConfigurationSupported(ExportFormat.AAC_ADTS, ExportCodec.AAC_LC, 44_100, 1))
-        assertTrue(isExportConfigurationSupported(ExportFormat.MPEG_2_TS, ExportCodec.AAC_LC, 48_000, 2))
-        assertTrue(isExportConfigurationSupported(ExportFormat.AMR_NB_FILE, ExportCodec.AMR_NB, 8_000, 1))
-        assertTrue(isExportConfigurationSupported(ExportFormat.AMR_WB_FILE, ExportCodec.AMR_WB, 16_000, 1))
+    fun wavConfigurationConstraints_onlyPcm() {
+        assertTrue(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.PCM_16, 44_100, 1))
+        assertTrue(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.PCM_16, 48_000, 2))
+        assertTrue(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.PCM_16, 8_000, 1))
 
-        assertTrue(!isExportConfigurationSupported(ExportFormat.AAC_ADTS, ExportCodec.AAC_ELD, 44_100, 1))
-        assertTrue(!isExportConfigurationSupported(ExportFormat.MPEG_2_TS, ExportCodec.AAC_LC, 7_000, 2))
-        assertTrue(!isExportConfigurationSupported(ExportFormat.AMR_NB_FILE, ExportCodec.AMR_NB, 16_000, 1))
-        assertTrue(!isExportConfigurationSupported(ExportFormat.AMR_WB_FILE, ExportCodec.AMR_WB, 16_000, 2))
-        assertTrue(!isExportConfigurationSupported(ExportFormat.THREE_GPP, ExportCodec.AMR_NB, 8_000, 2))
+        assertTrue(!isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.AAC_LC, 44_100, 1))
+        assertTrue(!isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.AMR_NB, 8_000, 1))
     }
 
     @Test
-    fun parseAdtsHeader_readsLcRateAndChannels() {
-        val header = ByteArray(7)
-        fillAdtsHeader(header, sampleRate = 44_100, channelCount = 2, payloadSize = 256)
-        val parsed = parseAdtsHeader(header)
-
-        assertEquals(2, parsed?.profile)
-        assertEquals(44_100, parsed?.sampleRate)
-        assertEquals(2, parsed?.channelCount)
+    fun wavExportSizeLimit_isJustUnderFourGiB() {
+        val limit = exportFileSizeLimitBytes(ExportFormat.WAV)
+        assertEquals(0xFFFF_FFFFL - 44L, limit)
     }
 
     @Test
-    fun detectRawAmrCodec_distinguishesNbAndWbHeaders() {
-        assertEquals(ExportCodec.AMR_NB, detectRawAmrCodec("#!AMR\n".toByteArray(Charsets.US_ASCII)))
-        assertEquals(ExportCodec.AMR_WB, detectRawAmrCodec("#!AMR-WB\n".toByteArray(Charsets.US_ASCII)))
-        assertEquals(null, detectRawAmrCodec("bogus".toByteArray(Charsets.US_ASCII)))
+    fun pcmByteRate_proportionalToSampleFormat() {
+        val mono48k_16bit = bytesForRetentionSeconds(1, 48_000, 1, PcmSampleFormat.PCM_16)
+        val mono48k_8bit = bytesForRetentionSeconds(1, 48_000, 1, PcmSampleFormat.PCM_8)
+        val mono48k_float = bytesForRetentionSeconds(1, 48_000, 1, PcmSampleFormat.PCM_FLOAT)
+        assertEquals(96_000L, mono48k_16bit)
+        assertEquals(48_000L, mono48k_8bit)
+        assertEquals(192_000L, mono48k_float)
     }
 
     @Test
-    fun muxedExportLimit_isFourGiBClass() {
-        val minExpected = (4L * 1024L * 1024L * 1024L) - (16L * 1024L * 1024L)
-        assertTrue(exportFileSizeLimitBytes(ExportFormat.M4A) >= minExpected)
-        assertTrue(exportFileSizeLimitBytes(ExportFormat.THREE_GPP) >= minExpected)
-        assertTrue(exportFileSizeLimitBytes(ExportFormat.OGG) >= minExpected)
-        assertTrue(exportFileSizeLimitBytes(ExportFormat.WEBM) >= minExpected)
-        assertTrue(exportFileSizeLimitBytes(ExportFormat.AMR_WB_FILE) >= 4L * 1024L * 1024L * 1024L)
+    fun wavExportDurationLimit_doesNotOverflow() {
+        val limit = exportDurationLimitSeconds(
+            format = ExportFormat.WAV,
+            codec = ExportCodec.PCM_16,
+            sampleRate = 48_000,
+            channelCount = 2,
+            sampleFormat = PcmSampleFormat.PCM_16,
+        )
+        assertTrue(limit > 0L)
+        assertTrue(limit < Long.MAX_VALUE / 2)
     }
 
     @Test

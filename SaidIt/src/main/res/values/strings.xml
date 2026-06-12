@@ -99,6 +99,10 @@
     <string name="codec_bitrate_label">Bitrate</string>
     <string name="codec_bitrate_invalid">Use %1$d-%2$d kbps.</string>
     <string name="codec_bitrate_value">%1$d kbps</string>
+    <string name="sample_format_label">Sample format</string>
+    <string name="sample_format_pcm_8">8-bit integer</string>
+    <string name="sample_format_pcm_16">16-bit integer</string>
+    <string name="sample_format_float_32">32-bit float</string>
     <string name="sample_rate_label">Rate</string>
     <string name="audio_source_label">Source</string>
     <string name="channel_mode_label">Channels</string>
