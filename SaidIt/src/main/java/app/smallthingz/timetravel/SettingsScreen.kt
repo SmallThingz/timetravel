@@ -20,9 +20,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -31,7 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -47,19 +47,32 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.KeyboardOptions
+import android.view.inputmethod.InputMethodManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
-import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 private val TAG = "SettingsScreen"
@@ -74,13 +87,11 @@ data class SettingsSnapshot(
     var format: ExportFormat? = null,
     var codec: ExportCodec? = null,
     var sampleFormat: PcmSampleFormat = PcmSampleFormat.PCM_16,
-    var bitrateKbps: Int = 0,
     var source: AudioSourceMode? = null,
     var channelMode: ChannelMode? = null,
     var route: InputRouteMode? = null,
     var sampleRate: Int = 0,
     var exportDirectoryUri: String? = null,
-    var persistentBufferEnabled: Boolean = true,
     var aggressiveRestartEnabled: Boolean = true,
     var wakeLockEnabled: Boolean = false,
 ) {
@@ -92,13 +103,11 @@ data class SettingsSnapshot(
         format = other.format
         codec = other.codec
         sampleFormat = other.sampleFormat
-        bitrateKbps = other.bitrateKbps
         source = other.source
         channelMode = other.channelMode
         route = other.route
         sampleRate = other.sampleRate
         exportDirectoryUri = other.exportDirectoryUri
-        persistentBufferEnabled = other.persistentBufferEnabled
         aggressiveRestartEnabled = other.aggressiveRestartEnabled
         wakeLockEnabled = other.wakeLockEnabled
     }
@@ -154,13 +163,14 @@ fun SettingsScreen(
     var retentionTimeError by remember { mutableStateOf<String?>(null) }
     var retentionSizeError by remember { mutableStateOf<String?>(null) }
     var sampleRateUnsupported by remember { mutableStateOf(false) }
-
-    var bitrateKbps by remember { mutableIntStateOf(128) }
-    var bitrateRange by remember { mutableStateOf(Int.MIN_VALUE..Int.MIN_VALUE) }
+    var computedExportLimitSeconds by remember { mutableStateOf(0L) }
+    var computedExportSizeMb by remember { mutableStateOf(0.0) }
+    val retentionTimeFocusRequester = remember { FocusRequester() }
 
     var exportPathText by remember { mutableStateOf("") }
     var canMove by remember { mutableStateOf(false) }
     var batteryOptimizationRestricted by remember { mutableStateOf(true) }
+    var showBufferResetWarning by remember { mutableStateOf(false) }
 
     // Pre-computed label lists
     val themeLabels = remember { AppThemeMode.entries.map { context.getString(it.labelRes) } }
@@ -174,47 +184,18 @@ fun SettingsScreen(
 
     // Selection labels
     var selectedThemeLabel by remember { mutableStateOf(context.getString(AppThemeMode.SYSTEM.labelRes)) }
-    var selectedFormatLabel by remember { mutableStateOf("") }
-    var selectedCodecLabel by remember { mutableStateOf("") }
+    var selectedFormatLabel by remember { mutableStateOf(context.getString(supportedFormats().first().labelRes)) }
+    var selectedCodecLabel by remember { mutableStateOf(context.getString(supportedCodecs(supportedFormats().first()).first().labelRes)) }
     var selectedSampleFormatLabel by remember { mutableStateOf(context.getString(PcmSampleFormat.PCM_16.labelRes)) }
-    var selectedSourceLabel by remember { mutableStateOf("") }
-    var selectedChannelModeLabel by remember { mutableStateOf("") }
-    var selectedRouteLabel by remember { mutableStateOf("") }
-    var selectedSampleRateLabel by remember { mutableStateOf("") }
+    var selectedSourceLabel by remember { mutableStateOf(context.getString(AudioSourceMode.availableModes().first().labelRes)) }
+    var selectedChannelModeLabel by remember { mutableStateOf(context.getString(ChannelMode.MONO.labelRes)) }
+    var selectedRouteLabel by remember { mutableStateOf(context.getString(InputRouteMode.AUTO.labelRes)) }
+    var selectedSampleRateLabel by remember { mutableStateOf(sampleRateLabel(48_000)) }
 
     fun clearErrors() {
         retentionTimeError = null
         retentionSizeError = null
         sampleRateUnsupported = false
-    }
-
-    fun currentBitrateKbpsOrNull(): Int? {
-        val range = codecBitrateRangeKbps(selectedCodec) ?: return null
-        return bitrateKbps.coerceIn(range)
-    }
-
-    fun effectiveCodecBitrateKbps(): Int? {
-        val codec = selectedCodec
-        val range = codecBitrateRangeKbps(codec)
-            ?: return defaultCodecBitrateKbps(codec, selectedSampleRate, selectedChannelMode.channelCount)
-        return currentBitrateKbpsOrNull()
-            ?.coerceIn(range)
-            ?: getConfiguredCodecBitrateKbps(context, codec, selectedSampleRate, selectedChannelMode.channelCount)
-    }
-
-    fun refreshBitrateField(preferredKbps: Int? = null) {
-        val codec = selectedCodec
-        val range = codecBitrateRangeKbps(codec)
-        if (range == null) {
-            bitrateRange = Int.MIN_VALUE..Int.MIN_VALUE
-            return
-        }
-        val sampleRate = selectedSampleRate
-        val defaultBitrateKbpsVal = defaultCodecBitrateKbps(codec, sampleRate, selectedChannelMode.channelCount) ?: range.first
-        val currentBitrate = currentBitrateKbpsOrNull()
-        val resolved = (preferredKbps ?: currentBitrate ?: defaultBitrateKbpsVal).coerceIn(range)
-        bitrateRange = range
-        bitrateKbps = resolved
     }
 
     fun refreshExportDirectoryUi() {
@@ -281,7 +262,6 @@ fun SettingsScreen(
         preferredSource: AudioSourceMode? = null,
         preferredChannelMode: ChannelMode? = null,
         preferredRate: Int? = null,
-        preferredBitrateKbps: Int? = null,
     ) {
         availableCodecs = supportedCodecs(selectedFormat)
         val codec = preferredCodec?.takeIf { it in availableCodecs } ?: availableCodecs.first()
@@ -289,7 +269,6 @@ fun SettingsScreen(
         codecLabels = availableCodecs.map { context.getString(it.labelRes) }
         selectedCodecLabel = context.getString(codec.labelRes)
         refreshSourceModes(preferredSource, preferredChannelMode, preferredRate)
-        refreshBitrateField(preferredKbps = preferredBitrateKbps)
     }
 
     fun saveCurrentToSnapshot(snapshot: SettingsSnapshot) {
@@ -300,7 +279,6 @@ fun SettingsScreen(
         snapshot.format = selectedFormat
         snapshot.codec = selectedCodec
         snapshot.sampleFormat = selectedSampleFormat
-        snapshot.bitrateKbps = effectiveCodecBitrateKbps() ?: 0
         snapshot.source = selectedSource
         snapshot.channelMode = selectedChannelMode
         snapshot.route = selectedRoute
@@ -322,18 +300,22 @@ fun SettingsScreen(
     fun refreshRetentionFields(preserveActiveInputs: Boolean = false) {
         val sr = selectedSampleRate
         if (sr <= 0) {
+            computedExportLimitSeconds = 0
+            computedExportSizeMb = 0.0
             if (!preserveActiveInputs) { retentionTimeText = ""; retentionSizeText = "" }
             return
         }
-        val bitrate = effectiveCodecBitrateKbps()
         val chCount = selectedChannelMode.channelCount
+        val bitrate = null
         val exportLimitBytes = exportFileSizeLimitBytes(selectedFormat)
         val exportLimitDurationSeconds = estimateExportDurationSeconds(
             selectedFormat, selectedCodec, sr, chCount, exportLimitBytes, bitrate, selectedSampleFormat,
         )
+        computedExportLimitSeconds = exportLimitDurationSeconds
         val estimatedSizeMb = bytesToMegabytes(
             estimateExportSizeBytes(selectedFormat, selectedCodec, sr, chCount, retentionTimeSecondsValue.toLong(), bitrate, selectedSampleFormat),
         )
+        computedExportSizeMb = estimatedSizeMb
         val estimatedDuration = formatDurationInput(
             estimateExportDurationSeconds(
                 selectedFormat, selectedCodec, sr, chCount,
@@ -372,7 +354,6 @@ fun SettingsScreen(
             preferredSource = preferred.source,
             preferredChannelMode = preferred.channelMode,
             preferredRate = preferred.sampleRate,
-            preferredBitrateKbps = preferred.bitrateKbps,
         )
         capabilityUiReady = true
         refreshRetentionFields(preserveActiveInputs = true)
@@ -423,10 +404,7 @@ fun SettingsScreen(
                 preferredSource = prev.source,
                 preferredChannelMode = prev.channelMode,
                 preferredRate = prev.sampleRate,
-                preferredBitrateKbps = prev.bitrateKbps,
             )
-        } else {
-            refreshBitrateField(preferredKbps = prev.bitrateKbps)
         }
 
         refreshRetentionFields()
@@ -434,7 +412,7 @@ fun SettingsScreen(
         refreshMoveRecordingsAvailability()
         refreshBatteryOptimizationUi()
 
-        currentSnapshot.copyFrom(prev)
+        currentSnapshot = prev.copy()
         hasUnsavedChanges = false
         if (!capabilityUiReady) refreshCapabilityUiAsync(false)
     }
@@ -449,7 +427,6 @@ fun SettingsScreen(
         val route = selectedRoute
         val source = selectedSource
         val sampleRate = selectedSampleRate
-        val bitrateKbpsVal = currentBitrateKbpsOrNull()
 
         val retentionTime = if (activeRetentionMode == RetentionMode.TIME) {
             parseDurationInput(retentionTimeText.trim())
@@ -473,12 +450,6 @@ fun SettingsScreen(
 
         val requestedSizeBytes = rawMegabytesToBytes(sizeMb)
 
-        val bitrateRangeLocal = codecBitrateRangeKbps(codec)
-        if (bitrateRangeLocal != null && (bitrateKbpsVal == null || bitrateKbpsVal !in bitrateRangeLocal)) {
-            Toast.makeText(context, context.getString(R.string.codec_bitrate_invalid, bitrateRangeLocal.first, bitrateRangeLocal.last), Toast.LENGTH_SHORT).show()
-            return false
-        }
-
         retentionTimeSecondsValue = retentionTime
         retentionSizeMbValue = sizeMb
 
@@ -490,12 +461,10 @@ fun SettingsScreen(
             .putString(PrefKey.OUTPUT_FORMAT, format.prefValue)
             .putString(PrefKey.OUTPUT_CODEC, codec.prefValue)
             .putString(PrefKey.PCM_SAMPLE_FORMAT, sampleFormat.prefValue)
-            .putInt(PrefKey.OUTPUT_BITRATE_KBPS, bitrateKbpsVal ?: (effectiveCodecBitrateKbps() ?: 0))
             .putInt(PrefKey.AUDIO_SOURCE, source.sourceValue)
             .putString(PrefKey.CHANNEL_MODE, channelMode.prefValue)
             .putString(PrefKey.INPUT_ROUTE, route.prefValue)
             .putInt(PrefKey.SAMPLE_RATE, sampleRate)
-            .putBoolean(PrefKey.BUFFER_DISK_CACHE_ENABLED, true)
             .putBoolean(PrefKey.AGGRESSIVE_RESTART_ENABLED, currentSnapshot.aggressiveRestartEnabled)
             .putBoolean(PrefKey.WAKE_LOCK_ENABLED, currentSnapshot.wakeLockEnabled)
             .apply()
@@ -543,7 +512,6 @@ fun SettingsScreen(
             getPreferredSampleRate(context, configuredSourceVal, configuredRouteVal, configuredFormat, configuredCodec, configuredChannelModeVal),
         ).takeIf { it > 0 }
             ?: getPreferredSampleRate(context, configuredSourceVal, configuredRouteVal, configuredFormat, configuredCodec, configuredChannelModeVal)
-        val configuredBitrateKbpsVal = getConfiguredCodecBitrateKbps(context, configuredCodec, configuredRateVal, configuredChannelModeVal.channelCount) ?: 0
         val configuredExportTreeUriVal = getConfiguredExportTreeUri(context)
 
         activeRetentionMode = configuredMode
@@ -591,15 +559,15 @@ fun SettingsScreen(
         sampleRateLabels = availableSampleRates.map { sampleRateLabel(it) }
         selectedSampleRateLabel = sampleRateLabel(configuredRateVal)
 
-        refreshBitrateField(preferredKbps = configuredBitrateKbpsVal)
         refreshRetentionFields()
         refreshExportDirectoryUi()
         refreshMoveRecordingsAvailability()
         refreshBatteryOptimizationUi()
 
-        currentSnapshot.persistentBufferEnabled = true
-        currentSnapshot.aggressiveRestartEnabled = isAggressiveRestartEnabled(context)
-        currentSnapshot.wakeLockEnabled = isWakeLockEnabled(context)
+        currentSnapshot = currentSnapshot.copy(
+            aggressiveRestartEnabled = isAggressiveRestartEnabled(context),
+            wakeLockEnabled = isWakeLockEnabled(context),
+        )
 
         saveCurrentToSnapshot(currentSnapshot)
         originalSnapshot.copyFrom(currentSnapshot)
@@ -651,6 +619,19 @@ fun SettingsScreen(
         }
     }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshBatteryOptimizationUi()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     fun openBatteryOptimizationSettings() {
         val intents = buildList {
             if (!isIgnoringBatteryOptimizations(context)) {
@@ -697,7 +678,6 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) { bindUiFromPreferences() }
 
-    val bitrateVisible = bitrateRange.first <= bitrateRange.last
     val estimatePrefixVal = if (selectedFormat.isPcmContainer) TimeTravelConfig.ESTIMATE_EXACT_PREFIX else TimeTravelConfig.ESTIMATE_APPROX_PREFIX
 
     Scaffold(
@@ -723,7 +703,15 @@ fun SettingsScreen(
                     Spacer(Modifier.weight(1f))
                     IconButton(
                         onClick = {
-                            if (hasUnsavedChanges && persistSettings(showFeedback = false)) onBack()
+                            if (!hasUnsavedChanges) return@IconButton
+                            val s = service
+                            val rateChanged = currentSnapshot.sampleRate != originalSnapshot.sampleRate
+                            val formatChanged = currentSnapshot.sampleFormat != originalSnapshot.sampleFormat
+                            if ((rateChanged || formatChanged) && s != null && s.hasBufferedAudio()) {
+                                showBufferResetWarning = true
+                            } else {
+                                if (persistSettings(showFeedback = false)) onBack()
+                            }
                         },
                         enabled = hasUnsavedChanges,
                     ) {
@@ -738,11 +726,19 @@ fun SettingsScreen(
             }
         },
     ) { innerPadding ->
+        val view = LocalView.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        view.clearFocus()
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.hideSoftInputFromWindow(view.windowToken, 0)
+                    }
+                },
         ) {
             SectionTitle(stringResource(R.string.theme_title))
             SettingsDropdown(
@@ -756,6 +752,7 @@ fun SettingsScreen(
                     saveCurrentToSnapshot(currentSnapshot)
                     pushUndoState()
                 },
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
 
             HorizontalDivider(Modifier.padding(vertical = 24.dp))
@@ -778,7 +775,15 @@ fun SettingsScreen(
                     },
                     error = retentionTimeError,
                     prefix = if (activeRetentionMode == RetentionMode.TIME) null else estimatePrefixVal,
-                    modifier = Modifier.weight(1f),
+                    supportingText = if (computedExportLimitSeconds > 0) {
+                        { Text(stringResource(R.string.export_limit_label, formatDurationInput(computedExportLimitSeconds))) }
+                    } else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                    modifier = Modifier
+                        .weight(1f)
+                        .alpha(if (activeRetentionMode == RetentionMode.TIME) 1f else 0.82f)
+                        .onFocusChanged { if (it.isFocused) activateRetentionMode(RetentionMode.TIME) }
+                        .focusRequester(retentionTimeFocusRequester),
                 )
                 SettingsTextField(
                     label = stringResource(R.string.retention_size_label),
@@ -793,7 +798,14 @@ fun SettingsScreen(
                     },
                     error = retentionSizeError,
                     prefix = if (activeRetentionMode == RetentionMode.SIZE) null else estimatePrefixVal,
-                    modifier = Modifier.weight(1f),
+                    supportingText = if (computedExportSizeMb > 0) {
+                        { Text(stringResource(R.string.estimated_file_size_label, String.format("%.1f", computedExportSizeMb))) }
+                    } else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier
+                        .weight(1f)
+                        .alpha(if (activeRetentionMode == RetentionMode.SIZE) 1f else 0.82f)
+                        .onFocusChanged { if (it.isFocused) activateRetentionMode(RetentionMode.SIZE) },
                 )
             }
 
@@ -804,101 +816,89 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SettingsDropdown(
-                    label = stringResource(R.string.format_label),
-                    selectedValue = selectedFormatLabel,
-                    options = formatLabels,
-                    onOptionSelected = { label ->
-                        selectedFormatLabel = label
-                        selectedFormat = availableFormats.first { context.getString(it.labelRes) == label }
-                        refreshCodecOptions()
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                SettingsDropdown(
-                    label = stringResource(R.string.channel_mode_label),
-                    selectedValue = selectedChannelModeLabel,
-                    options = channelModeLabels,
-                    onOptionSelected = { label ->
-                        selectedChannelModeLabel = label
-                        selectedChannelMode = availableChannelModes.first { context.getString(it.labelRes) == label }
-                        refreshSampleRates()
-                        refreshBitrateField()
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (selectedFormat.isPcmContainer) {
+                if (formatLabels.size > 1) {
                     SettingsDropdown(
-                        label = stringResource(R.string.sample_format_label),
-                        selectedValue = selectedSampleFormatLabel,
-                        options = sampleFormatLabels,
+                        label = stringResource(R.string.format_label),
+                        selectedValue = selectedFormatLabel,
+                        options = formatLabels,
                         onOptionSelected = { label ->
-                            selectedSampleFormatLabel = label
-                            selectedSampleFormat = PcmSampleFormat.entries.first { context.getString(it.labelRes) == label }
-                            refreshRetentionFields(preserveActiveInputs = true)
-                            saveCurrentToSnapshot(currentSnapshot)
-                            pushUndoState()
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                } else {
-                    SettingsDropdown(
-                        label = stringResource(R.string.codec_label),
-                        selectedValue = selectedCodecLabel,
-                        options = codecLabels,
-                        onOptionSelected = { label ->
-                            selectedCodecLabel = label
-                            selectedCodec = availableCodecs.first { context.getString(it.labelRes) == label }
-                            refreshSourceModes()
-                            refreshBitrateField()
+                            selectedFormatLabel = label
+                            selectedFormat = availableFormats.first { context.getString(it.labelRes) == label }
+                            refreshCodecOptions()
                             saveCurrentToSnapshot(currentSnapshot)
                             pushUndoState()
                         },
                         modifier = Modifier.weight(1f),
                     )
                 }
-                SettingsDropdown(
-                    label = stringResource(R.string.sample_rate_label),
-                    selectedValue = selectedSampleRateLabel,
-                    options = sampleRateLabels,
-                    onOptionSelected = { label ->
-                        selectedSampleRateLabel = label
-                        availableSampleRates.firstOrNull { sampleRateLabel(it) == label }?.let { selectedSampleRate = it }
-                        refreshBitrateField()
-                        refreshRetentionFields(preserveActiveInputs = true)
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                if (channelModeLabels.size > 1) {
+                    SettingsDropdown(
+                        label = stringResource(R.string.channel_mode_label),
+                        selectedValue = selectedChannelModeLabel,
+                        options = channelModeLabels,
+                        onOptionSelected = { label ->
+                            selectedChannelModeLabel = label
+                            selectedChannelMode = availableChannelModes.first { context.getString(it.labelRes) == label }
+                            refreshSampleRates()
+                            saveCurrentToSnapshot(currentSnapshot)
+                            pushUndoState()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
-            if (bitrateVisible) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(stringResource(R.string.codec_bitrate_label), style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = stringResource(R.string.codec_bitrate_value, bitrateKbps),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (selectedFormat.isPcmContainer) {
+                    if (sampleFormatLabels.size > 1) {
+                        SettingsDropdown(
+                            label = stringResource(R.string.sample_format_label),
+                            selectedValue = selectedSampleFormatLabel,
+                            options = sampleFormatLabels,
+                            onOptionSelected = { label ->
+                                selectedSampleFormatLabel = label
+                                selectedSampleFormat = PcmSampleFormat.entries.first { context.getString(it.labelRes) == label }
+                                refreshRetentionFields(preserveActiveInputs = true)
+                                saveCurrentToSnapshot(currentSnapshot)
+                                pushUndoState()
+                            },
+                            modifier = Modifier.weight(1f),
                         )
                     }
-                    Slider(
-                        value = bitrateKbps.toFloat(),
-                        onValueChange = { bitrateKbps = it.roundToInt(); saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
-                        valueRange = bitrateRange.first.toFloat()..bitrateRange.last.toFloat(),
+                } else {
+                    if (codecLabels.size > 1) {
+                        SettingsDropdown(
+                            label = stringResource(R.string.codec_label),
+                            selectedValue = selectedCodecLabel,
+                            options = codecLabels,
+                            onOptionSelected = { label ->
+                                selectedCodecLabel = label
+                                selectedCodec = availableCodecs.first { context.getString(it.labelRes) == label }
+                                refreshSourceModes()
+                                saveCurrentToSnapshot(currentSnapshot)
+                                pushUndoState()
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                if (sampleRateLabels.size > 1) {
+                    SettingsDropdown(
+                        label = stringResource(R.string.sample_rate_label),
+                        selectedValue = selectedSampleRateLabel,
+                        options = sampleRateLabels,
+                        onOptionSelected = { label ->
+                            selectedSampleRateLabel = label
+                            availableSampleRates.firstOrNull { sampleRateLabel(it) == label }?.let { selectedSampleRate = it }
+                            refreshRetentionFields(preserveActiveInputs = true)
+                            saveCurrentToSnapshot(currentSnapshot)
+                            pushUndoState()
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !sampleRateUnsupported,
+                        error = if (sampleRateUnsupported) stringResource(R.string.unsupported_config_message) else null,
                     )
                 }
             }
@@ -906,32 +906,36 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SettingsDropdown(
-                    label = stringResource(R.string.audio_source_label),
-                    selectedValue = selectedSourceLabel,
-                    options = sourceLabels,
-                    onOptionSelected = { label ->
-                        selectedSourceLabel = label
-                        selectedSource = availableSourceModes.first { context.getString(it.labelRes) == label }
-                        refreshChannelModes()
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                SettingsDropdown(
-                    label = stringResource(R.string.input_route_label),
-                    selectedValue = selectedRouteLabel,
-                    options = routeLabels,
-                    onOptionSelected = { label ->
-                        selectedRouteLabel = label
-                        selectedRoute = availableRouteModes.first { context.getString(it.labelRes) == label }
-                        refreshCodecOptions()
-                        saveCurrentToSnapshot(currentSnapshot)
-                        pushUndoState()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                if (sourceLabels.size > 1) {
+                    SettingsDropdown(
+                        label = stringResource(R.string.audio_source_label),
+                        selectedValue = selectedSourceLabel,
+                        options = sourceLabels,
+                        onOptionSelected = { label ->
+                            selectedSourceLabel = label
+                            selectedSource = availableSourceModes.first { context.getString(it.labelRes) == label }
+                            refreshChannelModes()
+                            saveCurrentToSnapshot(currentSnapshot)
+                            pushUndoState()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (routeLabels.size > 1) {
+                    SettingsDropdown(
+                        label = stringResource(R.string.input_route_label),
+                        selectedValue = selectedRouteLabel,
+                        options = routeLabels,
+                        onOptionSelected = { label ->
+                            selectedRouteLabel = label
+                            selectedRoute = availableRouteModes.first { context.getString(it.labelRes) == label }
+                            refreshCodecOptions()
+                            saveCurrentToSnapshot(currentSnapshot)
+                            pushUndoState()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             SectionTitle(stringResource(R.string.storage_settings_title))
@@ -984,13 +988,13 @@ fun SettingsScreen(
                 label = stringResource(R.string.aggressive_restart_label),
                 summary = stringResource(R.string.aggressive_restart_summary),
                 checked = currentSnapshot.aggressiveRestartEnabled,
-                onCheckedChange = { currentSnapshot.aggressiveRestartEnabled = it; saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
+                onCheckedChange = { currentSnapshot = currentSnapshot.copy(aggressiveRestartEnabled = it); saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
             )
             SwitchRow(
                 label = stringResource(R.string.wake_lock_label),
                 summary = stringResource(R.string.wake_lock_summary),
                 checked = currentSnapshot.wakeLockEnabled,
-                onCheckedChange = { currentSnapshot.wakeLockEnabled = it; saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
+                onCheckedChange = { currentSnapshot = currentSnapshot.copy(wakeLockEnabled = it); saveCurrentToSnapshot(currentSnapshot); pushUndoState() },
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1014,14 +1018,39 @@ fun SettingsScreen(
 
         }
     }
+
+    if (showBufferResetWarning) {
+        AlertDialog(
+            onDismissRequest = { showBufferResetWarning = false },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            confirmButton = {
+                TextButton(onClick = {
+                    showBufferResetWarning = false
+                    service?.clearBuffer()
+                    if (persistSettings(showFeedback = false)) onBack()
+                }) {
+                    Text(stringResource(R.string.settings_buffer_reset_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBufferResetWarning = false }) {
+                    Text(stringResource(R.string.settings_buffer_reset_cancel))
+                }
+            },
+            title = { Text(stringResource(R.string.settings_buffer_reset_warning)) },
+            text = { Text(stringResource(R.string.settings_buffer_reset_warning_body)) },
+        )
+    }
 }
 
 @Composable
 private fun SectionTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(horizontal = 16.dp),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
 
@@ -1032,9 +1061,11 @@ private fun SettingsDropdown(
     options: List<String>,
     onOptionSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    error: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
+    val scope = rememberCoroutineScope()
 
     Box(modifier = modifier) {
         OutlinedTextField(
@@ -1043,25 +1074,28 @@ private fun SettingsDropdown(
             readOnly = true,
             label = { Text(label) },
             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = { expanded = true },
-                ),
+            enabled = enabled,
+            isError = error != null,
+            supportingText = error?.let { { Text(it) } },
+            modifier = Modifier.fillMaxWidth(),
         )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = { expanded = true },
-                ),
-        )
+        if (enabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        scope.launch {
+                            delay(1)
+                            expanded = true
+                        }
+                    }
+            )
+        }
         DropdownMenu(
-            expanded = expanded,
+            expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
         ) {
             options.forEach { option ->
@@ -1084,6 +1118,8 @@ private fun SettingsTextField(
     onValueChange: (String) -> Unit,
     error: String? = null,
     prefix: String? = null,
+    supportingText: @Composable (() -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     modifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
@@ -1091,9 +1127,17 @@ private fun SettingsTextField(
         onValueChange = onValueChange,
         label = { Text(label) },
         isError = error != null,
-        supportingText = error?.let { { Text(it) } },
+        supportingText = {
+            Column {
+                if (error != null) {
+                    Text(error, color = MaterialTheme.colorScheme.error)
+                }
+                supportingText?.invoke()
+            }
+        },
         singleLine = true,
         prefix = if (prefix != null) {{ Text(prefix) }} else null,
+        keyboardOptions = keyboardOptions,
         modifier = modifier,
     )
 }
@@ -1108,12 +1152,15 @@ private fun SwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable { onCheckedChange(!checked) },
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
             Text(
                 summary,
                 style = MaterialTheme.typography.bodySmall,

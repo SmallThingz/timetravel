@@ -13,9 +13,6 @@
     <string name="custom_time">تصدير مخصص</string>
     <string name="reencode_history">إعادة ترميز السجل</string>
     <string name="reencode_history_progress">إعادة الترميز %1$d%%</string>
-    <string name="reencode_history_done">تمت إعادة ترميز السجل.</string>
-    <string name="reencode_history_failed">تعذرت إعادة ترميز السجل.</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">نطاق</string>
     <string name="custom_export_mode_past">الماضي</string>
     <string name="custom_export_unit_size">الحجم</string>
@@ -69,9 +66,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">معدل البت</string>
-    <string name="codec_bitrate_invalid">استخدم %1$d-%2$d kbps.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">معدل العينة</string>
     <string name="audio_source_label">المصدر</string>
     <string name="channel_mode_label">القنوات</string>
@@ -136,7 +130,6 @@
     <string name="player_pause">إيقاف مؤقت</string>
     <string name="player_seek_back">رجوع 10 ثوانٍ</string>
     <string name="player_seek_forward">تقديم 10 ثوانٍ</string>
-    <string name="player_failed">تعذر تشغيل التسجيل.</string>
     <string name="close">إغلاق</string>
     <plurals name="move_recordings_done">
         <item quantity="zero">تم نقل %1$d تسجيل.</item>

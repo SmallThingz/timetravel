@@ -1,7 +1,10 @@
 package app.smallthingz.timetravel
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,11 +18,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,6 +44,20 @@ internal fun AppTopBar(
 ) {
     if (selectionActive) return
 
+    var brandPressed by remember { mutableStateOf(false) }
+    val brandScale by animateFloatAsState(
+        targetValue = if (brandPressed) 0.96f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessHigh),
+        label = "brandPress",
+    )
+
+    var settingsPressed by remember { mutableStateOf(false) }
+    val settingsScale by animateFloatAsState(
+        targetValue = if (settingsPressed) 0.96f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessHigh),
+        label = "settingsPress",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -40,7 +65,24 @@ internal fun AppTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            modifier = Modifier.clickable(onClick = onBrandClick),
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = brandScale
+                    scaleY = brandScale
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            brandPressed = true
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                brandPressed = false
+                            }
+                        },
+                        onTap = { onBrandClick() },
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -52,7 +94,7 @@ internal fun AppTopBar(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_brand_mark),
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.app_name),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(44.dp),
                 )
@@ -66,6 +108,7 @@ internal fun AppTopBar(
                 lineHeight = 33.sp,
                 color = MaterialTheme.colorScheme.tertiary,
                 fontFamily = FontFamily.SansSerif,
+                style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)),
             )
             Text(
                 text = stringResource(R.string.brand_travel),
@@ -75,13 +118,33 @@ internal fun AppTopBar(
                 lineHeight = 33.sp,
                 color = MaterialTheme.colorScheme.primary,
                 fontFamily = FontFamily.SansSerif,
+                style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)),
             )
         }
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = onSettingsClick) {
+        IconButton(
+            onClick = onSettingsClick,
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = settingsScale
+                    scaleY = settingsScale
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            settingsPressed = true
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                settingsPressed = false
+                            }
+                        },
+                    )
+                },
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_settings),
-                contentDescription = null,
+                contentDescription = stringResource(R.string.open_settings),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),
             )

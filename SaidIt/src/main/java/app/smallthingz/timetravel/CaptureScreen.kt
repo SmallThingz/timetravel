@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
+import android.view.HapticFeedbackConstants
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.os.Build
 import android.os.IBinder
 import android.widget.Toast
@@ -26,12 +28,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,16 +43,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -63,20 +72,21 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -104,9 +114,10 @@ class NotifyFileReceiver(
     private val context: Context,
     private val scope: CoroutineScope,
 ) : TimeTravelService.AudioFileReceiver {
+    private val appContext = context.applicationContext
     override fun fileReady(recording: RecordingEntity) {
         scope.launch(Dispatchers.IO) {
-            val saved = RecordingRepository.register(context, recording)
+            val saved = RecordingRepository.register(appContext, recording)
             if (
                 ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
@@ -115,9 +126,9 @@ class NotifyFileReceiver(
         }
     }
 
-    override fun fileFailed(message: String) {
+    override fun fileFailed(message: String, error: Throwable?) {
         scope.launch(Dispatchers.Main) {
-            Toast.makeText(context, message.ifBlank { context.getString(R.string.save_failed) }, Toast.LENGTH_LONG).show()
+            Toast.makeText(appContext, message.ifBlank { appContext.getString(R.string.save_failed) }, Toast.LENGTH_LONG).show()
         }
     }
 }
@@ -155,6 +166,7 @@ private data class ExportUiConfig(
 @Composable
 fun CaptureScreen() {
     val context = LocalContext.current
+    val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -162,7 +174,7 @@ fun CaptureScreen() {
     var service by remember { mutableStateOf<TimeTravelService?>(null) }
     var isListening by remember { mutableStateOf(true) }
     var isRecording by remember { mutableStateOf(false) }
-    var isSaving by remember { mutableStateOf(false) }
+    var isSaving by rememberSaveable { mutableStateOf(false) }
     var memorizedSeconds by remember { mutableFloatStateOf(0f) }
     var totalMemorySeconds by remember { mutableFloatStateOf(0f) }
     var recordedSeconds by remember { mutableFloatStateOf(0f) }
@@ -175,11 +187,12 @@ fun CaptureScreen() {
     val reencodeTotalState = remember { mutableStateOf(0L) }
     var historyReencodeTotalBytes by reencodeTotalState
 
-    var showClearDialog by remember { mutableStateOf(false) }
-    var showExportRangeDialog by remember { mutableStateOf(false) }
-    var showExportClampDialog by remember { mutableStateOf(false) }
-    var clampWarningSeconds by remember { mutableFloatStateOf(0f) }
-    var pendingExportRange by remember { mutableStateOf<ExportRange?>(null) }
+    var showClearDialog by rememberSaveable { mutableStateOf(false) }
+    var showExportRangeDialog by rememberSaveable { mutableStateOf(false) }
+    var showExportClampDialog by rememberSaveable { mutableStateOf(false) }
+    var clampWarningSeconds by rememberSaveable { mutableFloatStateOf(0f) }
+    var pendingExportRange by remember { mutableStateOf<ExportRange?>(null) } // Not saveable — non-serializable
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val stateCallback = remember {
         object : TimeTravelService.StateCallback {
@@ -225,7 +238,7 @@ fun CaptureScreen() {
         }
     }
 
-    DisposableEffect(lifecycleOwner, context) {
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
@@ -245,13 +258,23 @@ fun CaptureScreen() {
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            try {
+                context.unbindService(connection)
+            } catch (_: IllegalArgumentException) {
+                // Service was not bound
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
         while (true) {
             val s = service
-            if (s != null) s.getState(stateCallback)
+            if (s != null) {
+                s.getState(stateCallback)
+                s.consumePendingError()?.let { errorMessage = it }
+            }
             delay(150)
         }
     }
@@ -266,20 +289,24 @@ fun CaptureScreen() {
         )
     }
 
-    if (showExportClampDialog && pendingExportRange != null) {
-        ExportClampDialog(
-            clampedDurationSeconds = clampWarningSeconds,
-            onProceed = {
-                showExportClampDialog = false
-                val range = pendingExportRange!!
-                pendingExportRange = null
-                startExport(context, service, range, scope, snackbarHostState) { isSaving = it }
-            },
-            onDismiss = {
-                showExportClampDialog = false
-                pendingExportRange = null
-            },
-        )
+    if (showExportClampDialog) {
+        if (pendingExportRange == null) {
+            showExportClampDialog = false
+        } else {
+            ExportClampDialog(
+                clampedDurationSeconds = clampWarningSeconds,
+                onProceed = {
+                    showExportClampDialog = false
+                    val range = pendingExportRange ?: return@ExportClampDialog
+                    pendingExportRange = null
+                    startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
+                },
+                onDismiss = {
+                    showExportClampDialog = false
+                    pendingExportRange = null
+                },
+            )
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -290,8 +317,9 @@ fun CaptureScreen() {
                 onStopRecording = {
                     val s = service ?: return@RecordingOverlay
                     if (isSaving) return@RecordingOverlay
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     isSaving = true
-                    s.stopRecording(SaveResultReceiver(context, scope, snackbarHostState) { isSaving = it })
+                    s.stopRecording(SaveResultReceiver(context, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it }))
                 },
             )
         } else {
@@ -299,6 +327,7 @@ fun CaptureScreen() {
                 memorizedSeconds = memorizedSeconds,
                 totalMemorySeconds = totalMemorySeconds,
                 isListening = isListening,
+                isRecording = isRecording,
                 isSaving = isSaving,
                 isHistoryReencoding = historyReencoding,
                 historyReencodePending = historyReencodePending,
@@ -308,6 +337,7 @@ fun CaptureScreen() {
                 onListenToggle = {
                     val s = service ?: return@MainCaptureContent
                     if (isSaving) return@MainCaptureContent
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     isListening = !isListening
                     if (isListening) s.enableListening() else s.disableListening()
                 },
@@ -329,12 +359,17 @@ fun CaptureScreen() {
                             pendingExportRange = range
                             showExportClampDialog = true
                         } else {
-                            startExport(context, service, range, scope, snackbarHostState) { isSaving = it }
+                startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
                         }
                     }
                 },
                 onExportCustom = {
                     if (isSaving) return@MainCaptureContent
+                    val currentSeconds = memorizedSeconds.coerceAtLeast(0f)
+                    if (currentSeconds <= 0f) {
+                        Toast.makeText(context, R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
+                        return@MainCaptureContent
+                    }
                     showExportRangeDialog = true
                 },
                 onReencode = {
@@ -347,7 +382,9 @@ fun CaptureScreen() {
 
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
         ) { data ->
             Snackbar(snackbarData = data)
         }
@@ -365,10 +402,17 @@ fun CaptureScreen() {
                     pendingExportRange = range
                     showExportClampDialog = true
                 } else {
-                    startExport(context, service, range, scope, snackbarHostState) { isSaving = it }
+                    startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
                 }
             },
             onDismiss = { showExportRangeDialog = false },
+        )
+    }
+
+    errorMessage?.let { msg ->
+        ErrorDialog(
+            message = msg,
+            onDismiss = { errorMessage = null },
         )
     }
 }
@@ -378,6 +422,7 @@ private fun MainCaptureContent(
     memorizedSeconds: Float,
     totalMemorySeconds: Float,
     isListening: Boolean,
+    isRecording: Boolean,
     isSaving: Boolean,
     isHistoryReencoding: Boolean,
     historyReencodePending: Boolean,
@@ -391,8 +436,8 @@ private fun MainCaptureContent(
     onReencode: () -> Unit,
 ) {
     val context = LocalContext.current
-    val retentionMode = remember { mutableStateOf(getConfiguredRetentionMode(context)) }
-    val retentionSeconds = remember { mutableStateOf(getConfiguredRetentionSeconds(context)) }
+    val retentionMode = remember(context) { mutableStateOf(getConfiguredRetentionMode(context)) }
+    val retentionSeconds = remember(context) { mutableStateOf(getConfiguredRetentionSeconds(context)) }
 
     val displayedCurrentSeconds = memorizedSeconds.coerceAtLeast(0f).toInt()
     val displayedLimitSeconds =
@@ -451,8 +496,8 @@ private fun MainCaptureContent(
         if (overExportLimit) MaterialTheme.colorScheme.error
         else MaterialTheme.colorScheme.onSurfaceVariant
 
-    val exportBlocked = isSaving || historyReencodePending || isHistoryReencoding
-    val clearEnabled = !isSaving && !isHistoryReencoding
+    val exportBlocked = isSaving || isRecording || historyReencodePending || isHistoryReencoding
+    val clearEnabled = !isSaving && !isRecording && !historyReencodePending && !isHistoryReencoding
 
     Column(
         modifier = Modifier
@@ -467,6 +512,7 @@ private fun MainCaptureContent(
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -478,7 +524,7 @@ private fun MainCaptureContent(
 
         Text(
             text = summaryText,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium,
             color = summaryColor,
             fontFamily = FontFamily.Monospace,
             textAlign = TextAlign.Center,
@@ -529,7 +575,7 @@ private fun MainCaptureContent(
                 Surface(
                     modifier = Modifier.size(52.dp),
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
                     IconButton(
                         onClick = onClearBuffer,
@@ -538,7 +584,7 @@ private fun MainCaptureContent(
                         Icon(
                             painter = painterResource(R.drawable.ic_delete),
                             contentDescription = stringResource(R.string.clear_buffer),
-                            tint = if (clearEnabled) MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (clearEnabled) MaterialTheme.colorScheme.onSecondaryContainer
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                         )
                     }
@@ -549,7 +595,7 @@ private fun MainCaptureContent(
                 FilledTonalButton(
                     onClick = onExportFull,
                     enabled = !exportBlocked,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(52.dp),
                 ) {
                     Text(stringResource(R.string.record_all_memory))
                 }
@@ -559,7 +605,7 @@ private fun MainCaptureContent(
                 FilledTonalButton(
                     onClick = onExportCustom,
                     enabled = !exportBlocked,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(52.dp),
                 ) {
                     Text(stringResource(R.string.custom_time))
                 }
@@ -587,7 +633,7 @@ private fun RecordingOverlay(
         ) {
             Text(
                 text = formatShortTimer(recordedSeconds),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.Center,
@@ -680,11 +726,13 @@ private fun ListenCircle(
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(192.dp),
+        modifier = Modifier
+            .size(282.dp)
+            .graphicsLayer(alpha = if (enabled) 1f else 0.72f),
     ) {
         Canvas(
             modifier = Modifier
-                .size(192.dp)
+                .size(282.dp)
                 .graphicsLayer(
                     scaleX = pulseScale,
                     scaleY = pulseScale,
@@ -710,7 +758,7 @@ private fun ListenCircle(
 
         Box(
             modifier = Modifier
-                .size(156.dp)
+                .size(232.dp)
                 .clip(CircleShape)
                 .drawBehind {
                     drawCircle(fillColor)
@@ -737,9 +785,9 @@ private fun ListenCircle(
                     ),
                     contentDescription = null,
                     tint = contentColor,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(64.dp),
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(14.dp))
                 Text(
                     text = stringResource(
                         if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary,
@@ -754,27 +802,92 @@ private fun ListenCircle(
 }
 
 @Composable
+private fun ErrorDialog(
+    message: String,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(18.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.close),
+                tint = MaterialTheme.colorScheme.error,
+            )
+        },
+        title = { Text(stringResource(R.string.error)) },
+        text = {
+            SelectionContainer {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@TextButton
+                clipboard.setPrimaryClip(ClipData.newPlainText("error", message))
+            }) {
+                Text(stringResource(R.string.copy))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, message)
+                }
+                context.startActivity(Intent.createChooser(intent, context.getString(R.string.share)))
+            }) {
+                Text(stringResource(R.string.share))
+            }
+        },
+    )
+}
+
+@Composable
 private fun ClearBufferDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                painter = painterResource(R.drawable.ic_check),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
-            )
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.clear_buffer),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         },
-        title = { Text(stringResource(R.string.clear_buffer)) },
         confirmButton = {
-            IconButton(onClick = onConfirm) {
+            TextButton(onClick = onConfirm) {
                 Icon(
                     painter = painterResource(R.drawable.ic_check),
                     contentDescription = stringResource(R.string.clear_buffer),
                     tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp),
                 )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.clear_buffer))
             }
         },
     )
@@ -788,7 +901,24 @@ private fun ExportClampDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.export_limit_dialog_title)) },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.export_limit_dialog_title), style = MaterialTheme.typography.headlineSmall)
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
         text = {
             Text(
                 text = stringResource(R.string.export_limit_dialog_message, formatShortTimer(clampedDurationSeconds)),
@@ -818,13 +948,13 @@ private fun ExportRangeDialog(
     var unitMode by remember { mutableStateOf(getConfiguredCustomExportUnit(context)) }
 
     var startTimeText by remember { mutableStateOf("0:00") }
-    var endTimeText by remember { mutableStateOf(formatDurationInput(currentBufferSeconds.roundToInt())) }
+    var endTimeText by remember(currentBufferSeconds) { mutableStateOf(formatDurationInput(currentBufferSeconds.toInt())) }
     var startSizeText by remember { mutableStateOf(formatSizeInputMib(0L)) }
-    var endSizeText by remember { mutableStateOf(formatSizeInputMib(currentBufferBytes)) }
-    var pastTimeText by remember {
-        mutableStateOf(formatDurationInput(prefs.getInt(PrefKey.CUSTOM_EXPORT_PAST_SECONDS, 5 * 60).coerceAtLeast(1)))
+    var endSizeText by remember(currentBufferBytes) { mutableStateOf(formatSizeInputMib(currentBufferBytes)) }
+    var pastTimeText by remember(currentBufferSeconds) {
+        mutableStateOf(formatDurationInput(currentBufferSeconds.toInt().coerceAtLeast(1)))
     }
-    var pastSizeText by remember {
+    var pastSizeText by remember(currentBufferBytes) {
         mutableStateOf(prefs.getString(PrefKey.CUSTOM_EXPORT_PAST_SIZE_MIB, formatSizeInputMib(currentBufferBytes)) ?: formatSizeInputMib(currentBufferBytes))
     }
 
@@ -852,6 +982,10 @@ private fun ExportRangeDialog(
             warningDurationSeconds = maxDurationSeconds,
         )
     }
+
+    val firstFieldFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { firstFieldFocusRequester.requestFocus() }
 
     fun submit() {
         val currentSeconds = currentBufferSeconds
@@ -901,58 +1035,133 @@ private fun ExportRangeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.export)) },
-        text = {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val scopeButtons = listOf(
-                        CustomExportMode.RANGE to stringResource(R.string.custom_export_mode_range),
-                        CustomExportMode.PAST to stringResource(R.string.custom_export_mode_past),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.export), style = MaterialTheme.typography.headlineSmall)
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    scopeButtons.forEach { (mode, label) ->
-                        TextButton(
-                            onClick = {
-                                scopeMode = mode
-                                setConfiguredCustomExportMode(context, mode)
-                            },
-                            colors = ButtonDefaults.textButtonColors(
-                                containerColor = if (scopeMode == mode) MaterialTheme.colorScheme.secondaryContainer
-                                else MaterialTheme.colorScheme.surface,
-                            ),
-                        ) { Text(label) }
-                    }
+                }
+            }
+        },
+        text = {
+            BoxWithConstraints {
+                val pad = if (maxWidth > 360.dp) 16.dp else 0.dp
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = pad)
+                ) {
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    SegmentedButton(
+                        selected = scopeMode == CustomExportMode.PAST,
+                        onClick = {
+                            scopeMode = CustomExportMode.PAST
+                            setConfiguredCustomExportMode(context, CustomExportMode.PAST)
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    ) { Text(stringResource(R.string.custom_export_mode_past)) }
+                    SegmentedButton(
+                        selected = scopeMode == CustomExportMode.RANGE,
+                        onClick = {
+                            scopeMode = CustomExportMode.RANGE
+                            setConfiguredCustomExportMode(context, CustomExportMode.RANGE)
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    ) { Text(stringResource(R.string.custom_export_mode_range)) }
                 }
 
                 Spacer(Modifier.height(8.dp))
 
-                Row(
+                SingleChoiceSegmentedButtonRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val unitButtons = listOf(
-                        CustomExportUnit.TIME to stringResource(R.string.retention_time_label),
-                        CustomExportUnit.SIZE to stringResource(R.string.custom_export_unit_size),
-                    )
-                    unitButtons.forEach { (unit, label) ->
-                        TextButton(
-                            onClick = {
-                                unitMode = unit
-                                setConfiguredCustomExportUnit(context, unit)
-                            },
-                            colors = ButtonDefaults.textButtonColors(
-                                containerColor = if (unitMode == unit) MaterialTheme.colorScheme.secondaryContainer
-                                else MaterialTheme.colorScheme.surface,
-                            ),
-                        ) { Text(label) }
-                    }
+                    SegmentedButton(
+                        selected = unitMode == CustomExportUnit.TIME,
+                        onClick = {
+                            unitMode = CustomExportUnit.TIME
+                            setConfiguredCustomExportUnit(context, CustomExportUnit.TIME)
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    ) { Text(stringResource(R.string.retention_time_label)) }
+                    SegmentedButton(
+                        selected = unitMode == CustomExportUnit.SIZE,
+                        onClick = {
+                            unitMode = CustomExportUnit.SIZE
+                            setConfiguredCustomExportUnit(context, CustomExportUnit.SIZE)
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    ) { Text(stringResource(R.string.custom_export_unit_size)) }
                 }
 
                 Spacer(Modifier.height(16.dp))
 
                 when {
+                    scopeMode == CustomExportMode.PAST && unitMode == CustomExportUnit.TIME -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = pastTimeText,
+                                onValueChange = { pastTimeText = it; pastTimeError = null },
+                                label = { Text(stringResource(R.string.custom_export_past_label)) },
+                                isError = pastTimeError != null,
+                                supportingText = pastTimeError?.let { { Text(it) } },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
+                            )
+                            IconButton(onClick = { submit() }) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_check),
+                                    contentDescription = stringResource(R.string.export),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+
+                    scopeMode == CustomExportMode.PAST && unitMode == CustomExportUnit.SIZE -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = pastSizeText,
+                                onValueChange = { pastSizeText = it; pastSizeError = null },
+                                label = { Text(stringResource(R.string.custom_export_past_label)) },
+                                isError = pastSizeError != null,
+                                supportingText = pastSizeError?.let { { Text(it) } },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
+                            )
+                            IconButton(onClick = { submit() }) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_check),
+                                    contentDescription = stringResource(R.string.export),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+
                     scopeMode == CustomExportMode.RANGE && unitMode == CustomExportUnit.TIME -> {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -967,7 +1176,8 @@ private fun ExportRangeDialog(
                                 supportingText = startTimeError?.let { { Text(it) } },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Next),
-                                modifier = Modifier.weight(1f),
+                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
                             )
                             OutlinedTextField(
                                 value = endTimeText,
@@ -1004,7 +1214,8 @@ private fun ExportRangeDialog(
                                 supportingText = startSizeError?.let { { Text(it) } },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-                                modifier = Modifier.weight(1f),
+                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
                             )
                             OutlinedTextField(
                                 value = endSizeText,
@@ -1026,60 +1237,7 @@ private fun ExportRangeDialog(
                             }
                         }
                     }
-
-                    scopeMode == CustomExportMode.PAST && unitMode == CustomExportUnit.TIME -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            OutlinedTextField(
-                                value = pastTimeText,
-                                onValueChange = { pastTimeText = it; pastTimeError = null },
-                                label = { Text(stringResource(R.string.custom_export_past_label)) },
-                                isError = pastTimeError != null,
-                                supportingText = pastTimeError?.let { { Text(it) } },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { submit() }),
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { submit() }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_check),
-                                    contentDescription = stringResource(R.string.export),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-
-                    scopeMode == CustomExportMode.PAST && unitMode == CustomExportUnit.SIZE -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            OutlinedTextField(
-                                value = pastSizeText,
-                                onValueChange = { pastSizeText = it; pastSizeError = null },
-                                label = { Text(stringResource(R.string.custom_export_past_label)) },
-                                isError = pastSizeError != null,
-                                supportingText = pastSizeError?.let { { Text(it) } },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { submit() }),
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { submit() }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_check),
-                                    contentDescription = stringResource(R.string.export),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
+                }
                 }
             }
         },
@@ -1094,13 +1252,25 @@ private fun startExport(
     scope: CoroutineScope,
     snackbarHostState: SnackbarHostState,
     setSaving: (Boolean) -> Unit,
+    onError: (String) -> Unit = {},
 ) {
     val s = service ?: return
     setSaving(true)
+    scope.launch {
+        val result = snackbarHostState.showSnackbar(
+            message = context.getString(R.string.saving),
+            actionLabel = context.getString(R.string.cancel),
+            duration = SnackbarDuration.Indefinite,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            setSaving(false)
+            s.cancelCurrentExport()
+        }
+    }
     s.dumpRecordingRange(
         range.startSeconds,
         range.endSeconds,
-        SaveResultReceiver(context, scope, snackbarHostState, setSaving),
+        SaveResultReceiver(context, scope, snackbarHostState, setSaving, onError),
         "",
     )
 }
@@ -1138,28 +1308,25 @@ private class SaveResultReceiver(
     private val scope: CoroutineScope,
     private val snackbarHostState: SnackbarHostState,
     private val setSaving: (Boolean) -> Unit,
+    private val onError: (String) -> Unit = {},
 ) : TimeTravelService.AudioFileReceiver {
+    private val appContext = context.applicationContext
     override fun fileReady(recording: RecordingEntity) {
+        setSaving(false)
         scope.launch {
-            val saved = RecordingRepository.register(context.applicationContext, recording)
-            setSaving(false)
-            val result = snackbarHostState.showSnackbar(
-                message = context.getString(R.string.saved_snackbar),
-                actionLabel = context.getString(R.string.open),
+            snackbarHostState.currentSnackbarData?.dismiss()
+            runCatching { RecordingRepository.register(appContext, recording) }
+            snackbarHostState.showSnackbar(
+                message = appContext.getString(R.string.saved_snackbar),
+                duration = SnackbarDuration.Short,
             )
-            if (result == SnackbarResult.ActionPerformed) {
-                try {
-                    context.startActivity(buildOpenRecordingIntent(context, saved))
-                } catch (_: Exception) {
-                    Toast.makeText(context, R.string.no_app_available, Toast.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 
-    override fun fileFailed(message: String) {
+    override fun fileFailed(message: String, error: Throwable?) {
         setSaving(false)
-        Toast.makeText(context, message.ifBlank { context.getString(R.string.save_failed) }, Toast.LENGTH_LONG).show()
+        val text = if (message.isBlank()) appContext.getString(R.string.save_failed) else message
+        onError(text)
     }
 
     override fun fileCancelled() {

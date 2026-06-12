@@ -13,9 +13,6 @@
     <string name="custom_time">사용자 지정 내보내기</string>
     <string name="reencode_history">기록 다시 인코딩</string>
     <string name="reencode_history_progress">다시 인코딩 중 %1$d%%</string>
-    <string name="reencode_history_done">기록을 다시 인코딩했습니다.</string>
-    <string name="reencode_history_failed">기록을 다시 인코딩할 수 없습니다.</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">범위</string>
     <string name="custom_export_mode_past">지난 시간</string>
     <string name="custom_export_unit_size">크기</string>
@@ -69,9 +66,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">비트레이트</string>
-    <string name="codec_bitrate_invalid">%1$d-%2$d kbps 범위를 사용하세요.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">샘플 레이트</string>
     <string name="audio_source_label">소스</string>
     <string name="channel_mode_label">채널</string>
@@ -136,7 +130,6 @@
     <string name="player_pause">일시정지</string>
     <string name="player_seek_back">10초 뒤로</string>
     <string name="player_seek_forward">10초 앞으로</string>
-    <string name="player_failed">녹음을 재생할 수 없습니다.</string>
     <string name="close">닫기</string>
     <plurals name="move_recordings_done">
         <item quantity="other">%1$d개의 녹음을 이동했습니다.</item>

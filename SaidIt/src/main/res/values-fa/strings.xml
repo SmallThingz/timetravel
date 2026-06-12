@@ -13,9 +13,6 @@
     <string name="custom_time">خروجی سفارشی</string>
     <string name="reencode_history">بازرمزگذاری تاریخچه</string>
     <string name="reencode_history_progress">بازرمزگذاری %1$d%%</string>
-    <string name="reencode_history_done">تاریخچه بازرمزگذاری شد.</string>
-    <string name="reencode_history_failed">بازرمزگذاری تاریخچه ممکن نشد.</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">بازه</string>
     <string name="custom_export_mode_past">گذشته</string>
     <string name="custom_export_unit_size">اندازه</string>
@@ -69,9 +66,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">نرخ بیت</string>
-    <string name="codec_bitrate_invalid">از %1$d-%2$d kbps استفاده کنید.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">نرخ نمونه‌برداری</string>
     <string name="audio_source_label">منبع</string>
     <string name="channel_mode_label">کانال‌ها</string>
@@ -136,7 +130,6 @@
     <string name="player_pause">مکث</string>
     <string name="player_seek_back">۱۰ ثانیه عقب</string>
     <string name="player_seek_forward">۱۰ ثانیه جلو</string>
-    <string name="player_failed">پخش ضبط ممکن نشد.</string>
     <string name="close">بستن</string>
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d ضبط منتقل شد.</item>

@@ -13,9 +13,6 @@
     <string name="custom_time">कस्टम निर्यात</string>
     <string name="reencode_history">इतिहास को फिर से एन्कोड करें</string>
     <string name="reencode_history_progress">फिर से एन्कोड हो रहा है %1$d%%</string>
-    <string name="reencode_history_done">इतिहास फिर से एन्कोड हो गया।</string>
-    <string name="reencode_history_failed">इतिहास फिर से एन्कोड नहीं किया जा सका।</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">रेंज</string>
     <string name="custom_export_mode_past">बीता समय</string>
     <string name="custom_export_unit_size">आकार</string>
@@ -69,9 +66,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">बिटरेट</string>
-    <string name="codec_bitrate_invalid">%1$d-%2$d kbps का उपयोग करें।</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">सैंपल दर</string>
     <string name="audio_source_label">स्रोत</string>
     <string name="channel_mode_label">चैनल</string>
@@ -136,7 +130,6 @@
     <string name="player_pause">रोकें</string>
     <string name="player_seek_back">10 सेकंड पीछे</string>
     <string name="player_seek_forward">10 सेकंड आगे</string>
-    <string name="player_failed">रिकॉर्डिंग चलाई नहीं जा सकी।</string>
     <string name="close">बंद करें</string>
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d रिकॉर्डिंग स्थानांतरित की गई।</item>

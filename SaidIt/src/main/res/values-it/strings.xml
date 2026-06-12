@@ -11,7 +11,6 @@
     <string name="clear_buffer">Svuota</string>
     <string name="record_all_memory">Esporta tutto</string>
     <string name="custom_time">Esportazione personalizzata</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_start_label">Inizio</string>
     <string name="custom_export_end_label">Fine</string>
     <string name="custom_export_range_invalid">La fine deve essere dopo l’inizio.</string>
@@ -48,9 +47,6 @@
     <string name="codec_xhe_aac">xHE-AAC</string>
     <string name="codec_amr_wb">AMR-WB</string>
     <string name="codec_amr_nb">AMR-NB</string>
-    <string name="codec_bitrate_label">Bitrate</string>
-    <string name="codec_bitrate_invalid">Usa %1$d-%2$d kbps.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">Frequenza</string>
     <string name="audio_source_label">Sorgente</string>
     <string name="channel_mode_label">Canali</string>
@@ -113,7 +109,6 @@
     <string name="player_pause">Pausa</string>
     <string name="player_seek_back">Indietro di 10 secondi</string>
     <string name="player_seek_forward">Avanti di 10 secondi</string>
-    <string name="player_failed">Impossibile riprodurre la registrazione.</string>
     <string name="close">Chiudi</string>
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d registrazione spostata.</item>
@@ -127,8 +122,6 @@
     </plurals>
     <string name="reencode_history">Ricodifica cronologia</string>
     <string name="reencode_history_progress">Ricodifica in corso %1$d%%</string>
-    <string name="reencode_history_done">Cronologia ricodificata.</string>
-    <string name="reencode_history_failed">Impossibile ricodificare la cronologia.</string>
     <string name="custom_export_mode_range">Intervallo</string>
     <string name="custom_export_mode_past">Passato</string>
     <string name="custom_export_unit_size">Dimensione</string>

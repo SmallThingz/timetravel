@@ -12,7 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +49,7 @@ private const val SEEK_JUMP_MS = 10_000
 fun RecordingPlayerDialog(
     recording: RecordingEntity,
     onDismiss: () -> Unit,
+    onInfoClick: () -> Unit,
     onPlaybackFailed: () -> Unit,
 ) {
     val context = LocalContext.current.applicationContext
@@ -94,7 +100,7 @@ fun RecordingPlayerDialog(
         }
         player.setOnErrorListener { _, _, _ ->
             if (!released) onPlaybackFailed()
-            released = true
+            releasePlayer()
             true
         }
         try {
@@ -127,17 +133,37 @@ fun RecordingPlayerDialog(
             releasePlayer()
             onDismiss()
         },
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = RoundedCornerShape(18.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = {
-            Text(
-                text = recording.displayName,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = recording.displayName,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onInfoClick) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = stringResource(R.string.recording_info),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -185,22 +211,28 @@ fun RecordingPlayerDialog(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(
-                        onClick = {
-                            val player = mediaPlayer ?: return@IconButton
-                            if (!prepared) return@IconButton
-                            val target = (currentPosition - SEEK_JUMP_MS).coerceAtLeast(0)
-                            player.seekTo(target)
-                            currentPosition = target
-                        },
-                        enabled = prepared,
-                        modifier = Modifier.size(48.dp),
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_seek_back),
-                            contentDescription = stringResource(R.string.player_seek_back),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        IconButton(
+                            onClick = {
+                                val player = mediaPlayer ?: return@IconButton
+                                if (!prepared) return@IconButton
+                                val target = (currentPosition - SEEK_JUMP_MS).coerceAtLeast(0)
+                                player.seekTo(target)
+                                currentPosition = target
+                            },
+                            enabled = prepared,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_seek_back),
+                                contentDescription = stringResource(R.string.player_seek_back),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     Spacer(Modifier.width(10.dp))
                     Surface(
@@ -234,22 +266,28 @@ fun RecordingPlayerDialog(
                         }
                     }
                     Spacer(Modifier.width(10.dp))
-                    IconButton(
-                        onClick = {
-                            val player = mediaPlayer ?: return@IconButton
-                            if (!prepared) return@IconButton
-                            val target = (currentPosition + SEEK_JUMP_MS).coerceAtMost(duration)
-                            player.seekTo(target)
-                            currentPosition = target
-                        },
-                        enabled = prepared,
-                        modifier = Modifier.size(48.dp),
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_seek_forward),
-                            contentDescription = stringResource(R.string.player_seek_forward),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        IconButton(
+                            onClick = {
+                                val player = mediaPlayer ?: return@IconButton
+                                if (!prepared) return@IconButton
+                                val target = (currentPosition + SEEK_JUMP_MS).coerceAtMost(duration)
+                                player.seekTo(target)
+                                currentPosition = target
+                            },
+                            enabled = prepared,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_seek_forward),
+                                contentDescription = stringResource(R.string.player_seek_forward),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

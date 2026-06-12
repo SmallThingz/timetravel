@@ -23,7 +23,8 @@ import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
-import android.widget.Toast
+
+
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.io.File
@@ -40,6 +41,7 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.*
 
 @SuppressLint("ImplicitSamInstance")
@@ -67,9 +69,6 @@ class TimeTravelService : Service() {
 
     @Volatile
     private var outputCodec = ExportCodec.PCM_16
-
-    @Volatile
-    private var outputBitrateKbps: Int = -1
 
     @Volatile
     private var inputRouteMode = InputRouteMode.AUTO
@@ -127,16 +126,17 @@ class TimeTravelService : Service() {
     private lateinit var exportWorkExecutor: ExecutorService
     private lateinit var persistentAudioRingStore: PersistentAudioRingStore
 
-    private var wakeLock: PowerManager.WakeLock? = null
+    @Volatile private var wakeLock: PowerManager.WakeLock? = null
 
-    private var statePollListeningEnabled = false
-    private var statePollRecording = false
-    @Volatile
-    private var statePollCallback: StateCallback? = null
-    private var statePollConfiguredRetentionBytes = 0L
-    private var statePollRetainedBytes = 0L
-    private var statePollMemorizedBytes = 0L
-    private var statePollFinalRecordedBytes = 0L
+    private val pendingError = AtomicReference<String?>(null)
+
+    @Volatile private var statePollListeningEnabled = false
+    @Volatile private var statePollRecording = false
+    @Volatile private var statePollCallback: StateCallback? = null
+    @Volatile private var statePollConfiguredRetentionBytes = 0L
+    @Volatile private var statePollRetainedBytes = 0L
+    @Volatile private var statePollMemorizedBytes = 0L
+    @Volatile private var statePollFinalRecordedBytes = 0L
 
     private val statePollAudioTask: Runnable = object : Runnable {
         override fun run() {
@@ -180,6 +180,7 @@ class TimeTravelService : Service() {
         loadConfiguration()
         persistentAudioRingStore = PersistentAudioRingStore(this)
         adoptPersistedBufferConfigurationIfNeeded()
+        refreshCachedBufferSizing()
         audioThread = HandlerThread(TimeTravelConfig.THREAD_NAME_AUDIO, Process.THREAD_PRIORITY_AUDIO).also { it.start() }
         audioHandler = Handler(audioThread.looper)
         exportThread = HandlerThread(TimeTravelConfig.THREAD_NAME_EXPORT, Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
@@ -208,11 +209,11 @@ class TimeTravelService : Service() {
         if (::exportWorkExecutor.isInitialized) {
             exportWorkExecutor.shutdownNow()
         }
+        scheduleRestartIfNeeded()
         persistentAudioRingStore.close()
         audioThread.quitSafely()
         exportThread.quitSafely()
         serviceScope.cancel()
-        scheduleRestartIfNeeded()
         super.onDestroy()
     }
 
@@ -314,7 +315,6 @@ class TimeTravelService : Service() {
         audioSource = selectedSourceMode.sourceValue
         outputFormat = selectedFormat
         outputCodec = selectedCodec
-        outputBitrateKbps = getConfiguredCodecBitrateKbps(this, outputCodec, sampleRate, channelMode.channelCount) ?: -1
         inputRouteMode = selectedRouteMode
         refreshCachedBufferSizing()
     }
@@ -463,22 +463,6 @@ class TimeTravelService : Service() {
         }
     }
 
-    private fun innerPauseListening() {
-        when (state) {
-            STATE_READY, STATE_PAUSED, STATE_RECORDING -> return
-            STATE_LISTENING -> Unit
-            else -> return
-        }
-
-        state = STATE_PAUSED
-        updateWakeLockState()
-        audioHandler.post {
-            audioHandler.removeCallbacks(audioReader)
-            syncPersistentBufferFromMemory()
-            releaseAudioRecord()
-        }
-    }
-
     private fun innerStopListening() {
         when (state) {
             STATE_READY, STATE_RECORDING -> return
@@ -581,6 +565,7 @@ class TimeTravelService : Service() {
 
     fun cancelCurrentExport(): Boolean {
         val token = activeExportToken ?: return false
+        if (activeExportToken !== token) return cancelCurrentExport()
         val future = activeExportFuture
         val receiver = activeExportReceiver
         token.cancelled.set(true)
@@ -627,7 +612,7 @@ class TimeTravelService : Service() {
                             Log.e(TAG, "Unable to prepare export file", e)
                             val message = errorMessageWithStack(getString(R.string.cant_create_file_generic), e)
                             showToast(message)
-                            notifyReceiverFailure(receiver, message)
+                            notifyReceiverFailure(receiver, message, e)
                             return@Callable Unit
                         }
                         var durationMillis = 0L
@@ -667,7 +652,7 @@ class TimeTravelService : Service() {
                             e,
                         )
                         showToast(message)
-                        notifyReceiverFailure(receiver, message)
+                        notifyReceiverFailure(receiver, message, e)
                         deleteIfEmpty(outTarget)
                     } finally {
                         if (exportToken.cancelled.get()) {
@@ -847,13 +832,13 @@ class TimeTravelService : Service() {
     }
 
     fun stopRecording(receiver: AudioFileReceiver?) {
-        if (state != STATE_RECORDING) {
-            return
-        }
-
-        state = STATE_LISTENING
-        updateWakeLockState()
         audioHandler.post {
+            if (state != STATE_RECORDING) {
+                return@post
+            }
+
+            state = STATE_LISTENING
+            updateWakeLockState()
             flushAudioRecord()
 
             val writer = audioFileWriter
@@ -870,10 +855,12 @@ class TimeTravelService : Service() {
                 .onFailure { Log.e(TAG, "Error while closing recording file", it) }
             runCatching { requireExportedOutput(target) }
                 .onFailure {
-                    Log.e(TAG, "Recorded output missing or empty", it)
+                    val error = it
+                    Log.e(TAG, "Recorded output missing or empty", error)
                     notifyReceiverFailure(
                         receiver,
-                        errorMessageWithStack(getString(R.string.error_during_writing_history_into) + target.displayName, it),
+                        errorMessageWithStack(getString(R.string.error_during_writing_history_into) + target.displayName, error),
+                        error,
                     )
                     return@post
                 }
@@ -888,10 +875,6 @@ class TimeTravelService : Service() {
                 ),
             )
         }
-
-        if (!isListeningEnabled()) {
-            innerPauseListening()
-        }
     }
 
     private fun notifyReceiver(
@@ -905,9 +888,10 @@ class TimeTravelService : Service() {
     private fun notifyReceiverFailure(
         receiver: AudioFileReceiver?,
         message: String,
+        error: Throwable? = null,
     ) {
         receiver ?: return
-        mainHandler.post { receiver.fileFailed(message) }
+        mainHandler.post { receiver.fileFailed(message, error) }
     }
 
     private fun notifyReceiverCancelled(receiver: AudioFileReceiver?) {
@@ -981,11 +965,6 @@ class TimeTravelService : Service() {
             channelMode.channelCount,
             null,
         )
-    }
-
-    private fun configuredCodecBitrateKbps(): Int {
-        val kbps = outputBitrateKbps
-        return if (kbps >= 0) kbps else (getConfiguredCodecBitrateKbps(this, effectiveOutputCodec, sampleRate, channelMode.channelCount) ?: -1)
     }
 
     private fun configuredRetentionSampleBytes(): Long {
@@ -1127,6 +1106,10 @@ class TimeTravelService : Service() {
         )
     }
 
+    fun hasBufferedAudio(): Boolean {
+        return availableBufferedSampleBytes() > 0L
+    }
+
     fun clearBuffer() {
         if (state == STATE_RECORDING) {
             return
@@ -1206,10 +1189,10 @@ class TimeTravelService : Service() {
             .build()
     }
 
+    fun consumePendingError(): String? = pendingError.getAndSet(null)
+
     private fun showToast(message: String) {
-        mainHandler.post {
-            Toast.makeText(this@TimeTravelService, message, Toast.LENGTH_LONG).show()
-        }
+        pendingError.set(message)
     }
 
     private fun errorMessageWithStack(message: String, error: Throwable): String {
@@ -1334,19 +1317,14 @@ class TimeTravelService : Service() {
                     val prefs = getRecorderPreferences(this@TimeTravelService)
                     val format = intent.getStringExtra(EXTRA_DEBUG_FORMAT)
                     val codec = intent.getStringExtra(EXTRA_DEBUG_CODEC)
-                    val bitrateKbps = intent.getIntExtra(EXTRA_DEBUG_BITRATE_KBPS, Int.MIN_VALUE)
                     prefs.edit().apply {
                         format?.let { putString(PrefKey.OUTPUT_FORMAT, it) }
                         codec?.let { putString(PrefKey.OUTPUT_CODEC, it) }
-                        if (bitrateKbps != Int.MIN_VALUE) {
-                            putInt(PrefKey.OUTPUT_BITRATE_KBPS, bitrateKbps)
-                        }
                     }.apply()
                     writeDebugReport(
                         "set-output-config:" +
                             "format=${format ?: "(unchanged)"}," +
-                            "codec=${codec ?: "(unchanged)"}," +
-                            "bitrate=${if (bitrateKbps == Int.MIN_VALUE) "(unchanged)" else bitrateKbps}",
+                            "codec=${codec ?: "(unchanged)"}",
                     )
                 }
                 ACTION_DEBUG_APPLY_SETTINGS -> {
@@ -1461,7 +1439,6 @@ class TimeTravelService : Service() {
             }
         reportFile.appendText(status + "\n---\n")
         Log.d(TAG, "writeDebugReport $status path=${reportFile.absolutePath}")
-        storeDebugStatus(status)
     }
 
     private fun resolveDebugReportFile(): File {
@@ -1470,14 +1447,6 @@ class TimeTravelService : Service() {
             throw IOException("Unable to create recordings directory: ${directory.absolutePath}")
         }
         return File(directory, DEBUG_REPORT_FILE_NAME)
-    }
-
-    private fun storeDebugStatus(status: String) {
-        runCatching {
-            val clazz = Class.forName(DEBUG_STATUS_STORE_CLASS_NAME)
-            val method = clazz.getMethod("write", Context::class.java, String::class.java)
-            method.invoke(null, this, status)
-        }.onFailure { Log.w(TAG, "storeDebugStatus failed — class $DEBUG_STATUS_STORE_CLASS_NAME not available", it) }
     }
 
     private fun isDebuggableBuild(): Boolean {
@@ -1560,7 +1529,7 @@ class TimeTravelService : Service() {
     interface AudioFileReceiver {
         fun fileReady(recording: RecordingEntity)
 
-        fun fileFailed(message: String) = Unit
+        fun fileFailed(message: String, error: Throwable? = null) = Unit
 
         fun fileCancelled() = Unit
     }
@@ -1619,8 +1588,6 @@ class TimeTravelService : Service() {
         const val FOREGROUND_NOTIFICATION_ID = 458
         const val MIN_AUDIO_RECORD_BUFFER_SIZE = 16 * 1024
         const val FULL_BUFFER_SECONDS = 60f * 60f * 24f * 365f
-        const val HISTORY_COMPACTION_MIN_IDLE_DELAY_MS = 1_500L
-        const val HISTORY_COMPACTION_MAX_IDLE_DELAY_MS = 30_000L
         const val DEBUG_ACTION_PREFIX = TimeTravelConfig.DEBUG_ACTION_PREFIX
         val nextExportTokenId = AtomicLong(1L)
         const val ACTION_DEBUG_ENABLE_LISTENING = "${DEBUG_ACTION_PREFIX}ENABLE_LISTENING"
@@ -1639,9 +1606,8 @@ class TimeTravelService : Service() {
         const val EXTRA_DEBUG_SECONDS = TimeTravelConfig.EXTRA_SECONDS
         const val EXTRA_DEBUG_FORMAT = TimeTravelConfig.EXTRA_FORMAT
         const val EXTRA_DEBUG_CODEC = TimeTravelConfig.EXTRA_CODEC
-        const val EXTRA_DEBUG_BITRATE_KBPS = TimeTravelConfig.EXTRA_BITRATE_KBPS
         const val DEBUG_REPORT_FILE_NAME = "debug-report.txt"
-        const val DEBUG_STATUS_STORE_CLASS_NAME = "app.smallthingz.timetravel.DebugStatusStore"
+
         const val WAKE_LOCK_TAG_SUFFIX = ":timeTravelBuffer"
 
         const val STATE_READY = 0

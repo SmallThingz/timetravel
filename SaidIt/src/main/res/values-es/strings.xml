@@ -11,7 +11,6 @@
     <string name="clear_buffer">Borrar</string>
     <string name="record_all_memory">Exportar todo</string>
     <string name="custom_time">Exportar personalizado</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">Rango</string>
     <string name="custom_export_mode_past">Atrás</string>
     <string name="custom_export_unit_size">Tamaño</string>
@@ -65,9 +64,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">Tasa de bits</string>
-    <string name="codec_bitrate_invalid">Usa %1$d-%2$d kbps.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">Frecuencia</string>
     <string name="audio_source_label">Fuente</string>
     <string name="channel_mode_label">Canales</string>
@@ -120,8 +116,6 @@
     <string name="recording_info">Información</string>
     <string name="reencode_history">Recodificar historial</string>
     <string name="reencode_history_progress">Recodificando %1$d%%</string>
-    <string name="reencode_history_done">Historial recodificado.</string>
-    <string name="reencode_history_failed">No se pudo recodificar el historial.</string>
     <string name="about_version">Versión %1$s</string>
     <string name="recording_details_name">Nombre:</string>
     <string name="recording_details_started">Inicio:</string>
@@ -135,7 +129,6 @@
     <string name="player_pause">Pausar</string>
     <string name="player_seek_back">Retroceder 10 segundos</string>
     <string name="player_seek_forward">Avanzar 10 segundos</string>
-    <string name="player_failed">No se pudo reproducir la grabación.</string>
     <string name="close">Cerrar</string>
     <plurals name="move_recordings_done">
         <item quantity="one">Se movió %1$d grabación.</item>

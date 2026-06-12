@@ -5,7 +5,6 @@ import android.content.Context
 import android.widget.Toast
 import java.util.Date
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,9 +18,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -29,22 +34,22 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -52,6 +57,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +71,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -80,7 +91,6 @@ private sealed class ListItem {
     ) : ListItem()
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FilesScreen() {
     val context = LocalContext.current
@@ -92,11 +102,11 @@ fun FilesScreen() {
 
     val selectedIds = remember { mutableStateMapOf<String, RecordingEntity>() }
     val pendingDeletions = remember { mutableStateMapOf<String, RecordingEntity>() }
-    var showRenameDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameRecording by remember { mutableStateOf<RecordingEntity?>(null) }
-    var showInfoDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by rememberSaveable { mutableStateOf(false) }
     var infoRecording by remember { mutableStateOf<RecordingEntity?>(null) }
-    var showPlayerDialog by remember { mutableStateOf(false) }
+    var showPlayerDialog by rememberSaveable { mutableStateOf(false) }
     var playerRecording by remember { mutableStateOf<RecordingEntity?>(null) }
 
     fun refresh() {
@@ -121,18 +131,6 @@ fun FilesScreen() {
 
     LaunchedEffect(Unit) { refresh() }
 
-    fun clearSelection() {
-        selectedIds.clear()
-    }
-
-    val visibleRecordings by remember {
-        derivedStateOf { recordings.filterNot { it.id in pendingDeletions } }
-    }
-
-    val listItems by remember {
-        derivedStateOf { buildListItems(context, visibleRecordings) }
-    }
-
     fun finalizeDeletions() {
         val pending = pendingDeletions.values.toList()
         if (pending.isEmpty()) return
@@ -148,6 +146,41 @@ fun FilesScreen() {
                 Toast.makeText(context, R.string.recording_delete_failed, Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                scope.launch { refresh() }
+            }
+            if (event == Lifecycle.Event.ON_STOP && pendingDeletions.isNotEmpty()) {
+                scope.launch { finalizeDeletions() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (pendingDeletions.isNotEmpty()) {
+                val pending = pendingDeletions.values.toList()
+                pendingDeletions.clear()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    pending.forEach { RecordingRepository.delete(context.applicationContext, it) }
+                }
+            }
+        }
+    }
+
+    fun clearSelection() {
+        selectedIds.clear()
+    }
+
+    val visibleRecordings by remember {
+        derivedStateOf { recordings.filterNot { it.id in pendingDeletions } }
+    }
+
+    val listItems by remember {
+        derivedStateOf { buildListItems(context, visibleRecordings) }
     }
 
     fun deleteSelected() {
@@ -190,18 +223,26 @@ fun FilesScreen() {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (selectionActive) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            pluralStringResource(R.plurals.recordings_selected, selectedIds.size, selectedIds.size),
-                        )
-                    },
-                    navigationIcon = {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         IconButton(onClick = { clearSelection() }) {
                             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
                         }
-                    },
-                    actions = {
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = pluralStringResource(R.plurals.recordings_selected, selectedIds.size, selectedIds.size),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.weight(1f))
                         if (selectedIds.size == 1) {
                             IconButton(onClick = { renameSelected() }) {
                                 Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.rename_recording))
@@ -212,11 +253,17 @@ fun FilesScreen() {
                                 Icon(Icons.Default.Info, contentDescription = stringResource(R.string.recording_info))
                             }
                         }
-                        IconButton(onClick = { deleteSelected() }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_recording))
+                        if (selectedIds.isNotEmpty()) {
+                            IconButton(onClick = { deleteSelected() }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = stringResource(R.string.delete_recording),
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            }
                         }
-                    },
-                )
+                    }
+                }
             }
         },
     ) { innerPadding ->
@@ -228,14 +275,27 @@ fun FilesScreen() {
                 .padding(innerPadding),
         ) {
             if (listItems.isEmpty() && !isRefreshing) {
-                EmptyState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    EmptyState()
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
                 ) {
-                    items(listItems, key = { it.hashCode() }) { item ->
+                    items(listItems, key = { item ->
+                        when (item) {
+                            is ListItem.Header -> "header:${item.dateLabel}"
+                            is ListItem.Recording -> "recording:${item.recording.id}"
+                        }
+                    }) { item ->
                         when (item) {
                             is ListItem.Header -> HeaderItem(item.dateLabel)
                             is ListItem.Recording -> {
@@ -272,41 +332,59 @@ fun FilesScreen() {
         }
     }
 
-    if (showRenameDialog && renameRecording != null) {
-        RenameRecordingDialog(
-            recording = renameRecording!!,
-            onDismiss = { showRenameDialog = false; renameRecording = null },
-            onRenamed = {
-                showRenameDialog = false
-                renameRecording = null
-                clearSelection()
-                refresh()
-            },
-        )
+    if (showRenameDialog) {
+        if (renameRecording == null) {
+            showRenameDialog = false
+        } else {
+            RenameRecordingDialog(
+                recording = renameRecording ?: return,
+                onDismiss = { showRenameDialog = false; renameRecording = null },
+                onRenamed = {
+                    showRenameDialog = false
+                    renameRecording = null
+                    clearSelection()
+                    refresh()
+                },
+            )
+        }
     }
 
-    if (showInfoDialog && infoRecording != null) {
-        RecordingInfoDialogContent(
-            recording = infoRecording!!,
-            onDismiss = { showInfoDialog = false; infoRecording = null },
-        )
+    if (showInfoDialog) {
+        if (infoRecording == null) {
+            showInfoDialog = false
+        } else {
+            RecordingInfoDialogContent(
+                recording = infoRecording ?: return,
+                onDismiss = { showInfoDialog = false; infoRecording = null },
+            )
+        }
     }
 
-    if (showPlayerDialog && playerRecording != null) {
-        val currentRecording = playerRecording!!
-        RecordingPlayerDialog(
-            recording = currentRecording,
-            onDismiss = { showPlayerDialog = false; playerRecording = null },
-            onPlaybackFailed = {
-                showPlayerDialog = false
-                playerRecording = null
-                try {
-                    context.startActivity(buildOpenRecordingIntent(context, currentRecording))
-                } catch (_: ActivityNotFoundException) {
-                    Toast.makeText(context, R.string.no_app_available, Toast.LENGTH_SHORT).show()
-                }
-            },
-        )
+    if (showPlayerDialog) {
+        if (playerRecording == null) {
+            showPlayerDialog = false
+        } else {
+            val currentRecording = playerRecording ?: return
+            RecordingPlayerDialog(
+                recording = currentRecording,
+                onDismiss = { showPlayerDialog = false; playerRecording = null },
+                onInfoClick = {
+                    showPlayerDialog = false
+                    playerRecording = null
+                    infoRecording = currentRecording
+                    showInfoDialog = true
+                },
+                onPlaybackFailed = {
+                    showPlayerDialog = false
+                    playerRecording = null
+                    try {
+                        context.startActivity(buildOpenRecordingIntent(context, currentRecording))
+                    } catch (_: ActivityNotFoundException) {
+                        Toast.makeText(context, R.string.no_app_available, Toast.LENGTH_SHORT).show()
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -344,7 +422,6 @@ private fun HeaderItem(dateLabel: String) {
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecordingItem(
     item: ListItem.Recording,
@@ -354,16 +431,17 @@ private fun RecordingItem(
     onLongClick: () -> Unit,
 ) {
     val bgColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
-        else MaterialTheme.colorScheme.surface,
+        targetValue = if (isSelected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+        else MaterialTheme.colorScheme.surfaceContainerLow,
         label = "bg",
     )
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
+            .alpha(if (selectionActive && !isSelected) 0.75f else 1f)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -377,7 +455,7 @@ private fun RecordingItem(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
@@ -432,55 +510,76 @@ private fun RenameRecordingDialog(
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(recording.displayName.substringBeforeLast('.', recording.displayName)) }
     var error by remember { mutableStateOf<String?>(null) }
+    val illegalChars = setOf('\\', '/', '*', '?', '"', '<', '>', '|')
+
+    fun validateAndRename(trimmed: String) {
+        if (trimmed.isBlank()) {
+            error = context.getString(R.string.rename_recording_invalid)
+            return
+        }
+        if (trimmed.any { it in illegalChars }) {
+            error = context.getString(R.string.rename_recording_illegal_chars)
+            return
+        }
+        scope.launch {
+            val renamed = RecordingRepository.rename(context, recording, trimmed)
+            if (renamed == null) {
+                error = context.getString(R.string.rename_recording_failed)
+            } else {
+                onRenamed()
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.rename_recording)) },
+        shape = RoundedCornerShape(18.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.rename_recording))
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
         text = {
-            Column {
-                TextField(
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
                     value = name,
                     onValueChange = { name = it; error = null },
+                    modifier = Modifier.weight(1f),
                     singleLine = true,
                     isError = error != null,
-                    supportingText = error?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
-                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = error?.let { { Text(it) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { validateAndRename(name.trim()) })
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = { validateAndRename(name.trim()) },
+                    enabled = error == null
                 ) {
-                    Button(
-                        onClick = {
-                            val trimmed = name.trim()
-                            if (trimmed.isBlank()) {
-                                error = context.getString(R.string.rename_recording_invalid)
-                                return@Button
-                            }
-                            scope.launch {
-                                val renamed = RecordingRepository.rename(context, recording, trimmed)
-                                if (renamed == null) {
-                                    error = context.getString(R.string.rename_recording_failed)
-                                } else {
-                                    onRenamed()
-                                }
-                            }
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_check),
-                            contentDescription = stringResource(R.string.done),
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_check),
+                        contentDescription = stringResource(R.string.rename_recording),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         },
         confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
     )
 }
 
@@ -516,14 +615,20 @@ private fun RecordingInfoDialogContent(
             }
         },
         text = {
-            Text(
-                text = detailsText,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    lineHeight = 24.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+            ) {
+                Text(
+                    text = detailsText,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 24.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         },
         confirmButton = {},
     )
@@ -534,7 +639,7 @@ private fun buildRecordingDetailsText(context: Context, recording: RecordingEnti
     val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
     val startedAt = Date(recording.startedAtMillis)
     val sizeText = formatShortFileSize(recording.sizeBytes)
-    val durationText = formatSavedRecordingDuration(recording.durationMillis)
+    val durationText = formatSavedRecordingDuration(context, recording.durationMillis)
 
     return buildString {
         appendLine("${context.getString(R.string.recording_details_name)} ${recording.displayName}")
@@ -544,7 +649,7 @@ private fun buildRecordingDetailsText(context: Context, recording: RecordingEnti
         appendLine("${context.getString(R.string.recording_details_codec)} ${recording.codecSummary}")
         appendLine("${context.getString(R.string.recording_details_mime)} ${recording.mimeType}")
         appendLine("${context.getString(R.string.recording_details_storage)} ${recording.storageType}")
-        append("${context.getString(R.string.recording_details_location)} ${recording.directoryId}")
+        append("${context.getString(R.string.recording_details_location)} ${describeRecordingLocation(context, recording)}")
     }
 }
 
@@ -562,7 +667,7 @@ private fun buildListItems(context: Context, recordings: List<RecordingEntity>):
                 recording = recording,
                 timestampLabel = formatRecordingStartTimestamp(context, recording.startedAtMillis),
                 fileName = recording.displayName,
-                durationLabel = "${formatSavedRecordingDuration(recording.durationMillis)} \u2022 ${recording.codecSummary}",
+                durationLabel = "${formatSavedRecordingDuration(context, recording.durationMillis)} \u2022 ${recording.codecSummary}",
                 sizeLabel = formatShortFileSize(recording.sizeBytes),
             ),
         )

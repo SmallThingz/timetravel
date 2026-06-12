@@ -1,6 +1,7 @@
 package app.smallthingz.timetravel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -66,13 +67,6 @@ class FormattingAndHistoryMathTest {
         assertEquals("0.0 MiB", formatShortFileSize(1024))
         assertEquals("0.0 MiB", formatShortFileSize(1536))
         assertEquals("1.0 MiB", formatShortFileSize(1024 * 1024))
-    }
-
-    @Test
-    fun formatSavedRecordingDuration_handlesShortAndLongClips() {
-        assertEquals("5 s", formatSavedRecordingDuration(5_000))
-        assertEquals("2m 5s", formatSavedRecordingDuration(125_000))
-        assertEquals("1h 2m", formatSavedRecordingDuration(3_720_000))
     }
 
     @Test
@@ -230,4 +224,185 @@ class FormattingAndHistoryMathTest {
         assertEquals(source[120_000], collected.first())
         assertEquals(source[419_999], collected.last())
     }
+
+    @Test
+    fun parseDurationInput_rejectsOverflowInput() {
+        assertEquals(null, parseDurationInput("35791395"))
+        assertEquals(null, parseDurationInput("100000000"))
+        assertEquals(null, parseDurationInput("99999:99:99"))
+    }
+
+    @Test
+    fun parseDurationInput_handlesZeroInput() {
+        assertEquals(null, parseDurationInput("0"))
+        assertEquals(null, parseDurationInput("0:00"))
+        assertEquals(null, parseDurationInput("0:0:0"))
+        assertEquals(null, parseDurationInput(""))
+        assertEquals(null, parseDurationInput("   "))
+    }
+
+    @Test
+    fun parseDurationInput_acceptsLargeButValidInput() {
+        val maxMinutes = 35791394
+        assertEquals(maxMinutes * 60, parseDurationInput(maxMinutes.toString()))
+        assertEquals(23 * 3600 + 59 * 60 + 59, parseDurationInput("23:59:59"))
+    }
+
+    @Test
+    fun parseDurationInput_rejectsInvalidParts() {
+        assertEquals(null, parseDurationInput("abc"))
+        assertEquals(null, parseDurationInput("5:abc"))
+        assertEquals(null, parseDurationInput("1:2:3:4"))
+        assertEquals(null, parseDurationInput("1:99"))
+        assertEquals(null, parseDurationInput("1:2:99"))
+        assertEquals(null, parseDurationInput("-5"))
+    }
+
+    @Test
+    fun audioMemory_allocateReducesSizeCorrectly() {
+        val memory = AudioMemory()
+        memory.allocate(960_000L)
+        assertTrue(memory.allocatedMemorySize >= 960_000L)
+
+        memory.allocate(480_000L)
+        assertTrue(memory.allocatedMemorySize <= 960_000L)
+        assertTrue(memory.allocatedMemorySize >= 480_000L)
+    }
+
+    @Test
+    fun audioMemory_clearRecyclesBuffers() {
+        val memory = AudioMemory()
+        memory.allocate(960_000L)
+        val source = ByteArray(600_000) { 42 }
+        memory.write(source, 0, source.size)
+        assertEquals(600_000L, memory.countFilled())
+
+        memory.clear()
+        assertEquals(0L, memory.countFilled())
+
+        memory.write(source, 0, source.size)
+        assertEquals(600_000L, memory.countFilled())
+    }
+
+    @Test
+    fun audioMemory_writeSilentlyDropsWhenOutOfCapacity() {
+        val memory = AudioMemory()
+        // Not allocated — write has no buffers
+        val data = ByteArray(100) { 1 }
+        memory.write(data, 0, data.size)
+        assertEquals(0L, memory.countFilled())
+    }
+
+    @Test
+    fun audioMemory_readWithSkipReadsCorrectWindow() {
+        val memory = AudioMemory()
+        memory.allocate(960_000L)
+        val source = ByteArray(480_000) { (it % 256).toByte() }
+        memory.write(source, 0, source.size)
+
+        val collected = ArrayList<Byte>()
+        memory.read(0, 480_000) { array, offset, count ->
+            repeat(count) { i -> collected += array[offset + i] }
+            count
+        }
+        assertEquals(480_000, collected.size)
+        assertEquals(source[0], collected.first())
+        assertEquals(source[479_999], collected.last())
+    }
+
+    @Test
+    fun audioMemory_readExhaustiveSequential() {
+        val memory = AudioMemory()
+        memory.allocate(960_000L)
+        val source = ByteArray(720_000) { (it % 256).toByte() }
+        memory.write(source, 0, source.size)
+
+        // Read near-end — should wrap across chunks
+        val collected = ArrayList<Byte>()
+        val skip = 600_000L
+        val take = 100_000L
+        memory.read(skip, take) { array, offset, count ->
+            repeat(count) { i -> collected += array[offset + i] }
+            count
+        }
+        assertEquals(take, collected.size.toLong())
+        assertEquals(source[skip.toInt()], collected.first())
+        assertEquals(source[(skip + take - 1).toInt()], collected.last())
+    }
+
+    @Test
+    fun bytesForRetentionSeconds_handlesZeroAndNegativeInput() {
+        assertEquals(0L, bytesForRetentionSeconds(0, 44_100, 1))
+        assertEquals(0L, bytesForRetentionSeconds(-1, 44_100, 1))
+        assertEquals(0L, bytesForRetentionSeconds(100, 0, 1))
+        assertEquals(0L, bytesForRetentionSeconds(100, 44_100, 0))
+    }
+
+    @Test
+    fun retentionSecondsForBytes_handlesZeroAndEdgeCases() {
+        assertEquals(0L, retentionSecondsForBytes(0, 44_100, 1))
+        assertEquals(0L, retentionSecondsForBytes(100, 0, 1))
+        assertEquals(0L, retentionSecondsForBytes(100, 44_100, 0))
+        val mono48k16bit = bytesForRetentionSeconds(1, 48_000, 1, PcmSampleFormat.PCM_16)
+        assertEquals(10L, retentionSecondsForBytes(mono48k16bit * 10, 48_000, 1))
+    }
+
+    @Test
+    fun estimateExportSizeRoundTrip_matchesConfiguredSize() {
+        val configuredBytes = 100_000_000L
+        val seconds = estimateExportDurationSeconds(
+            format = ExportFormat.WAV, codec = ExportCodec.PCM_16,
+            sampleRate = 44_100, channelCount = 1,
+            sizeBytes = configuredBytes,
+            sampleFormat = PcmSampleFormat.PCM_16,
+        )
+        assertTrue(seconds > 0L)
+        val backToBytes = bytesForRetentionSeconds(seconds, 44_100, 1, PcmSampleFormat.PCM_16)
+        // Round-trip should be within one seconds-worth of bytes of configured
+        val bps = 44_100L * 1L * PcmSampleFormat.PCM_16.bytesPerSample
+        assertTrue(backToBytes <= configuredBytes)
+        assertTrue(backToBytes + bps >= configuredBytes)
+    }
+
+    @Test
+    fun estimateExportDuration_respectsSampleFormat() {
+        val pcm8 = estimateExportDurationSeconds(
+            format = ExportFormat.WAV, codec = ExportCodec.PCM_16,
+            sampleRate = 44_100, channelCount = 1,
+            sizeBytes = 1_000_000L,
+            sampleFormat = PcmSampleFormat.PCM_8,
+        )
+        val pcm16 = estimateExportDurationSeconds(
+            format = ExportFormat.WAV, codec = ExportCodec.PCM_16,
+            sampleRate = 44_100, channelCount = 1,
+            sizeBytes = 1_000_000L,
+            sampleFormat = PcmSampleFormat.PCM_16,
+        )
+        val pcmFloat = estimateExportDurationSeconds(
+            format = ExportFormat.WAV, codec = ExportCodec.PCM_16,
+            sampleRate = 44_100, channelCount = 1,
+            sizeBytes = 1_000_000L,
+            sampleFormat = PcmSampleFormat.PCM_FLOAT,
+        )
+        // PCM_8 fits 4x more duration than PCM_FLOAT in same byte budget
+        assertTrue(pcm8 in (pcm16 * 2 - 1)..(pcm16 * 2 + 1))
+        assertTrue(pcmFloat in (pcm16 / 2 - 1)..(pcm16 / 2 + 1))
+    }
+
+    @Test
+    fun formatDurationInput_handlesEdgeCases() {
+        assertEquals("0:00", formatDurationInput(0))
+        assertEquals("0:01", formatDurationInput(1))
+        assertEquals("59:59", formatDurationInput(3599))
+        assertEquals("1:00:00", formatDurationInput(3600))
+        assertEquals("99:59:59", formatDurationInput(359999))
+    }
+
+    @Test
+    fun orderSampleRatesByPreference_handlesEmptyAndDuplicateInput() {
+        assertEquals(emptyList<Int>(), orderSampleRatesByPreference(emptyList(), 44_100))
+        assertEquals(listOf(44_100), orderSampleRatesByPreference(listOf(44_100, 44_100), 44_100))
+        assertEquals(listOf(44_100, 48_000, 96_000), orderSampleRatesByPreference(listOf(96_000, 48_000, 44_100), 44_100))
+    }
+
 }

@@ -18,10 +18,6 @@ repositories {
     mavenCentral()
 }
 
-configurations.all {
-    exclude group: 'androidx.profileinstaller', module: 'profileinstaller'
-}
-
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 kotlin {
@@ -124,4 +120,6 @@ dependencies {
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-tooling-preview'
+
+    testImplementation 'junit:junit:4.13.2'
 }

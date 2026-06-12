@@ -19,9 +19,6 @@
     <string name="custom_time">Export custom</string>
     <string name="reencode_history">Re-encode history</string>
     <string name="reencode_history_progress">Re-encoding %1$d%%</string>
-    <string name="reencode_history_done">History re-encoded.</string>
-    <string name="reencode_history_failed">Couldn\'t re-encode history.</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">Range</string>
     <string name="custom_export_mode_past">Past</string>
     <string name="custom_export_unit_size">Size</string>
@@ -29,7 +26,6 @@
     <string name="custom_export_end_label">End</string>
     <string name="custom_export_range_invalid">End must be after start.</string>
     <string name="custom_export_past_label">How far back</string>
-    <string name="custom_export_size_hint" translatable="false">12.0</string>
     <string name="custom_export_size_invalid">Use MiB value like 12.0.</string>
     <string name="export_limit_summary">Max export: %1$s</string>
     <string name="export_limit_dialog_title">Export limit</string>
@@ -37,6 +33,9 @@
     <string name="saving">Saving…</string>
     <string name="saved_snackbar">Saved</string>
     <string name="save_failed">Couldn\'t save recording.</string>
+    <string name="error">Error</string>
+    <string name="copy">Copy</string>
+    <string name="share">Share</string>
     <string name="nothing_to_export">Nothing to export.</string>
     <string name="open">Open</string>
     <string name="allow">Allow</string>
@@ -44,6 +43,9 @@
     <string name="done">Done</string>
     <string name="export">Export</string>
     <string name="no_app_available">No compatible app available.</string>
+
+    <string name="export_limit_label">Export limit: %1$s</string>
+    <string name="estimated_file_size_label">Estimated file size: %1$s MiB</string>
 
     <string name="undo">Undo</string>
     <string name="theme_title">Theme</string>
@@ -77,9 +79,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">Bitrate</string>
-    <string name="codec_bitrate_invalid">Use %1$d-%2$d kbps.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_format_label">Bit depth</string>
     <string name="sample_format_pcm_8">8-bit integer</string>
     <string name="sample_format_pcm_16">16-bit integer</string>
@@ -120,6 +119,10 @@
     <string name="settings_saved_reencode_history">Saved. Re-encode history to export again.</string>
     <string name="settings_saved_deferred_input">Saved. Input changes apply next time.</string>
     <string name="settings_apply_blocked_recording">Stop recording first.</string>
+    <string name="settings_buffer_reset_warning">Change capture settings</string>
+    <string name="settings_buffer_reset_warning_body">Changing the sample rate or bit format will reset the current buffer position. All buffered audio will be discarded.</string>
+    <string name="settings_buffer_reset_confirm">Reset &amp; apply</string>
+    <string name="settings_buffer_reset_cancel">Cancel</string>
     <string name="unsupported_config_message">Not supported.</string>
     <string name="audio_input_init_failed">Couldn\'t start microphone.</string>
     <string name="custom_memory_size_invalid">Enter a valid number.</string>
@@ -131,6 +134,7 @@
     <string name="delete_recording">Delete</string>
     <string name="rename_recording">Rename</string>
     <string name="rename_recording_invalid">Enter a valid name.</string>
+    <string name="rename_recording_illegal_chars">Name contains invalid characters.</string>
     <string name="rename_recording_failed">Couldn\'t rename recording.</string>
     <string name="clear_selection">Clear selection</string>
     <string name="recording_deleted">Recording deleted.</string>
@@ -150,10 +154,14 @@
     <string name="player_pause">Pause</string>
     <string name="player_seek_back">Back 10 seconds</string>
     <string name="player_seek_forward">Forward 10 seconds</string>
-    <string name="player_failed">Couldn\'t play recording.</string>
     <string name="cancel">Cancel</string>
     <string name="settings_title">Settings</string>
     <string name="close">Close</string>
+    <string name="open_settings">Open settings</string>
+
+    <string name="duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="duration_minutes_seconds">%1$dm %2$ds</string>
+    <string name="duration_seconds">%1$ds</string>
 
     <plurals name="move_recordings_done">
         <item quantity="one">Moved %1$d recording.</item>
@@ -168,10 +176,6 @@
     <string name="volume_internal_shared_storage">Internal shared storage</string>
     <string name="volume_documents">Documents</string>
     <string name="volume_storage_template">Storage %s</string>
-    <string name="fallback_display_name">TimeTravel</string>
     <string name="app_storage_label">App storage</string>
-    <string name="mode_recording">Recording</string>
-    <string name="mode_live">Live</string>
-    <string name="mode_paused">Paused</string>
 
 </resources>

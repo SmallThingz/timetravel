@@ -11,7 +11,6 @@
     <string name="clear_buffer">消去</string>
     <string name="record_all_memory">全体をエクスポート</string>
     <string name="custom_time">カスタムでエクスポート</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">範囲</string>
     <string name="custom_export_mode_past">過去</string>
     <string name="custom_export_unit_size">サイズ</string>
@@ -65,9 +64,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">ビットレート</string>
-    <string name="codec_bitrate_invalid">%1$d-%2$d kbps を使用してください。</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">レート</string>
     <string name="audio_source_label">ソース</string>
     <string name="channel_mode_label">チャンネル</string>
@@ -120,8 +116,6 @@
     <string name="recording_info">情報</string>
     <string name="reencode_history">履歴を再エンコード</string>
     <string name="reencode_history_progress">再エンコード中 %1$d%%</string>
-    <string name="reencode_history_done">履歴を再エンコードしました。</string>
-    <string name="reencode_history_failed">履歴を再エンコードできませんでした。</string>
     <string name="about_version">バージョン %1$s</string>
     <string name="recording_details_name">名前:</string>
     <string name="recording_details_started">開始:</string>
@@ -135,7 +129,6 @@
     <string name="player_pause">一時停止</string>
     <string name="player_seek_back">10秒戻る</string>
     <string name="player_seek_forward">10秒進む</string>
-    <string name="player_failed">録音を再生できませんでした。</string>
     <string name="close">閉じる</string>
     <plurals name="move_recordings_done">
         <item quantity="other">%1$d 件の録音を移動しました。</item>

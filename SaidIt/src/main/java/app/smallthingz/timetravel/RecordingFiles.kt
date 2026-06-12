@@ -112,18 +112,6 @@ fun buildOpenRecordingIntent(
     }
 }
 
-fun buildShareRecordingIntent(
-    context: Context,
-    recording: RecordingEntity,
-): Intent {
-    val fileUri = buildRecordingUri(context, recording)
-    return Intent(Intent.ACTION_SEND).apply {
-        putExtra(Intent.EXTRA_STREAM, fileUri)
-        type = recording.mimeType.ifBlank { context.contentResolver.getType(fileUri) ?: TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO }
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-}
-
 fun buildRecordingBaseName(startedAtMillis: Long): String {
     return startedAtMillis.toString()
 }
@@ -236,7 +224,7 @@ private fun resolveRecordingCodecInfo(
         bitrate?.takeIf { it > 0 }?.let {
             append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
             append(it / 1000)
-            append(TimeTravelConfig.BITRATE_SUFFIX)
+            append(" kbps")
         }
     }
 }
@@ -355,7 +343,7 @@ fun buildCodecSummary(
         resolvedBitrateKbps?.let {
             append(TimeTravelConfig.CODEC_SUMMARY_SEPARATOR)
             append(it)
-            append(TimeTravelConfig.BITRATE_SUFFIX)
+            append(" kbps")
         }
     }
 }
@@ -539,11 +527,18 @@ fun renameRecordingAsset(
     requestedBaseName: String,
 ): RecordingEntity? {
     val extension = recording.displayName.substringAfterLast('.', "")
-    val baseName = sanitizeBaseName(requestedBaseName.substringBeforeLast('.', requestedBaseName))
-    val displayName = if (extension.isBlank()) baseName else         "$baseName.$extension"
+    var sanitized = sanitizeBaseName(requestedBaseName)
+    if (sanitized.isBlank()) return null
+    if (extension.isNotBlank()) {
+        if (sanitized.endsWith(".$extension")) {
+            sanitized = sanitized.substringBeforeLast(".$extension")
+        }
+        sanitized = "$sanitized.$extension"
+    }
+    if (sanitized == recording.displayName) return null
     return when (RecordingStorageType.valueOf(recording.storageType)) {
-        RecordingStorageType.FILE -> renameFileRecording(recording, displayName)
-        RecordingStorageType.DOCUMENT -> renameDocumentRecording(context, recording, displayName)
+        RecordingStorageType.FILE -> renameFileRecording(recording, sanitized)
+        RecordingStorageType.DOCUMENT -> renameDocumentRecording(context, recording, sanitized)
     }
 }
 

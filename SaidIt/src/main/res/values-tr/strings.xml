@@ -13,9 +13,6 @@
     <string name="custom_time">Özel dışa aktar</string>
     <string name="reencode_history">Geçmişi yeniden kodla</string>
     <string name="reencode_history_progress">Yeniden kodlanıyor %1$d%%</string>
-    <string name="reencode_history_done">Geçmiş yeniden kodlandı.</string>
-    <string name="reencode_history_failed">Geçmiş yeniden kodlanamadı.</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">Aralık</string>
     <string name="custom_export_mode_past">Geçmiş</string>
     <string name="custom_export_unit_size">Boyut</string>
@@ -69,9 +66,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">Bit hızı</string>
-    <string name="codec_bitrate_invalid">%1$d-%2$d kbps kullanın.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">Örnekleme hızı</string>
     <string name="audio_source_label">Kaynak</string>
     <string name="channel_mode_label">Kanallar</string>
@@ -136,7 +130,6 @@
     <string name="player_pause">Duraklat</string>
     <string name="player_seek_back">10 saniye geri</string>
     <string name="player_seek_forward">10 saniye ileri</string>
-    <string name="player_failed">Kayıt oynatılamadı.</string>
     <string name="close">Kapat</string>
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d kayıt taşındı.</item>

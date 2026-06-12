@@ -11,9 +11,10 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
                 }
                 MainScreen(
                     permissionsGranted = permissionsGranted,
+                    showPermissionDenied = showPermissionDenied,
                     onThemeChanged = { themeMode = it },
                 )
             }
@@ -164,6 +166,8 @@ private fun PermissionDeniedDialog(
 ) {
     AlertDialog(
         onDismissRequest = {},
+        shape = RoundedCornerShape(18.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = { Text(stringResource(R.string.permission_required)) },
         text = { Text(stringResource(R.string.permission_required_message)) },
         confirmButton = {
@@ -182,14 +186,18 @@ private fun PermissionDeniedDialog(
 @Composable
 private fun MainScreen(
     permissionsGranted: Boolean,
+    showPermissionDenied: Boolean,
     onThemeChanged: (AppThemeMode) -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_CAPTURE) }
-    var showSettings by remember { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     if (showSettings) {
+        BackHandler {
+            showSettings = false
+        }
         SettingsScreen(
             onBack = { showSettings = false },
             onThemeChanged = onThemeChanged,
@@ -227,7 +235,7 @@ private fun MainScreen(
                         TAB_CAPTURE -> CaptureScreen()
                         TAB_FILES -> FilesScreen()
                     }
-                } else {
+                } else if (!showPermissionDenied) {
                     Surface(Modifier.fillMaxSize()) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(

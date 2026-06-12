@@ -11,7 +11,6 @@
     <string name="clear_buffer">Leeren</string>
     <string name="record_all_memory">Alles exportieren</string>
     <string name="custom_time">Benutzerdefiniert exportieren</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_mode_range">Bereich</string>
     <string name="custom_export_mode_past">Zurück</string>
     <string name="custom_export_unit_size">Größe</string>
@@ -65,9 +64,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="codec_bitrate_label">Bitrate</string>
-    <string name="codec_bitrate_invalid">%1$d-%2$d kbps verwenden.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">Rate</string>
     <string name="audio_source_label">Quelle</string>
     <string name="channel_mode_label">Kanäle</string>
@@ -120,8 +116,6 @@
     <string name="recording_info">Info</string>
     <string name="reencode_history">Verlauf neu kodieren</string>
     <string name="reencode_history_progress">Neu kodieren %1$d%%</string>
-    <string name="reencode_history_done">Verlauf neu kodiert.</string>
-    <string name="reencode_history_failed">Verlauf konnte nicht neu kodiert werden.</string>
     <string name="about_version">Version %1$s</string>
     <string name="recording_details_name">Name:</string>
     <string name="recording_details_started">Beginn:</string>
@@ -135,7 +129,6 @@
     <string name="player_pause">Pause</string>
     <string name="player_seek_back">10 Sekunden zurück</string>
     <string name="player_seek_forward">10 Sekunden vor</string>
-    <string name="player_failed">Aufnahme konnte nicht abgespielt werden.</string>
     <string name="close">Schließen</string>
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d Aufnahme verschoben.</item>

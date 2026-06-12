@@ -30,7 +30,7 @@ internal class AudioMemory {
             filled.removeFirst()
         }
         if (current != null && currentSize - CHUNK_SIZE >= sizeToEnsure) {
-            free.addLast(current!!)
+            free.addLast(current)
             current = null
             offset = 0
             currentWasFilled = false
@@ -161,7 +161,7 @@ internal class AudioMemory {
                 this.offset = 0
             }
 
-            val currentBuffer = current!!
+            val currentBuffer = requireNotNull(current)
             val copyCount = minOf(remaining, currentBuffer.size - this.offset)
             System.arraycopy(array, readOffset, currentBuffer, this.offset, copyCount)
             readOffset += copyCount
@@ -196,7 +196,12 @@ internal class AudioMemory {
             fillingStartUptimeMillis = SystemClock.uptimeMillis()
 
             val currentBuffer = requireNotNull(current)
-            val read = filler.consume(currentBuffer, offset, currentBuffer.size - offset).coerceAtLeast(0)
+            val read = try {
+                filler.consume(currentBuffer, offset, currentBuffer.size - offset).coerceAtLeast(0)
+            } catch (e: Exception) {
+                filling = false
+                throw e
+            }
 
             if (offset + read >= currentBuffer.size) {
                 filled.add(currentBuffer)

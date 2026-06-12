@@ -1,5 +1,6 @@
 package app.smallthingz.timetravel
 
+import android.content.Context
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -32,20 +33,20 @@ private fun pad2(value: Int): String {
 
 fun formatShortFileSize(size: Long): String {
     val mebibytes = size.coerceAtLeast(0L) / (1024.0 * 1024.0)
-    return "${sizeFormatter.get()!!.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
+    val formatter = sizeFormatter.get() ?: error("sizeFormatter not initialized")
+    return "${formatter.format(mebibytes)}${TimeTravelConfig.MIB_SUFFIX}"
 }
 
-fun formatSavedRecordingDuration(durationMillis: Long): String {
+fun formatSavedRecordingDuration(context: Context, durationMillis: Long): String {
     val totalSeconds = (durationMillis / 1000L).coerceAtLeast(0L)
     val hours = totalSeconds / 3600L
     val minutes = (totalSeconds % 3600L) / 60L
     val seconds = totalSeconds % 60L
 
     return when {
-        hours > 0L -> "${hours}h ${minutes}m"
-        minutes > 0L && seconds > 0L -> "${minutes}m ${seconds}s"
-        minutes > 0L -> "${minutes} min"
-        else -> "${seconds} s"
+        hours > 0L -> context.getString(R.string.duration_hours_minutes, hours, minutes)
+        minutes > 0L -> context.getString(R.string.duration_minutes_seconds, minutes, seconds)
+        else -> context.getString(R.string.duration_seconds, seconds)
     }
 }
 

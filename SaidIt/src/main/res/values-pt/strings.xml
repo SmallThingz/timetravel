@@ -11,7 +11,6 @@
     <string name="clear_buffer">Limpar</string>
     <string name="record_all_memory">Exportar tudo</string>
     <string name="custom_time">Exportação personalizada</string>
-    <string name="custom_export_duration_hint">12:30</string>
     <string name="custom_export_start_label">Início</string>
     <string name="custom_export_end_label">Fim</string>
     <string name="custom_export_range_invalid">O fim deve ser após o início.</string>
@@ -48,9 +47,6 @@
     <string name="codec_xhe_aac">xHE-AAC</string>
     <string name="codec_amr_wb">AMR-WB</string>
     <string name="codec_amr_nb">AMR-NB</string>
-    <string name="codec_bitrate_label">Taxa de bits</string>
-    <string name="codec_bitrate_invalid">Use %1$d-%2$d kbps.</string>
-    <string name="codec_bitrate_value">%1$d kbps</string>
     <string name="sample_rate_label">Taxa</string>
     <string name="audio_source_label">Fonte</string>
     <string name="channel_mode_label">Canais</string>
@@ -113,7 +109,6 @@
     <string name="player_pause">Pausar</string>
     <string name="player_seek_back">Voltar 10 segundos</string>
     <string name="player_seek_forward">Avançar 10 segundos</string>
-    <string name="player_failed">Não foi possível reproduzir a gravação.</string>
     <string name="close">Fechar</string>
     <plurals name="move_recordings_done">
         <item quantity="one">%1$d gravação movida.</item>
@@ -127,8 +122,6 @@
     </plurals>
     <string name="reencode_history">Recodificar histórico</string>
     <string name="reencode_history_progress">Recodificando %1$d%%</string>
-    <string name="reencode_history_done">Histórico recodificado.</string>
-    <string name="reencode_history_failed">Não foi possível recodificar o histórico.</string>
     <string name="custom_export_mode_range">Intervalo</string>
     <string name="custom_export_mode_past">Passado</string>
     <string name="custom_export_unit_size">Tamanho</string>

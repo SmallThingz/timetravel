@@ -202,13 +202,14 @@ internal class PersistentAudioRingStore(
         meta.writeWritePosition(writePosition)
         meta.writeFilledBytes(newFilled)
         meta.writeLastWriteAtMillis(System.currentTimeMillis())
+        forceMeta()
         val now = SystemClock.uptimeMillis()
         if (now - lastForcedAtUptimeMillis >= FORCE_INTERVAL_MS) {
-            force()
+            forceData()
+            lastForcedAtUptimeMillis = now
         }
     }
 
-    @Synchronized
     fun replaceWith(
         audioMemory: AudioMemory,
         sampleRate: Int,
@@ -322,6 +323,15 @@ internal class PersistentAudioRingStore(
         val alignedCapacityBytes = alignToPageSize(capacityBytes)
 
         val meta = metaMap ?: return
+
+        // Fresh process: map the existing file first so resize has data to read.
+        if (dataMap == null) {
+            val existingCapacity = meta.readCapacityBytes()
+            if (existingCapacity > 0) {
+                remap(existingCapacity, meta.readSampleRate(), meta.readChannelCount(), meta.readBytesPerSample(), clearContents = false)
+            }
+        }
+
         val needsRemap =
             dataMap == null ||
                 mappedCapacityBytes != alignedCapacityBytes ||
@@ -595,6 +605,14 @@ internal class PersistentAudioRingStore(
         lastForcedAtUptimeMillis = SystemClock.uptimeMillis()
     }
 
+    private fun forceMeta() {
+        metaMap?.force()
+    }
+
+    private fun forceData() {
+        dataMap?.force()
+    }
+
     private fun MappedByteBuffer.readMagic(): Int = getInt(OFFSET_MAGIC)
     private fun MappedByteBuffer.writeMagic() {
         putInt(OFFSET_MAGIC, MAGIC)
@@ -667,7 +685,9 @@ internal class PersistentAudioRingStore(
             val pageSize = 4096
             if (bytes <= pageSize) return pageSize
             val remainder = bytes % pageSize
-            return if (remainder == 0) bytes else bytes + pageSize - remainder
+            if (remainder == 0) return bytes
+            val aligned = bytes.toLong() + pageSize - remainder
+            return if (aligned > Int.MAX_VALUE) Int.MAX_VALUE else aligned.toInt()
         }
     }
 }
