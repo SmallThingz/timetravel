@@ -167,23 +167,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="debug_settings_title">Depuração</string>
-    <string name="debug_chunks_tab_summary">Mostrar inspetor de chunks e mesclagens ao vivo nas abas inferiores.</string>
+
     <string name="settings_saved_reencode_history">Salvo. Recodifique o histórico para exportar novamente.</string>
-    <string name="chunks_empty">Ainda não há chunks.</string>
-    <string name="chunks_title">Anel de chunks</string>
-    <string name="chunks_title_active">Anel de chunks · ativo</string>
-    <string name="chunks_operations_empty">Nenhuma operação ativa.</string>
-    <string name="chunks_section_operations">Operações</string>
-    <string name="chunks_section_chunks">Chunks</string>
-    <string name="chunks_active">Ativo</string>
-    <string name="chunks_operation_background_merge">Mesclagem em segundo plano</string>
-    <string name="chunks_operation_export_merge">Mesclagem de exportação</string>
-    <string name="chunks_operation_history_reencode">Recodificação do histórico</string>
-    <string name="chunks_action_merge">Mesclar</string>
-    <string name="chunks_merge_done">Chunk mesclado.</string>
-    <string name="chunks_merge_failed">Não foi possível mesclar o chunk.</string>
-    <string name="chunks_export_done">Chunk exportado.</string>
-    <string name="chunks_export_failed">Não foi possível exportar o chunk.</string>
-    <string name="chunks_delete_failed">Não foi possível excluir o chunk.</string>
 </resources>

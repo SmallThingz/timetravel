@@ -6,7 +6,4 @@
     <plurals name="recordings_deleted">
         <item quantity="other">已删除 %d 个录音。</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="other">已删除 %d 个块。</item>
-    </plurals>
 </resources>

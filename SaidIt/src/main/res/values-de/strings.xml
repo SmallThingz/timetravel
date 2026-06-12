@@ -166,22 +166,5 @@
         <item quantity="one">%1$d fehlender Eintrag entfernt.</item>
         <item quantity="other">%1$d fehlende Einträge entfernt.</item>
     </plurals>
-    <string name="debug_settings_title">Debug</string>
-    <string name="debug_chunks_tab_summary">Live-Chunk- und Merge-Inspektor in unteren Tabs anzeigen.</string>
-    <string name="chunks_empty">Noch keine Chunks.</string>
-    <string name="chunks_title">Chunk-Ring</string>
-    <string name="chunks_title_active">Chunk-Ring · aktiv</string>
-    <string name="chunks_operations_empty">Keine aktiven Vorgänge.</string>
-    <string name="chunks_section_operations">Vorgänge</string>
-    <string name="chunks_section_chunks">Chunks</string>
-    <string name="chunks_active">Aktiv</string>
-    <string name="chunks_operation_background_merge">Hintergrund-Zusammenführung</string>
-    <string name="chunks_operation_export_merge">Export-Zusammenführung</string>
-    <string name="chunks_operation_history_reencode">Neu-Codierung Verlauf</string>
-    <string name="chunks_action_merge">Zusammenführen</string>
-    <string name="chunks_merge_done">Chunk zusammengeführt.</string>
-    <string name="chunks_merge_failed">Chunk konnte nicht zusammengeführt werden.</string>
-    <string name="chunks_export_done">Chunk exportiert.</string>
-    <string name="chunks_export_failed">Chunk konnte nicht exportiert werden.</string>
-    <string name="chunks_delete_failed">Chunk konnte nicht gelöscht werden.</string>
+
 </resources>

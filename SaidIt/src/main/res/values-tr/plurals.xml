@@ -8,8 +8,4 @@
         <item quantity="one">%d kayıt silindi.</item>
         <item quantity="other">%d kayıt silindi.</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="one">%d parça silindi.</item>
-        <item quantity="other">%d parça silindi.</item>
-    </plurals>
 </resources>

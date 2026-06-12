@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">在任务被划掉或系统终止后，只要缓冲区需要保留，就重新调度录音服务。</string>
     <string name="wake_lock_label">保持 CPU 唤醒</string>
     <string name="wake_lock_summary">在实时缓冲期间持有部分唤醒锁。生存性最高，耗电也最高。</string>
-    <string name="debug_settings_title">调试</string>
-    <string name="debug_chunks_tab_summary">在底部标签中显示实时块和合并检查器。</string>
+
     <string name="battery_optimization_status_ok">电池优化：无限制</string>
     <string name="battery_optimization_status_limited">电池优化：受限制</string>
     <string name="battery_optimization_button">电池设置</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">录音已删除。</string>
     <string name="recording_delete_failed">无法删除录音。</string>
     <string name="recording_info">信息</string>
-    <string name="chunks_empty">还没有块。</string>
-    <string name="chunks_title">块环</string>
-    <string name="chunks_title_active">块环 · 活动中</string>
-    <string name="chunks_operations_empty">没有活动操作。</string>
-    <string name="chunks_section_operations">操作</string>
-    <string name="chunks_section_chunks">块</string>
-    <string name="chunks_active">活动中</string>
-    <string name="chunks_operation_background_merge">后台合并</string>
-    <string name="chunks_operation_export_merge">导出合并</string>
-    <string name="chunks_operation_history_reencode">历史重新编码</string>
-    <string name="chunks_action_merge">合并</string>
-    <string name="chunks_merge_done">块已合并。</string>
-    <string name="chunks_merge_failed">无法合并块。</string>
-    <string name="chunks_export_done">块已导出。</string>
-    <string name="chunks_export_failed">无法导出块。</string>
-    <string name="chunks_delete_failed">无法删除块。</string>
     <string name="about_version">版本 %1$s</string>
     <string name="recording_details_name">名称：</string>
     <string name="recording_details_started">开始时间：</string>

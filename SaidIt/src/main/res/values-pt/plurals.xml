@@ -10,9 +10,4 @@
         <item quantity="many">%d gravações excluídas.</item>
         <item quantity="other">%d gravações excluídas.</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="one">%d chunk excluído.</item>
-        <item quantity="many">%d chunks excluídos.</item>
-        <item quantity="other">%d chunks excluídos.</item>
-    </plurals>
 </resources>

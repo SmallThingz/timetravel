@@ -271,7 +271,7 @@ class TimeTravelService : Service() {
             .putBoolean(PrefKey.AUDIO_MEMORY_ENABLED, false)
             .apply()
         if (state == STATE_RECORDING) {
-            stopRecording(TimeTravelFragment.NotifyFileReceiver(this, serviceScope))
+            stopRecording(NotifyFileReceiver(this, serviceScope))
         }
         innerStopListening()
     }
@@ -735,7 +735,7 @@ class TimeTravelService : Service() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error while priming recording into ${recordingTarget?.displayName}", e)
-                    stopRecording(TimeTravelFragment.NotifyFileReceiver(this@TimeTravelService, serviceScope))
+                    stopRecording(NotifyFileReceiver(this@TimeTravelService, serviceScope))
                 }
             }
         }
@@ -911,10 +911,10 @@ class TimeTravelService : Service() {
     }
 
     private val effectiveOutputFormat: ExportFormat
-        get() = ExportFormat.WAV
+        get() = outputFormat
 
     private val effectiveOutputCodec: ExportCodec
-        get() = ExportCodec.PCM_16
+        get() = outputCodec
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
@@ -1094,7 +1094,7 @@ class TimeTravelService : Service() {
             val errorMessage = getString(R.string.error_during_recording_into) + fileName
             Log.e(TAG, errorMessage, e)
             showToast(errorMessage)
-            stopRecording(TimeTravelFragment.NotifyFileReceiver(this, serviceScope))
+            stopRecording(NotifyFileReceiver(this, serviceScope))
         }
     }
 
@@ -1114,66 +1114,6 @@ class TimeTravelService : Service() {
             channelMode = channelMode,
             routeMode = inputRouteMode,
         )
-    }
-
-    fun getChunkDebugSnapshot(callback: ChunkDebugCallback) {
-        val listeningEnabled = state == STATE_LISTENING || state == STATE_RECORDING
-        val recording = state == STATE_RECORDING
-        audioHandler.post {
-            val snapshot =
-                ChunkDebugSnapshot(
-                    listeningEnabled = listeningEnabled,
-                    recording = recording,
-                    format = effectiveOutputFormat,
-                    codec = effectiveOutputCodec,
-                    sampleRate = sampleRate,
-                    channelCount = channelMode.channelCount,
-                    history = null,
-                    historyReencodePending = false,
-                    historyReencoding = false,
-                    historyReencodeProcessedBytes = 0L,
-                    historyReencodeTotalBytes = 0L,
-                )
-            mainHandler.post {
-                callback.snapshot(snapshot)
-            }
-        }
-    }
-
-    fun debugCompactHistory(
-        callback: ChunkActionCallback? = null,
-    ) {
-        if (!isDebuggableBuild()) {
-            return
-        }
-        mainHandler.post {
-            callback?.completed(false, getString(R.string.chunks_merge_failed))
-        }
-    }
-
-    fun debugDeleteChunks(
-        filePaths: List<String>,
-        callback: ChunkActionCallback? = null,
-    ) {
-        if (!isDebuggableBuild()) {
-            return
-        }
-        mainHandler.post {
-            callback?.completed(false, getString(R.string.chunks_delete_failed))
-        }
-    }
-
-    fun debugExportChunk(
-        filePath: String,
-        receiver: AudioFileReceiver?,
-        callback: ChunkActionCallback? = null,
-    ) {
-        if (!isDebuggableBuild()) {
-            return
-        }
-        mainHandler.post {
-            callback?.completed(false, getString(R.string.chunks_export_failed))
-        }
     }
 
     fun clearBuffer() {
@@ -1232,7 +1172,7 @@ class TimeTravelService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val intent = Intent(this, TimeTravelActivity::class.java)
+        val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val notificationManager = getSystemService(NotificationManager::class.java)
@@ -1429,7 +1369,7 @@ class TimeTravelService : Service() {
             return
         }
         Log.d(TAG, "exportDebug seconds=$seconds available=${availableBufferedSampleBytes()}")
-        dumpRecording(seconds, DebugAudioFileReceiver(), "")
+        dumpRecording(seconds, NotifyFileReceiver(this, serviceScope), "")
     }
 
     private fun injectDebugBuffer(seconds: Float) {
@@ -1634,63 +1574,6 @@ class TimeTravelService : Service() {
         )
     }
 
-    interface ChunkDebugCallback {
-        fun snapshot(data: ChunkDebugSnapshot)
-    }
-
-    interface ChunkActionCallback {
-        fun completed(success: Boolean, message: String)
-    }
-
-    data class ChunkDebugSnapshot(
-        val listeningEnabled: Boolean,
-        val recording: Boolean,
-        val format: ExportFormat,
-        val codec: ExportCodec,
-        val sampleRate: Int,
-        val channelCount: Int,
-        val history: ChunkHistorySnapshot?,
-        val historyReencodePending: Boolean,
-        val historyReencoding: Boolean,
-        val historyReencodeProcessedBytes: Long,
-        val historyReencodeTotalBytes: Long,
-    )
-
-    data class ChunkHistorySnapshot(
-        val segmentCount: Int,
-        val totalSampleBytes: Long,
-        val currentSegmentSampleBytes: Long,
-        val nextSegmentStartMillis: Long?,
-        val format: String?,
-        val codec: String?,
-        val sampleRate: Int,
-        val channelCount: Int,
-        val chunks: List<ChunkHistoryItem>,
-        val operations: List<ChunkOperationItem>,
-    )
-
-    data class ChunkHistoryItem(
-        val fileName: String,
-        val filePath: String,
-        val startedAtMillis: Long,
-        val endedAtMillis: Long,
-        val sampleBytes: Long,
-        val fileSizeBytes: Long,
-        val format: String?,
-        val codec: String?,
-        val sampleRate: Int,
-        val channelCount: Int,
-        val active: Boolean,
-    )
-
-    data class ChunkOperationItem(
-        val id: String,
-        val kind: String,
-        val sourcePaths: List<String>,
-        val targetSampleBytes: Long,
-        val startedAtMillis: Long,
-    )
-
     data class RecorderConfigurationSnapshot(
         val format: ExportFormat,
         val codec: ExportCodec,
@@ -1724,18 +1607,6 @@ class TimeTravelService : Service() {
         BLOCKED_RECORDING,
     }
 
-    private inner class DebugAudioFileReceiver : AudioFileReceiver {
-        override fun fileReady(recording: RecordingEntity) {
-            Log.d(TAG, "debug-export-ready id=${recording.id} name=${recording.displayName} size=${recording.sizeBytes}")
-            writeDebugReport("export-ready:" + recording.displayName + ":" + recording.sizeBytes)
-        }
-
-        override fun fileFailed(message: String) {
-            Log.e(TAG, "debug-export-failed $message")
-            writeDebugReport("export-failed:" + message)
-        }
-    }
-
     companion object {
         val TAG: String = TimeTravelService::class.java.simpleName
         const val NOTIFICATION_CHANNEL_ID = "TimeTravelRecorderChannel"
@@ -1766,7 +1637,6 @@ class TimeTravelService : Service() {
         const val DEBUG_REPORT_FILE_NAME = "debug-report.txt"
         const val DEBUG_STATUS_STORE_CLASS_NAME = "app.smallthingz.timetravel.DebugStatusStore"
         const val WAKE_LOCK_TAG_SUFFIX = ":timeTravelBuffer"
-        const val CHUNK_EXPORT_NAME_SEPARATOR = "-chunk."
 
         const val STATE_READY = 0
         const val STATE_LISTENING = 1

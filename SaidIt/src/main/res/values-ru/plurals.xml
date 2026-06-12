@@ -12,10 +12,4 @@
         <item quantity="many">Удалено %d записей.</item>
         <item quantity="other">Удалено %d записей.</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="one">Удалён %d сегмент.</item>
-        <item quantity="few">Удалено %d сегмента.</item>
-        <item quantity="many">Удалено %d сегментов.</item>
-        <item quantity="other">Удалено %d сегментов.</item>
-    </plurals>
 </resources>

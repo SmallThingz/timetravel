@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">जब बफ़र बचा रहना चाहिए तब टास्क स्वाइप या सिस्टम किल के बाद रिकॉर्डर सेवा को फिर से शेड्यूल करें।</string>
     <string name="wake_lock_label">CPU जागृत रखें</string>
     <string name="wake_lock_summary">लाइव बफ़रिंग के दौरान आंशिक wake lock रखता है। सबसे अधिक टिकाऊ, सबसे अधिक बैटरी खर्च।</string>
-    <string name="debug_settings_title">डिबग</string>
-    <string name="debug_chunks_tab_summary">नीचे टैब में लाइव चंक और मर्ज निरीक्षक दिखाएँ।</string>
+
     <string name="battery_optimization_status_ok">बैटरी अनुकूलन: बिना प्रतिबंध</string>
     <string name="battery_optimization_status_limited">बैटरी अनुकूलन: प्रतिबंधित</string>
     <string name="battery_optimization_button">बैटरी सेटिंग्स</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">रिकॉर्डिंग हटा दी गई।</string>
     <string name="recording_delete_failed">रिकॉर्डिंग हटाई नहीं जा सकी।</string>
     <string name="recording_info">जानकारी</string>
-    <string name="chunks_empty">अभी तक कोई चंक नहीं है।</string>
-    <string name="chunks_title">चंक रिंग</string>
-    <string name="chunks_title_active">चंक रिंग · सक्रिय</string>
-    <string name="chunks_operations_empty">कोई सक्रिय कार्य नहीं।</string>
-    <string name="chunks_section_operations">कार्य</string>
-    <string name="chunks_section_chunks">चंक्स</string>
-    <string name="chunks_active">सक्रिय</string>
-    <string name="chunks_operation_background_merge">बैकग्राउंड मर्ज</string>
-    <string name="chunks_operation_export_merge">निर्यात मर्ज</string>
-    <string name="chunks_operation_history_reencode">इतिहास फिर से एन्कोड</string>
-    <string name="chunks_action_merge">मर्ज करें</string>
-    <string name="chunks_merge_done">चंक मर्ज हो गया।</string>
-    <string name="chunks_merge_failed">चंक मर्ज नहीं किया जा सका।</string>
-    <string name="chunks_export_done">चंक निर्यात हो गया।</string>
-    <string name="chunks_export_failed">चंक निर्यात नहीं किया जा सका।</string>
-    <string name="chunks_delete_failed">चंक हटाया नहीं जा सका।</string>
     <string name="about_version">संस्करण %1$s</string>
     <string name="recording_details_name">नाम:</string>
     <string name="recording_details_started">शुरू:</string>

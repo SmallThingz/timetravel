@@ -168,22 +168,5 @@
         <item quantity="many">Se eliminaron %1$d entradas faltantes.</item>
         <item quantity="other">Se eliminaron %1$d entradas faltantes.</item>
     </plurals>
-    <string name="debug_settings_title">Depuración</string>
-    <string name="debug_chunks_tab_summary">Mostrar el inspector de bloques y fusiones en las pestañas inferiores.</string>
-    <string name="chunks_empty">Aún no hay bloques.</string>
-    <string name="chunks_title">Anillo de bloques</string>
-    <string name="chunks_title_active">Anillo de bloques · activo</string>
-    <string name="chunks_operations_empty">No hay operaciones activas.</string>
-    <string name="chunks_section_operations">Operaciones</string>
-    <string name="chunks_section_chunks">Bloques</string>
-    <string name="chunks_active">Activo</string>
-    <string name="chunks_operation_background_merge">Fusión en segundo plano</string>
-    <string name="chunks_operation_export_merge">Fusión de exportación</string>
-    <string name="chunks_operation_history_reencode">Recodificación del historial</string>
-    <string name="chunks_action_merge">Fusionar</string>
-    <string name="chunks_merge_done">Bloque fusionado.</string>
-    <string name="chunks_merge_failed">No se pudo fusionar el bloque.</string>
-    <string name="chunks_export_done">Bloque exportado.</string>
-    <string name="chunks_export_failed">No se pudo exportar el bloque.</string>
-    <string name="chunks_delete_failed">No se pudo eliminar el bloque.</string>
+
 </resources>

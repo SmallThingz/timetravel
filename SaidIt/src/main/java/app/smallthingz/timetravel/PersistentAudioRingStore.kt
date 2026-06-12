@@ -250,10 +250,8 @@ internal class PersistentAudioRingStore(
         ensureMetaMapped()
         val meta = metaMap ?: return 0L
         val capacityBytes = meta.readCapacityBytes()
-        val sampleRate = meta.readSampleRate()
-        val channelCount = meta.readChannelCount()
         val filledBytes = meta.readFilledBytes()
-        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+        if (capacityBytes <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
             return 0L
         }
         return filledBytes.toLong()
@@ -264,10 +262,8 @@ internal class PersistentAudioRingStore(
         ensureMetaMapped()
         val meta = metaMap ?: return 0L
         val capacityBytes = meta.readCapacityBytes()
-        val sampleRate = meta.readSampleRate()
-        val channelCount = meta.readChannelCount()
         val filledBytes = meta.readFilledBytes()
-        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+        if (capacityBytes <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
             return 0L
         }
         return capacityBytes.toLong()

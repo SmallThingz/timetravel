@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">Arabellek korunacaksa görev kaydırma veya sistem sonlandırmasından sonra kayıt hizmetini yeniden planla.</string>
     <string name="wake_lock_label">CPU uyanık kalsın</string>
     <string name="wake_lock_summary">Canlı arabelleğe alma sırasında kısmi uyandırma kilidi tutar. En yüksek dayanıklılık, en yüksek pil maliyeti.</string>
-    <string name="debug_settings_title">Hata ayıklama</string>
-    <string name="debug_chunks_tab_summary">Alt sekmelerde canlı parça ve birleştirme denetçisini göster.</string>
+
     <string name="battery_optimization_status_ok">Pil optimizasyonu: sınırsız</string>
     <string name="battery_optimization_status_limited">Pil optimizasyonu: kısıtlı</string>
     <string name="battery_optimization_button">Pil ayarları</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">Kayıt silindi.</string>
     <string name="recording_delete_failed">Kayıt silinemedi.</string>
     <string name="recording_info">Bilgi</string>
-    <string name="chunks_empty">Henüz parça yok.</string>
-    <string name="chunks_title">Parça halkası</string>
-    <string name="chunks_title_active">Parça halkası · etkin</string>
-    <string name="chunks_operations_empty">Etkin işlem yok.</string>
-    <string name="chunks_section_operations">İşlemler</string>
-    <string name="chunks_section_chunks">Parçalar</string>
-    <string name="chunks_active">Etkin</string>
-    <string name="chunks_operation_background_merge">Arka plan birleştirme</string>
-    <string name="chunks_operation_export_merge">Dışa aktarma birleştirme</string>
-    <string name="chunks_operation_history_reencode">Geçmişi yeniden kodlama</string>
-    <string name="chunks_action_merge">Birleştir</string>
-    <string name="chunks_merge_done">Parça birleştirildi.</string>
-    <string name="chunks_merge_failed">Parça birleştirilemedi.</string>
-    <string name="chunks_export_done">Parça dışa aktarıldı.</string>
-    <string name="chunks_export_failed">Parça dışa aktarılamadı.</string>
-    <string name="chunks_delete_failed">Parça silinemedi.</string>
     <string name="about_version">Sürüm %1$s</string>
     <string name="recording_details_name">Ad:</string>
     <string name="recording_details_started">Başlangıç:</string>

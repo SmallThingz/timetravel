@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">اگر بافر باید باقی بماند، پس از بستن برنامه یا پایان توسط سیستم، سرویس ضبط را دوباره زمان‌بندی می‌کند.</string>
     <string name="wake_lock_label">بیدار نگه داشتن CPU</string>
     <string name="wake_lock_summary">در زمان بافر زنده یک wake lock جزئی نگه می‌دارد. بیشترین پایداری و بیشترین مصرف باتری.</string>
-    <string name="debug_settings_title">اشکال‌زدایی</string>
-    <string name="debug_chunks_tab_summary">نمایش بازرس تکه‌ها و ادغام زنده در زبانه‌های پایین.</string>
+
     <string name="battery_optimization_status_ok">بهینه‌سازی باتری: بدون محدودیت</string>
     <string name="battery_optimization_status_limited">بهینه‌سازی باتری: محدود</string>
     <string name="battery_optimization_button">تنظیمات باتری</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">ضبط حذف شد.</string>
     <string name="recording_delete_failed">حذف ضبط ممکن نشد.</string>
     <string name="recording_info">اطلاعات</string>
-    <string name="chunks_empty">هنوز تکه‌ای وجود ندارد.</string>
-    <string name="chunks_title">حلقه تکه‌ها</string>
-    <string name="chunks_title_active">حلقه تکه‌ها · فعال</string>
-    <string name="chunks_operations_empty">عملیات فعالی وجود ندارد.</string>
-    <string name="chunks_section_operations">عملیات</string>
-    <string name="chunks_section_chunks">تکه‌ها</string>
-    <string name="chunks_active">فعال</string>
-    <string name="chunks_operation_background_merge">ادغام پس‌زمینه</string>
-    <string name="chunks_operation_export_merge">ادغام خروجی</string>
-    <string name="chunks_operation_history_reencode">بازرمزگذاری تاریخچه</string>
-    <string name="chunks_action_merge">ادغام</string>
-    <string name="chunks_merge_done">تکه ادغام شد.</string>
-    <string name="chunks_merge_failed">ادغام تکه ممکن نشد.</string>
-    <string name="chunks_export_done">تکه صادر شد.</string>
-    <string name="chunks_export_failed">خروجی گرفتن از تکه ممکن نشد.</string>
-    <string name="chunks_delete_failed">حذف تکه ممکن نشد.</string>
     <string name="about_version">نسخه %1$s</string>
     <string name="recording_details_name">نام:</string>
     <string name="recording_details_started">شروع:</string>

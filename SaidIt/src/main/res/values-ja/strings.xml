@@ -164,22 +164,5 @@
     <plurals name="move_recordings_removed_missing">
         <item quantity="other">%1$d 件の欠落エントリを削除しました。</item>
     </plurals>
-    <string name="debug_settings_title">デバッグ</string>
-    <string name="debug_chunks_tab_summary">下部タブにライブチャンクとマージのインスペクタを表示します。</string>
-    <string name="chunks_empty">チャンクはまだありません。</string>
-    <string name="chunks_title">チャンクリング</string>
-    <string name="chunks_title_active">チャンクリング・アクティブ</string>
-    <string name="chunks_operations_empty">進行中の操作はありません。</string>
-    <string name="chunks_section_operations">操作</string>
-    <string name="chunks_section_chunks">チャンク</string>
-    <string name="chunks_active">アクティブ</string>
-    <string name="chunks_operation_background_merge">バックグラウンド結合</string>
-    <string name="chunks_operation_export_merge">エクスポート結合</string>
-    <string name="chunks_operation_history_reencode">履歴再エンコード</string>
-    <string name="chunks_action_merge">結合</string>
-    <string name="chunks_merge_done">チャンクを結合しました。</string>
-    <string name="chunks_merge_failed">チャンクを結合できませんでした。</string>
-    <string name="chunks_export_done">チャンクをエクスポートしました。</string>
-    <string name="chunks_export_failed">チャンクをエクスポートできませんでした。</string>
-    <string name="chunks_delete_failed">チャンクを削除できませんでした。</string>
+
 </resources>

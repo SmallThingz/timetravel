@@ -247,7 +247,7 @@ private fun describeFileRecordingLocation(
 ): String {
     val normalizedPath = file.absolutePath.replace('\\', '/')
     val appStoragePath = getSavedRecordingsDirectory(context).absolutePath.replace('\\', '/').trimEnd('/')
-        if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
+    if (normalizedPath == appStoragePath || normalizedPath.startsWith("$appStoragePath/")) {
         val relativePath = normalizedPath.removePrefix(appStoragePath).trimStart('/')
         return appendRelativePath(
             "${context.getString(R.string.app_storage_label)}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}",

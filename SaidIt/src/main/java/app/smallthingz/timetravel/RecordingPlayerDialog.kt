@@ -1,134 +1,75 @@
 package app.smallthingz.timetravel
 
-import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.LinearLayout
-import android.widget.SeekBar
-import android.widget.TextView
-import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import java.io.File
 
-internal class RecordingPlayerDialog(
-    context: Context,
-    private val recording: RecordingEntity,
-    private val onPlaybackFailed: () -> Unit,
+private const val PROGRESS_UPDATE_INTERVAL_MS = 250L
+private const val SEEK_JUMP_MS = 10_000
+
+@Composable
+fun RecordingPlayerDialog(
+    recording: RecordingEntity,
+    onDismiss: () -> Unit,
+    onPlaybackFailed: () -> Unit,
 ) {
-    private val appContext = context.applicationContext
-    private val handler = Handler(Looper.getMainLooper())
-    private val content = LayoutInflater.from(context).inflate(R.layout.dialog_recording_player, FrameLayout(context), false)
-    private val metaText: TextView = content.findViewById(R.id.player_meta_text)
-    private val elapsedText: TextView = content.findViewById(R.id.player_elapsed_text)
-    private val durationText: TextView = content.findViewById(R.id.player_duration_text)
-    private val seekBar: SeekBar = content.findViewById(R.id.player_seekbar)
-    private val toggleButton: ImageButton = content.findViewById(R.id.player_toggle_button)
-    private val seekBackButton: ImageButton = content.findViewById(R.id.player_seek_back_button)
-    private val seekForwardButton: ImageButton = content.findViewById(R.id.player_seek_forward_button)
-    private val infoButton = ThemedDialog.createHeaderIconButton(
-        context = context,
-        iconResId = R.drawable.ic_info,
-        contentDescription = context.getString(R.string.recording_info),
-    ).apply {
-        (layoutParams as LinearLayout.LayoutParams).marginEnd = (context.resources.displayMetrics.density * 8).toInt()
-    }
-    private val handle = ThemedDialog.create(
-        context = context,
-        title = recording.displayName,
-        content = content,
-        positiveText = null,
-        negativeText = null,
-        headerAccessory = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-            addView(infoButton)
-        },
-        headerAccessoryGravity = Gravity.END,
-    )
+    val context = LocalContext.current.applicationContext
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var prepared by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentPosition by remember { mutableIntStateOf(0) }
+    var duration by remember { mutableIntStateOf(recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) }
+    var isDragging by remember { mutableStateOf(false) }
+    var released by remember { mutableStateOf(false) }
 
-    private var mediaPlayer: MediaPlayer? = null
-    private var released = false
-    private var dragging = false
-    private var prepared = false
+    val playerCodecSummary = remember { buildPlayerCodecSummary(recording.codecSummary) }
+    val sizeText = remember { formatShortFileSize(recording.sizeBytes) }
 
-    private val progressUpdater = object : Runnable {
-        override fun run() {
-            val player = mediaPlayer ?: return
-            if (!prepared || dragging) {
-                if (!released) {
-                    handler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
-                }
-                return
-            }
-            val position = try { player.currentPosition.coerceAtLeast(0) } catch (_: IllegalStateException) { 0 }
-            seekBar.progress = position
-            elapsedText.text = formatPlaybackTime(position)
-            if (player.isPlaying && !released) {
-                handler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
-            }
-        }
-    }
-
-    init {
-        metaText.text = buildPlayerCodecSummary(recording.codecSummary)
-        content.findViewById<TextView>(R.id.player_size_text).text = formatShortFileSize(recording.sizeBytes)
-        elapsedText.text = formatPlaybackTime(0)
-        durationText.text = formatPlaybackTime(recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-        seekBar.max = recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt().coerceAtLeast(1)
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(
-                seekBar: SeekBar,
-                progress: Int,
-                fromUser: Boolean,
-            ) {
-                if (fromUser) {
-                    elapsedText.text = formatPlaybackTime(progress)
-                }
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar) {
-                dragging = true
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar) {
-                dragging = false
-                if (!prepared) return
-                mediaPlayer?.seekTo(seekBar.progress)
-                scheduleProgressUpdate()
-            }
-        })
-        seekBackButton.setOnClickListener { seekBy(-SEEK_JUMP_MS) }
-        toggleButton.setOnClickListener {
-            val player = mediaPlayer ?: return@setOnClickListener
-            if (!prepared) return@setOnClickListener
-            if (player.isPlaying) {
-                player.pause()
-                updateToggleButton(false)
-                handler.removeCallbacks(progressUpdater)
-            } else {
-                player.start()
-                updateToggleButton(true)
-                scheduleProgressUpdate()
-            }
-        }
-        seekForwardButton.setOnClickListener { seekBy(SEEK_JUMP_MS) }
-        infoButton.setOnClickListener { showRecordingInfoDialog(appContext, recording) }
-        handle.dialog.setOnDismissListener { release() }
-        setPlaybackControlsEnabled(false)
-        updateToggleButton(false)
-    }
-
-    fun show() {
+    fun releasePlayer() {
         if (released) return
-        handle.dialog.show()
+        released = true
+        mediaPlayer?.runCatching { stop() }
+        mediaPlayer?.release()
+        mediaPlayer = null
+        prepared = false
+        isPlaying = false
+    }
+
+    DisposableEffect(recording.id) {
         val player = MediaPlayer()
-        mediaPlayer = player
         player.setAudioAttributes(
             AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -138,97 +79,182 @@ internal class RecordingPlayerDialog(
         player.setOnPreparedListener { preparedPlayer ->
             if (released) return@setOnPreparedListener
             prepared = true
-            seekBar.isEnabled = true
-            setPlaybackControlsEnabled(true)
-            val duration = preparedPlayer.duration.coerceAtLeast(0)
-            seekBar.max = duration.coerceAtLeast(1)
-            durationText.text = formatPlaybackTime(duration)
+            val dur = preparedPlayer.duration.coerceAtLeast(0)
+            duration = dur.coerceAtLeast(1)
             preparedPlayer.start()
-            updateToggleButton(true)
-            scheduleProgressUpdate()
+            isPlaying = true
         }
         player.setOnSeekCompleteListener {
             if (released) return@setOnSeekCompleteListener
-            seekBar.progress = it.currentPosition.coerceAtLeast(0)
-            elapsedText.text = formatPlaybackTime(it.currentPosition.coerceAtLeast(0))
+            currentPosition = try { it.currentPosition.coerceAtLeast(0) } catch (_: IllegalStateException) { 0 }
         }
         player.setOnCompletionListener {
-            updateToggleButton(false)
-            handler.removeCallbacks(progressUpdater)
-            seekBar.progress = seekBar.max
-            elapsedText.text = durationText.text
+            isPlaying = false
+            currentPosition = duration
         }
         player.setOnErrorListener { _, _, _ ->
-            playbackFailed()
+            if (!released) onPlaybackFailed()
+            released = true
             true
         }
         try {
             when (RecordingStorageType.valueOf(recording.storageType)) {
                 RecordingStorageType.FILE -> player.setDataSource(File(recording.id).absolutePath)
-                RecordingStorageType.DOCUMENT -> player.setDataSource(appContext, Uri.parse(recording.id))
+                RecordingStorageType.DOCUMENT -> player.setDataSource(context, Uri.parse(recording.id))
             }
             player.prepareAsync()
         } catch (_: Throwable) {
-            playbackFailed()
+            if (!released) onPlaybackFailed()
+        }
+        mediaPlayer = player
+
+        onDispose { releasePlayer() }
+    }
+
+    LaunchedEffect(isPlaying, isDragging) {
+        if (isPlaying && !isDragging) {
+            while (true) {
+                delay(PROGRESS_UPDATE_INTERVAL_MS)
+                if (released) break
+                val pos = try { mediaPlayer?.currentPosition?.coerceAtLeast(0) ?: 0 } catch (_: IllegalStateException) { 0 }
+                currentPosition = pos
+            }
         }
     }
 
-    fun dismiss() {
-        handle.dialog.dismiss()
-    }
-
-    private fun seekBy(deltaMs: Int) {
-        val player = mediaPlayer ?: return
-        if (!prepared) return
-        val currentPosition = try { player.currentPosition } catch (_: IllegalStateException) { 0 }
-        val targetPosition = (currentPosition + deltaMs).coerceIn(0, seekBar.max)
-        player.seekTo(targetPosition)
-        scheduleProgressUpdate()
-    }
-
-    private fun setPlaybackControlsEnabled(enabled: Boolean) {
-        toggleButton.isEnabled = enabled
-        seekBackButton.isEnabled = enabled
-        seekForwardButton.isEnabled = enabled
-        val alpha = if (enabled) 1f else 0.5f
-        listOf(toggleButton, seekBackButton, seekForwardButton).forEach { button ->
-            button.alpha = alpha
-        }
-    }
-
-    private fun scheduleProgressUpdate() {
-        handler.removeCallbacks(progressUpdater)
-        if (!released) {
-            handler.post(progressUpdater)
-        }
-    }
-
-    private fun updateToggleButton(playing: Boolean) {
-        toggleButton.setImageResource(if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play)
-        toggleButton.contentDescription = appContext.getString(if (playing) R.string.player_pause else R.string.player_play)
-    }
-
-    private fun playbackFailed() {
-        if (released) return
-        Toast.makeText(appContext, R.string.player_failed, Toast.LENGTH_SHORT).show()
-        dismiss()
-        onPlaybackFailed()
-    }
-
-    private fun release() {
-        if (released) return
-        released = true
-        prepared = false
-        handler.removeCallbacks(progressUpdater)
-        mediaPlayer?.runCatching {
-            stop()
-        }
-        mediaPlayer?.release()
-        mediaPlayer = null
-    }
-
-    private companion object {
-        const val PROGRESS_UPDATE_INTERVAL_MS = 250L
-        const val SEEK_JUMP_MS = 10_000
-    }
+    AlertDialog(
+        onDismissRequest = {
+            releasePlayer()
+            onDismiss()
+        },
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = {
+            Text(
+                text = recording.displayName,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = playerCodecSummary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = sizeText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Slider(
+                    value = currentPosition.toFloat(),
+                    onValueChange = { currentPosition = it.toInt(); isDragging = true },
+                    valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                    onValueChangeFinished = {
+                        if (prepared) mediaPlayer?.seekTo(currentPosition)
+                        isDragging = false
+                    },
+                    enabled = prepared,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = formatPlaybackTime(currentPosition),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = formatPlaybackTime(duration),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = {
+                            val player = mediaPlayer ?: return@IconButton
+                            if (!prepared) return@IconButton
+                            val target = (currentPosition - SEEK_JUMP_MS).coerceAtLeast(0)
+                            player.seekTo(target)
+                            currentPosition = target
+                        },
+                        enabled = prepared,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_seek_back),
+                            contentDescription = stringResource(R.string.player_seek_back),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Surface(
+                        modifier = Modifier.size(56.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        IconButton(
+                            onClick = {
+                                val player = mediaPlayer ?: return@IconButton
+                                if (!prepared) return@IconButton
+                                if (player.isPlaying) {
+                                    player.pause()
+                                    isPlaying = false
+                                } else {
+                                    player.start()
+                                    isPlaying = true
+                                }
+                            },
+                            enabled = prepared,
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play,
+                                ),
+                                contentDescription = stringResource(
+                                    if (isPlaying) R.string.player_pause else R.string.player_play,
+                                ),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    IconButton(
+                        onClick = {
+                            val player = mediaPlayer ?: return@IconButton
+                            if (!prepared) return@IconButton
+                            val target = (currentPosition + SEEK_JUMP_MS).coerceAtMost(duration)
+                            player.seekTo(target)
+                            currentPosition = target
+                        },
+                        enabled = prepared,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_seek_forward),
+                            contentDescription = stringResource(R.string.player_seek_forward),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {},
+    )
 }

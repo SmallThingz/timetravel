@@ -21,7 +21,6 @@ import android.os.PowerManager
 import android.util.Log
 import android.util.Range
 import androidx.annotation.StringRes
-import androidx.appcompat.app.AppCompatDelegate
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -392,11 +391,10 @@ enum class ChannelMode(
 
 enum class AppThemeMode(
     @param:StringRes @field:StringRes val labelRes: Int,
-    val nightMode: Int,
 ) {
-    SYSTEM(R.string.theme_system, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM),
-    LIGHT(R.string.theme_light, AppCompatDelegate.MODE_NIGHT_NO),
-    DARK(R.string.theme_dark, AppCompatDelegate.MODE_NIGHT_YES),
+    SYSTEM(R.string.theme_system),
+    LIGHT(R.string.theme_light),
+    DARK(R.string.theme_dark),
     ;
 
     val prefValue: String get() = name.lowercase()
@@ -514,10 +512,6 @@ fun isWakeLockEnabled(context: Context): Boolean {
     return getRecorderPreferences(context).getBoolean(PrefKey.WAKE_LOCK_ENABLED, false)
 }
 
-fun isDebugChunksTabEnabled(context: Context): Boolean {
-    return getRecorderPreferences(context).getBoolean(PrefKey.DEBUG_CHUNKS_TAB_ENABLED, false)
-}
-
 fun isDebuggableBuild(context: Context): Boolean {
     return (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 }
@@ -538,10 +532,6 @@ fun setConfiguredThemeMode(
     mode: AppThemeMode,
 ) {
     getRecorderPreferences(context).edit().putString(PrefKey.THEME_MODE, mode.prefValue).apply()
-}
-
-fun applyConfiguredThemeMode(context: Context) {
-    AppCompatDelegate.setDefaultNightMode(getConfiguredThemeMode(context).nightMode)
 }
 
 fun getConfiguredRetentionSeconds(context: Context): Long {
@@ -647,11 +637,11 @@ fun defaultAutoMergeCustomSeconds(): Int {
 }
 
 fun getConfiguredOutputFormat(context: Context): ExportFormat {
-    return ExportFormat.WAV
+    return ExportFormat.fromPrefValue(getRecorderPreferences(context).getString(PrefKey.OUTPUT_FORMAT, ExportFormat.WAV.prefValue))
 }
 
 fun getConfiguredOutputCodec(context: Context): ExportCodec {
-    return ExportCodec.PCM_16
+    return ExportCodec.fromPrefValue(getRecorderPreferences(context).getString(PrefKey.OUTPUT_CODEC, ExportCodec.PCM_16.prefValue))
 }
 
 fun getConfiguredPcmSampleFormat(context: Context): PcmSampleFormat {

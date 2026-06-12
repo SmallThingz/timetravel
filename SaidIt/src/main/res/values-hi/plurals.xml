@@ -8,8 +8,4 @@
         <item quantity="one">%d रिकॉर्डिंग हटाई गई।</item>
         <item quantity="other">%d रिकॉर्डिंग्स हटाई गईं।</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="one">%d चंक हटाया गया।</item>
-        <item quantity="other">%d चंक्स हटाए गए।</item>
-    </plurals>
 </resources>

@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">Jadwalkan ulang layanan perekam setelah tugas disapu atau sistem mematikan aplikasi jika buffer harus bertahan.</string>
     <string name="wake_lock_label">Jaga CPU tetap aktif</string>
     <string name="wake_lock_summary">Menahan wake lock parsial saat buffering langsung. Kelangsungan hidup tertinggi, biaya baterai tertinggi.</string>
-    <string name="debug_settings_title">Debug</string>
-    <string name="debug_chunks_tab_summary">Tampilkan pemeriksa potongan dan penggabungan langsung di tab bawah.</string>
+
     <string name="battery_optimization_status_ok">Optimasi baterai: tanpa batas</string>
     <string name="battery_optimization_status_limited">Optimasi baterai: dibatasi</string>
     <string name="battery_optimization_button">Pengaturan baterai</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">Rekaman dihapus.</string>
     <string name="recording_delete_failed">Rekaman tidak dapat dihapus.</string>
     <string name="recording_info">Info</string>
-    <string name="chunks_empty">Belum ada potongan.</string>
-    <string name="chunks_title">Cincin potongan</string>
-    <string name="chunks_title_active">Cincin potongan · aktif</string>
-    <string name="chunks_operations_empty">Tidak ada operasi aktif.</string>
-    <string name="chunks_section_operations">Operasi</string>
-    <string name="chunks_section_chunks">Potongan</string>
-    <string name="chunks_active">Aktif</string>
-    <string name="chunks_operation_background_merge">Gabung latar belakang</string>
-    <string name="chunks_operation_export_merge">Gabung ekspor</string>
-    <string name="chunks_operation_history_reencode">Enkode ulang riwayat</string>
-    <string name="chunks_action_merge">Gabungkan</string>
-    <string name="chunks_merge_done">Potongan digabungkan.</string>
-    <string name="chunks_merge_failed">Potongan tidak dapat digabungkan.</string>
-    <string name="chunks_export_done">Potongan diekspor.</string>
-    <string name="chunks_export_failed">Potongan tidak dapat diekspor.</string>
-    <string name="chunks_delete_failed">Potongan tidak dapat dihapus.</string>
     <string name="about_version">Versi %1$s</string>
     <string name="recording_details_name">Nama:</string>
     <string name="recording_details_started">Mulai:</string>

@@ -2,12 +2,16 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:9.2.0'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0'
+        classpath 'org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:2.3.0'
     }
 }
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 repositories {
     google()
@@ -24,7 +28,7 @@ kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_17
         freeCompilerArgs.addAll(
-            '-Xjvm-default=all',
+            '-jvm-default=no-compatibility',
             '-Xno-param-assertions',
             '-Xno-receiver-assertions',
             '-Xno-call-assertions',
@@ -80,6 +84,7 @@ android {
     }
     buildFeatures {
         buildConfig = false
+        compose = true
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -107,12 +112,16 @@ android {
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.18.0'
-    implementation 'androidx.activity:activity:1.13.0'
+    implementation 'androidx.activity:activity-compose:1.13.0'
     implementation 'androidx.documentfile:documentfile:1.1.0'
-    implementation 'androidx.fragment:fragment:1.8.9'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.10.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0'
-    implementation 'androidx.appcompat:appcompat:1.7.1'
-    implementation 'com.google.android.material:material:1.14.0'
-    testImplementation 'junit:junit:4.13.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.10.0'
+    implementation platform('androidx.compose:compose-bom:2026.05.01')
+    implementation 'androidx.compose.animation:animation'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material:material-icons-core'
+
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
 }

@@ -20,7 +20,6 @@ object TimeTravelConfig {
     const val KEY_SELECTED_TAB = "selected_tab"
     const val FRAGMENT_TAG_CAPTURE = "capture-fragment"
     const val FRAGMENT_TAG_FILES = "files-fragment"
-    const val FRAGMENT_TAG_CHUNKS = "chunks-fragment"
     const val PAYLOAD_SELECTION = "selection"
     const val CODEC_SUMMARY_SEPARATOR = " · "
 
@@ -60,7 +59,5 @@ object TimeTravelConfig {
     const val FORMAT_DATE_DEBUG = "dd MMM yyyy HH:mm:ss"
     const val FORMAT_DATE_INFO = "dd MMM yyyy HH:mm:ss z"
 
-    const val AMR_NB_MAGIC_HEADER = "#!AMR\n"
-    const val AMR_WB_MAGIC_HEADER = "#!AMR-WB\n"
     const val TEMP_FILE_SUFFIX = ".tmp"
 }

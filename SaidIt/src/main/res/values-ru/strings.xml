@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">Перезапускать сервис записи после смахивания задачи или завершения системой, если буфер должен сохраниться.</string>
     <string name="wake_lock_label">Не давать CPU заснуть</string>
     <string name="wake_lock_summary">Удерживать частичную блокировку пробуждения во время живого буфера. Максимальная живучесть, максимальный расход батареи.</string>
-    <string name="debug_settings_title">Отладка</string>
-    <string name="debug_chunks_tab_summary">Показывать инспектор сегментов и слияний в нижних вкладках.</string>
+
     <string name="battery_optimization_status_ok">Оптимизация батареи: без ограничений</string>
     <string name="battery_optimization_status_limited">Оптимизация батареи: с ограничениями</string>
     <string name="battery_optimization_button">Настройки батареи</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">Запись удалена.</string>
     <string name="recording_delete_failed">Не удалось удалить запись.</string>
     <string name="recording_info">Информация</string>
-    <string name="chunks_empty">Сегментов пока нет.</string>
-    <string name="chunks_title">Кольцо сегментов</string>
-    <string name="chunks_title_active">Кольцо сегментов · активно</string>
-    <string name="chunks_operations_empty">Нет активных операций.</string>
-    <string name="chunks_section_operations">Операции</string>
-    <string name="chunks_section_chunks">Сегменты</string>
-    <string name="chunks_active">Активно</string>
-    <string name="chunks_operation_background_merge">Фоновое слияние</string>
-    <string name="chunks_operation_export_merge">Слияние при экспорте</string>
-    <string name="chunks_operation_history_reencode">Перекодирование истории</string>
-    <string name="chunks_action_merge">Объединить</string>
-    <string name="chunks_merge_done">Сегмент объединён.</string>
-    <string name="chunks_merge_failed">Не удалось объединить сегмент.</string>
-    <string name="chunks_export_done">Сегмент экспортирован.</string>
-    <string name="chunks_export_failed">Не удалось экспортировать сегмент.</string>
-    <string name="chunks_delete_failed">Не удалось удалить сегмент.</string>
     <string name="about_version">Версия %1$s</string>
     <string name="recording_details_name">Имя:</string>
     <string name="recording_details_started">Начало:</string>

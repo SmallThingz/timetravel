@@ -16,12 +16,4 @@
         <item quantity="many">تم حذف %d تسجيلًا.</item>
         <item quantity="other">تم حذف %d تسجيل.</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="zero">تم حذف %d جزء.</item>
-        <item quantity="one">تم حذف جزء واحد.</item>
-        <item quantity="two">تم حذف جزأين.</item>
-        <item quantity="few">تم حذف %d أجزاء.</item>
-        <item quantity="many">تم حذف %d جزءًا.</item>
-        <item quantity="other">تم حذف %d جزء.</item>
-    </plurals>
 </resources>

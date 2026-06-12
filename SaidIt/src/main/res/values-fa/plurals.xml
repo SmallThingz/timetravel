@@ -8,8 +8,4 @@
         <item quantity="one">%d ضبط حذف شد.</item>
         <item quantity="other">%d ضبط حذف شد.</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="one">%d تکه حذف شد.</item>
-        <item quantity="other">%d تکه حذف شد.</item>
-    </plurals>
 </resources>

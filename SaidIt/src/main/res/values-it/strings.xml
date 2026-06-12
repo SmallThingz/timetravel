@@ -167,23 +167,6 @@
     <string name="codec_opus">Opus</string>
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
-    <string name="debug_settings_title">Debug</string>
-    <string name="debug_chunks_tab_summary">Mostra lo strumento di ispezione dei chunk e delle fusioni nelle schede in basso.</string>
+
     <string name="settings_saved_reencode_history">Salvato. Ricodifica la cronologia per esportare di nuovo.</string>
-    <string name="chunks_empty">Nessun chunk ancora.</string>
-    <string name="chunks_title">Anello dei chunk</string>
-    <string name="chunks_title_active">Anello dei chunk · attivo</string>
-    <string name="chunks_operations_empty">Nessuna operazione attiva.</string>
-    <string name="chunks_section_operations">Operazioni</string>
-    <string name="chunks_section_chunks">Chunk</string>
-    <string name="chunks_active">Attivo</string>
-    <string name="chunks_operation_background_merge">Unione in background</string>
-    <string name="chunks_operation_export_merge">Unione di esportazione</string>
-    <string name="chunks_operation_history_reencode">Ricodifica cronologia</string>
-    <string name="chunks_action_merge">Unisci</string>
-    <string name="chunks_merge_done">Chunk unito.</string>
-    <string name="chunks_merge_failed">Impossibile unire il chunk.</string>
-    <string name="chunks_export_done">Chunk esportato.</string>
-    <string name="chunks_export_failed">Impossibile esportare il chunk.</string>
-    <string name="chunks_delete_failed">Impossibile eliminare il chunk.</string>
 </resources>

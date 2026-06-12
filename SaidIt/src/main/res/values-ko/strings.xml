@@ -120,8 +120,7 @@
     <string name="aggressive_restart_summary">버퍼를 유지해야 할 때 작업 스와이프나 시스템 종료 후 녹음 서비스를 다시 예약합니다.</string>
     <string name="wake_lock_label">CPU 깨우기 유지</string>
     <string name="wake_lock_summary">실시간 버퍼링 동안 부분 웨이크 락을 유지합니다. 생존성은 가장 높지만 배터리 소모도 가장 큽니다.</string>
-    <string name="debug_settings_title">디버그</string>
-    <string name="debug_chunks_tab_summary">하단 탭에 실시간 청크 및 병합 검사기를 표시합니다.</string>
+
     <string name="battery_optimization_status_ok">배터리 최적화: 제한 없음</string>
     <string name="battery_optimization_status_limited">배터리 최적화: 제한됨</string>
     <string name="battery_optimization_button">배터리 설정</string>
@@ -145,22 +144,6 @@
     <string name="recording_deleted">녹음이 삭제되었습니다.</string>
     <string name="recording_delete_failed">녹음을 삭제할 수 없습니다.</string>
     <string name="recording_info">정보</string>
-    <string name="chunks_empty">아직 청크가 없습니다.</string>
-    <string name="chunks_title">청크 링</string>
-    <string name="chunks_title_active">청크 링 · 활성</string>
-    <string name="chunks_operations_empty">활성 작업이 없습니다.</string>
-    <string name="chunks_section_operations">작업</string>
-    <string name="chunks_section_chunks">청크</string>
-    <string name="chunks_active">활성</string>
-    <string name="chunks_operation_background_merge">백그라운드 병합</string>
-    <string name="chunks_operation_export_merge">내보내기 병합</string>
-    <string name="chunks_operation_history_reencode">기록 다시 인코딩</string>
-    <string name="chunks_action_merge">병합</string>
-    <string name="chunks_merge_done">청크를 병합했습니다.</string>
-    <string name="chunks_merge_failed">청크를 병합할 수 없습니다.</string>
-    <string name="chunks_export_done">청크를 내보냈습니다.</string>
-    <string name="chunks_export_failed">청크를 내보낼 수 없습니다.</string>
-    <string name="chunks_delete_failed">청크를 삭제할 수 없습니다.</string>
     <string name="about_version">버전 %1$s</string>
     <string name="recording_details_name">이름:</string>
     <string name="recording_details_started">시작:</string>

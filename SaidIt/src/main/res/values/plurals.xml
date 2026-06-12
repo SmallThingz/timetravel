@@ -8,8 +8,4 @@
         <item quantity="one">%d recording deleted.</item>
         <item quantity="other">%d recordings deleted.</item>
     </plurals>
-    <plurals name="chunks_deleted">
-        <item quantity="one">%d chunk deleted.</item>
-        <item quantity="other">%d chunks deleted.</item>
-    </plurals>
 </resources>

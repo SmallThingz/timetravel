@@ -24,9 +24,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TimeTravel" >
         <activity
-            android:name=".TimeTravelActivity"
-            android:exported="true"
-            tools:ignore="Instantiatable">
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -41,14 +40,6 @@
             android:stopWithTask="false">
         </service>
 
-        <activity
-            android:name=".SettingsActivity"
-            android:parentActivityName=".TimeTravelActivity"
-            tools:ignore="Instantiatable" >
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".TimeTravelActivity" />
-        </activity>
 
         <provider
             android:name="androidx.core.content.FileProvider"
