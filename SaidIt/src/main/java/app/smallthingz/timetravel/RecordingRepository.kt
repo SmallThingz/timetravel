@@ -72,7 +72,7 @@ object RecordingRepository {
         }
     }
 
-    suspend fun hasMovableRecordings(
+    suspend fun syncAndCheckMovableRecordings(
         context: Context,
         targetDirectoryId: String = getConfiguredOutputDirectoryId(context),
     ): Boolean {

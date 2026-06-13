@@ -3,6 +3,8 @@ package app.smallthingz.timetravel
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -87,8 +89,10 @@ fun RecordingPlayerDialog(
             prepared = true
             val dur = preparedPlayer.duration.coerceAtLeast(0)
             duration = dur.coerceAtLeast(1)
-            preparedPlayer.start()
-            isPlaying = true
+            if (!released) {
+                preparedPlayer.start()
+                isPlaying = true
+            }
         }
         player.setOnSeekCompleteListener {
             if (released) return@setOnSeekCompleteListener
@@ -99,7 +103,9 @@ fun RecordingPlayerDialog(
             currentPosition = duration
         }
         player.setOnErrorListener { _, _, _ ->
-            if (!released) onPlaybackFailed()
+            if (!released) {
+                Handler(Looper.getMainLooper()).post { onPlaybackFailed() }
+            }
             releasePlayer()
             true
         }
@@ -109,10 +115,10 @@ fun RecordingPlayerDialog(
                 RecordingStorageType.DOCUMENT -> player.setDataSource(context, Uri.parse(recording.id))
             }
             player.prepareAsync()
+            mediaPlayer = player
         } catch (_: Throwable) {
             if (!released) onPlaybackFailed()
         }
-        mediaPlayer = player
 
         onDispose { releasePlayer() }
     }
@@ -219,7 +225,7 @@ fun RecordingPlayerDialog(
                         IconButton(
                             onClick = {
                                 val player = mediaPlayer ?: return@IconButton
-                                if (!prepared) return@IconButton
+                                if (!prepared || released) return@IconButton
                                 val target = (currentPosition - SEEK_JUMP_MS).coerceAtLeast(0)
                                 player.seekTo(target)
                                 currentPosition = target
@@ -243,7 +249,7 @@ fun RecordingPlayerDialog(
                         IconButton(
                             onClick = {
                                 val player = mediaPlayer ?: return@IconButton
-                                if (!prepared) return@IconButton
+                                if (!prepared || released) return@IconButton
                                 if (player.isPlaying) {
                                     player.pause()
                                     isPlaying = false
@@ -274,7 +280,7 @@ fun RecordingPlayerDialog(
                         IconButton(
                             onClick = {
                                 val player = mediaPlayer ?: return@IconButton
-                                if (!prepared) return@IconButton
+                                if (!prepared || released) return@IconButton
                                 val target = (currentPosition + SEEK_JUMP_MS).coerceAtMost(duration)
                                 player.seekTo(target)
                                 currentPosition = target

@@ -102,6 +102,7 @@ fun FilesScreen() {
 
     val selectedIds = remember { mutableStateMapOf<String, RecordingEntity>() }
     val pendingDeletions = remember { mutableStateMapOf<String, RecordingEntity>() }
+    var isDeleting by remember { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameRecording by remember { mutableStateOf<RecordingEntity?>(null) }
     var showInfoDialog by rememberSaveable { mutableStateOf(false) }
@@ -134,8 +135,8 @@ fun FilesScreen() {
     fun finalizeDeletions() {
         val pending = pendingDeletions.values.toList()
         if (pending.isEmpty()) return
-        pendingDeletions.clear()
         scope.launch {
+            pendingDeletions.clear()
             var deleted = 0
             pending.forEach { recording ->
                 if (RecordingRepository.delete(context, recording)) deleted++
@@ -184,8 +185,10 @@ fun FilesScreen() {
     }
 
     fun deleteSelected() {
+        if (isDeleting) return
         val selected = selectedIds.values.toList()
         if (selected.isEmpty()) { clearSelection(); return }
+        isDeleting = true
         selected.forEach { pendingDeletions[it.id] = it }
         clearSelection()
         scope.launch {
@@ -202,6 +205,7 @@ fun FilesScreen() {
             } else {
                 finalizeDeletions()
             }
+            isDeleting = false
         }
     }
 
@@ -254,7 +258,7 @@ fun FilesScreen() {
                             }
                         }
                         if (selectedIds.isNotEmpty()) {
-                            IconButton(onClick = { deleteSelected() }) {
+                            IconButton(onClick = { deleteSelected() }, enabled = !isDeleting) {
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = stringResource(R.string.delete_recording),
@@ -508,11 +512,16 @@ private fun RenameRecordingDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var name by remember { mutableStateOf(recording.displayName.substringBeforeLast('.', recording.displayName)) }
+    var name by remember {
+        val baseName = recording.displayName.substringBeforeLast('.', recording.displayName)
+        mutableStateOf(if (baseName.isEmpty()) recording.displayName else baseName)
+    }
     var error by remember { mutableStateOf<String?>(null) }
+    var isRenaming by remember { mutableStateOf(false) }
     val illegalChars = setOf('\\', '/', '*', '?', '"', '<', '>', '|')
 
     fun validateAndRename(trimmed: String) {
+        if (isRenaming) return
         if (trimmed.isBlank()) {
             error = context.getString(R.string.rename_recording_invalid)
             return
@@ -521,12 +530,17 @@ private fun RenameRecordingDialog(
             error = context.getString(R.string.rename_recording_illegal_chars)
             return
         }
+        isRenaming = true
         scope.launch {
-            val renamed = RecordingRepository.rename(context, recording, trimmed)
-            if (renamed == null) {
-                error = context.getString(R.string.rename_recording_failed)
-            } else {
-                onRenamed()
+            try {
+                val renamed = RecordingRepository.rename(context, recording, trimmed)
+                if (renamed == null) {
+                    error = context.getString(R.string.rename_recording_failed)
+                } else {
+                    onRenamed()
+                }
+            } finally {
+                isRenaming = false
             }
         }
     }
@@ -564,12 +578,12 @@ private fun RenameRecordingDialog(
                     isError = error != null,
                     supportingText = error?.let { { Text(it) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { validateAndRename(name.trim()) })
+                    keyboardActions = KeyboardActions(onDone = { if (!isRenaming) validateAndRename(name.trim()) })
                 )
                 Spacer(Modifier.width(8.dp))
                 IconButton(
                     onClick = { validateAndRename(name.trim()) },
-                    enabled = error == null
+                    enabled = error == null && !isRenaming
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_check),

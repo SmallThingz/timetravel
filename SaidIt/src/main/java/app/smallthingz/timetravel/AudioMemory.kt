@@ -125,6 +125,26 @@ internal class AudioMemory {
     }
 
     @Synchronized
+    fun snapshotBytes(): ByteArray {
+        val result = ByteArray(countFilled().coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+        var writeOffset = 0
+        val currentBuffer = current
+        if (!filling && currentBuffer != null && currentWasFilled) {
+            val length = currentBuffer.size - offset
+            System.arraycopy(currentBuffer, offset, result, writeOffset, length)
+            writeOffset += length
+        }
+        for (array in filled) {
+            System.arraycopy(array, 0, result, writeOffset, array.size)
+            writeOffset += array.size
+        }
+        if (currentBuffer != null && offset > 0) {
+            System.arraycopy(currentBuffer, 0, result, writeOffset, offset)
+        }
+        return result
+    }
+
+    @Synchronized
     fun clear() {
         val c = current
         if (c != null) free.addLast(c)
@@ -197,7 +217,9 @@ internal class AudioMemory {
 
             val currentBuffer = requireNotNull(current)
             val read = try {
-                filler.consume(currentBuffer, offset, currentBuffer.size - offset).coerceAtLeast(0)
+                filler.consume(currentBuffer, offset, currentBuffer.size - offset)
+                    .coerceAtLeast(0)
+                    .coerceAtMost(currentBuffer.size - offset)
             } catch (e: Exception) {
                 filling = false
                 throw e

@@ -113,11 +113,20 @@ class MainActivity : ComponentActivity() {
         permissionsRequested = true
         permissionLauncher.launch(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                arrayOf(
-                    Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.FOREGROUND_SERVICE,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                )
+                if (Build.VERSION.SDK_INT >= 34) {
+                    arrayOf(
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.FOREGROUND_SERVICE,
+                        Manifest.permission.FOREGROUND_SERVICE_MICROPHONE,
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    )
+                } else {
+                    arrayOf(
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.FOREGROUND_SERVICE,
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    )
+                }
             } else {
                 arrayOf(
                     Manifest.permission.RECORD_AUDIO,
@@ -129,11 +138,20 @@ class MainActivity : ComponentActivity() {
 
     private fun hasRequiredPermissions(): Boolean {
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.FOREGROUND_SERVICE,
-                Manifest.permission.POST_NOTIFICATIONS,
-            )
+            if (Build.VERSION.SDK_INT >= 34) {
+                arrayOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.FOREGROUND_SERVICE,
+                    Manifest.permission.FOREGROUND_SERVICE_MICROPHONE,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                )
+            } else {
+                arrayOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.FOREGROUND_SERVICE,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                )
+            }
         } else {
             arrayOf(
                 Manifest.permission.RECORD_AUDIO,

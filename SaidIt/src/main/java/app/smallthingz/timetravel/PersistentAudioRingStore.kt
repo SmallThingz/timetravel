@@ -70,7 +70,6 @@ internal class PersistentAudioRingStore(
         )
     }
 
-    @Synchronized
     fun restoreInto(
         audioMemory: AudioMemory,
         capacityBytes: Long,
@@ -83,36 +82,21 @@ internal class PersistentAudioRingStore(
             return RestoreSummary(0, 0L)
         }
 
-        ensureMapped(capacityBytes.toInt(), sampleRate, channelCount, sampleFormat.bytesPerSample)
-        val meta = metaMap ?: return RestoreSummary(0, 0L)
-        val filledBytes = meta.readFilledBytes().coerceIn(0, mappedCapacityBytes)
-        if (filledBytes <= 0) {
-            return RestoreSummary(0, 0L)
-        }
-
-        val writePosition = meta.readWritePosition()
-        val lastWriteAtMillis = meta.readLastWriteAtMillis()
-        val startPosition = ringStartPosition(writePosition, filledBytes, mappedCapacityBytes)
-        val scratch = ioScratch
-        var restored = 0
-        var remaining = filledBytes
-        var readPosition = startPosition
-        val dv = dataMap ?: return RestoreSummary(0, 0L)
-
-        while (remaining > 0) {
-            val chunkSize = minOf(remaining, scratch.size, mappedCapacityBytes - readPosition)
-            dv.position(readPosition)
-            dv.get(scratch, 0, chunkSize)
-            audioMemory.write(scratch, 0, chunkSize)
-            restored += chunkSize
-            remaining -= chunkSize
-            readPosition += chunkSize
-            if (readPosition >= mappedCapacityBytes) {
-                readPosition = 0
+        val restoredBytes: ByteArray
+        val lastWriteAtMillis: Long
+        synchronized(this) {
+            ensureMapped(capacityBytes.toInt(), sampleRate, channelCount, sampleFormat.bytesPerSample)
+            val meta = metaMap ?: return RestoreSummary(0, 0L)
+            val filledBytes = meta.readFilledBytes().coerceIn(0, mappedCapacityBytes)
+            if (filledBytes <= 0) {
+                return RestoreSummary(0, 0L)
             }
+            lastWriteAtMillis = meta.readLastWriteAtMillis()
+            restoredBytes = readNewestBytes(filledBytes)
         }
 
-        return RestoreSummary(restored, lastWriteAtMillis)
+        audioMemory.write(restoredBytes, 0, restoredBytes.size)
+        return RestoreSummary(restoredBytes.size, lastWriteAtMillis)
     }
 
     @Synchronized
@@ -166,6 +150,22 @@ internal class PersistentAudioRingStore(
                 readPosition = 0
             }
         }
+    }
+
+    @Synchronized
+    fun snapshotBytes(): ByteArray {
+        ensureMetaMapped()
+        val meta = metaMap ?: return ByteArray(0)
+        val capacityBytes = meta.readCapacityBytes()
+        val sampleRate = meta.readSampleRate()
+        val channelCount = meta.readChannelCount()
+        val filledBytes = meta.readFilledBytes()
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+            return ByteArray(0)
+        }
+        val bytesPerSample = meta.readBytesPerSample().takeIf { it > 0 } ?: 2
+        ensureMapped(capacityBytes, sampleRate, channelCount, bytesPerSample)
+        return readNewestBytes(filledBytes)
     }
 
     @Synchronized

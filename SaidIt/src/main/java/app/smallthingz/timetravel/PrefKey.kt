@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 enum class PrefKey {
     AUDIO_MEMORY_ENABLED,
     AUDIO_MEMORY_SIZE,
+    ONE_SHOT_MEMORY_SIZE,
+    RING_MEMORY_SIZE,
     AGGRESSIVE_RESTART_ENABLED,
     WAKE_LOCK_ENABLED,
     RETENTION_MODE,

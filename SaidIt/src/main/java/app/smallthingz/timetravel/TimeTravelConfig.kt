@@ -34,5 +34,6 @@ object TimeTravelConfig {
     const val EXTRA_FORMAT = "format"
     const val EXTRA_CODEC = "codec"
 
+    const val CAPTURE_SCRATCH_BYTES = 16384
 
 }

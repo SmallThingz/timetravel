@@ -139,6 +139,7 @@ internal fun AppTopBar(
                                 settingsPressed = false
                             }
                         },
+                        onTap = { onSettingsClick() },
                     )
                 },
         ) {

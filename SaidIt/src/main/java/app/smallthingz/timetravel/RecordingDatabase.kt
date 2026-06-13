@@ -59,9 +59,6 @@ class RecordingDatabase private constructor(context: Context) : SQLiteOpenHelper
         if (oldVersion < 2 && newVersion >= 2) {
             db.migrateToVersion2()
         }
-        if (oldVersion < newVersion) {
-            db.recreateSchema()
-        }
     }
 
     override fun onDowngrade(

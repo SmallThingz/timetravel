@@ -178,14 +178,6 @@ fun CaptureScreen() {
     var memorizedSeconds by remember { mutableFloatStateOf(0f) }
     var totalMemorySeconds by remember { mutableFloatStateOf(0f) }
     var recordedSeconds by remember { mutableFloatStateOf(0f) }
-    val reencodePendingState = remember { mutableStateOf(false) }
-    var historyReencodePending by reencodePendingState
-    val reencodingState = remember { mutableStateOf(false) }
-    var historyReencoding by reencodingState
-    val reencodeProcessedState = remember { mutableStateOf(0L) }
-    var historyReencodeProcessedBytes by reencodeProcessedState
-    val reencodeTotalState = remember { mutableStateOf(0L) }
-    var historyReencodeTotalBytes by reencodeTotalState
 
     var showClearDialog by rememberSaveable { mutableStateOf(false) }
     var showExportRangeDialog by rememberSaveable { mutableStateOf(false) }
@@ -202,20 +194,12 @@ fun CaptureScreen() {
                 memorized: Float,
                 totalMemory: Float,
                 recorded: Float,
-                historyReencodePending: Boolean,
-                historyReencoding: Boolean,
-                historyReencodeProcessedBytes: Long,
-                historyReencodeTotalBytes: Long,
             ) {
                 isListening = listeningEnabled
                 isRecording = recording
                 memorizedSeconds = memorized
                 totalMemorySeconds = totalMemory
                 recordedSeconds = recorded
-                reencodePendingState.value = historyReencodePending
-                reencodingState.value = historyReencoding
-                reencodeProcessedState.value = historyReencodeProcessedBytes
-                reencodeTotalState.value = historyReencodeTotalBytes
             }
         }
     }
@@ -329,10 +313,6 @@ fun CaptureScreen() {
                 isListening = isListening,
                 isRecording = isRecording,
                 isSaving = isSaving,
-                isHistoryReencoding = historyReencoding,
-                historyReencodePending = historyReencodePending,
-                historyReencodeProcessedBytes = historyReencodeProcessedBytes,
-                historyReencodeTotalBytes = historyReencodeTotalBytes,
                 service = service,
                 onListenToggle = {
                     val s = service ?: return@MainCaptureContent
@@ -371,11 +351,6 @@ fun CaptureScreen() {
                         return@MainCaptureContent
                     }
                     showExportRangeDialog = true
-                },
-                onReencode = {
-                    if (!historyReencoding) {
-                        service?.startHistoryReencode()
-                    }
                 },
             )
         }
@@ -424,16 +399,11 @@ private fun MainCaptureContent(
     isListening: Boolean,
     isRecording: Boolean,
     isSaving: Boolean,
-    isHistoryReencoding: Boolean,
-    historyReencodePending: Boolean,
-    historyReencodeProcessedBytes: Long,
-    historyReencodeTotalBytes: Long,
     service: TimeTravelService?,
     onListenToggle: () -> Unit,
     onClearBuffer: () -> Unit,
     onExportFull: () -> Unit,
     onExportCustom: () -> Unit,
-    onReencode: () -> Unit,
 ) {
     val context = LocalContext.current
     val retentionMode = remember(context) { mutableStateOf(getConfiguredRetentionMode(context)) }
@@ -496,8 +466,8 @@ private fun MainCaptureContent(
         if (overExportLimit) MaterialTheme.colorScheme.error
         else MaterialTheme.colorScheme.onSurfaceVariant
 
-    val exportBlocked = isSaving || isRecording || historyReencodePending || isHistoryReencoding
-    val clearEnabled = !isSaving && !isRecording && !historyReencodePending && !isHistoryReencoding
+    val exportBlocked = isSaving || isRecording
+    val clearEnabled = !isSaving && !isRecording
 
     Column(
         modifier = Modifier
@@ -540,7 +510,6 @@ private fun MainCaptureContent(
             isListening = isListening,
             isRecording = false,
             isSaving = isSaving,
-            isHistoryReencoding = isHistoryReencoding,
             onClick = onListenToggle,
         )
 
@@ -550,24 +519,6 @@ private fun MainCaptureContent(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (historyReencodePending || isHistoryReencoding) {
-                val reencodeText =
-                    if (isHistoryReencoding) {
-                        val pct = if (historyReencodeTotalBytes <= 0L) 0
-                        else ((historyReencodeProcessedBytes * 100L) / historyReencodeTotalBytes).toInt().coerceIn(0, 100)
-                        stringResource(R.string.reencode_history_progress, pct)
-                    } else {
-                        stringResource(R.string.reencode_history)
-                    }
-                FilledTonalButton(
-                    onClick = onReencode,
-                    enabled = !isHistoryReencoding,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(reencodeText)
-                }
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -645,7 +596,6 @@ private fun RecordingOverlay(
                 isListening = true,
                 isRecording = true,
                 isSaving = isSaving,
-                isHistoryReencoding = false,
                 showRecordingIcon = true,
                 onClick = onStopRecording,
             )
@@ -658,7 +608,6 @@ private fun ListenCircle(
     isListening: Boolean,
     isRecording: Boolean,
     isSaving: Boolean,
-    isHistoryReencoding: Boolean,
     showRecordingIcon: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -695,14 +644,14 @@ private fun ListenCircle(
     )
 
     val ringColor = when {
-        isSaving || isHistoryReencoding -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+        isSaving -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
         isRecording -> MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
         active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
         else -> Color.Transparent
     }
 
     val fillColor = when {
-        isSaving || isHistoryReencoding -> MaterialTheme.colorScheme.surfaceContainerHigh
+        isSaving -> MaterialTheme.colorScheme.surfaceContainerHigh
         active -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
@@ -722,7 +671,7 @@ private fun ListenCircle(
         else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.17f)
     }
 
-    val enabled = !isSaving && !isHistoryReencoding
+    val enabled = !isSaving
 
     Box(
         contentAlignment = Alignment.Center,

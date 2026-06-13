@@ -210,7 +210,7 @@ fun SettingsScreen(
         val gen = ++moveAvailabilityGeneration
         canMove = false
         scope.launch {
-            val result = RecordingRepository.hasMovableRecordings(
+            val result = RecordingRepository.syncAndCheckMovableRecordings(
                 context,
                 getOutputDirectoryId(context, selectedExportTreeUri),
             )
@@ -483,9 +483,6 @@ fun SettingsScreen(
             }
             TimeTravelService.ApplySettingsResult.APPLIED_NOW -> {
                 if (showFeedback) Toast.makeText(context, R.string.settings_saved, Toast.LENGTH_SHORT).show()
-            }
-            TimeTravelService.ApplySettingsResult.REENCODE_REQUIRED -> {
-                if (showFeedback) Toast.makeText(context, R.string.settings_saved_reencode_history, Toast.LENGTH_SHORT).show()
             }
             TimeTravelService.ApplySettingsResult.DEFERRED_UNTIL_RESTART -> {
                 if (showFeedback) Toast.makeText(context, R.string.settings_saved_deferred_input, Toast.LENGTH_SHORT).show()

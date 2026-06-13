@@ -85,6 +85,7 @@ private data class InputConfigKey(
     val sourceMode: AudioSourceMode,
     val routeMode: InputRouteMode,
     val channelMode: ChannelMode,
+    val sampleFormat: PcmSampleFormat,
     val hasBuiltInMic: Boolean,
 )
 
@@ -619,9 +620,39 @@ fun getConfiguredWorkingMemorySizeBytes(
     sampleFormat: PcmSampleFormat = getConfiguredPcmSampleFormat(context),
 ): Long {
     return minOf(
-        getConfiguredMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps, sampleFormat),
+        getConfiguredRingMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps, sampleFormat),
         getWorkingMemoryCapBytes(),
     )
+}
+
+fun getConfiguredOneShotMemorySizeBytes(
+    context: Context,
+    sampleRate: Int,
+    channelMode: ChannelMode = getConfiguredChannelMode(context),
+    format: ExportFormat = getConfiguredOutputFormat(context),
+    codec: ExportCodec = getConfiguredOutputCodec(context),
+    bitrateKbps: Int? = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
+    sampleFormat: PcmSampleFormat = getConfiguredPcmSampleFormat(context),
+): Long {
+    val prefs = getRecorderPreferences(context)
+    if (!prefs.contains(PrefKey.ONE_SHOT_MEMORY_SIZE)) return 0L
+    return prefs.getLong(PrefKey.ONE_SHOT_MEMORY_SIZE, 0L).coerceAtLeast(0L)
+}
+
+fun getConfiguredRingMemorySizeBytes(
+    context: Context,
+    sampleRate: Int,
+    channelMode: ChannelMode = getConfiguredChannelMode(context),
+    format: ExportFormat = getConfiguredOutputFormat(context),
+    codec: ExportCodec = getConfiguredOutputCodec(context),
+    bitrateKbps: Int? = getConfiguredCodecBitrateKbps(context, codec, sampleRate, channelMode.channelCount),
+    sampleFormat: PcmSampleFormat = getConfiguredPcmSampleFormat(context),
+): Long {
+    val prefs = getRecorderPreferences(context)
+    if (prefs.contains(PrefKey.RING_MEMORY_SIZE)) {
+        return prefs.getLong(PrefKey.RING_MEMORY_SIZE, 0L).coerceAtLeast(0L)
+    }
+    return getConfiguredMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps, sampleFormat)
 }
 
 fun getConfiguredPersistentPcmSizeBytes(
@@ -634,7 +665,7 @@ fun getConfiguredPersistentPcmSizeBytes(
     sampleFormat: PcmSampleFormat = getConfiguredPcmSampleFormat(context),
 ): Long {
     return minOf(
-        getConfiguredMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps, sampleFormat),
+        getConfiguredRingMemorySizeBytes(context, sampleRate, channelMode, format, codec, bitrateKbps, sampleFormat),
         getPersistentPcmBufferCapBytes(),
     )
 }
@@ -998,6 +1029,7 @@ fun isInputConfigSupported(
         sourceMode = sourceMode,
         routeMode = routeMode,
         channelMode = channelMode,
+        sampleFormat = sampleFormat,
         hasBuiltInMic = hasBuiltInMicrophone(context),
     )
     return inputConfigCache.cached(key) {
