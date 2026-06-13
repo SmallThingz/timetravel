@@ -234,9 +234,9 @@ class FormattingAndHistoryMathTest {
 
     @Test
     fun parseDurationInput_handlesZeroInput() {
-        assertEquals(null, parseDurationInput("0"))
-        assertEquals(null, parseDurationInput("0:00"))
-        assertEquals(null, parseDurationInput("0:0:0"))
+        assertEquals(0, parseDurationInput("0"))
+        assertEquals(0, parseDurationInput("0:00"))
+        assertEquals(0, parseDurationInput("0:0:0"))
         assertEquals(null, parseDurationInput(""))
         assertEquals(null, parseDurationInput("   "))
     }

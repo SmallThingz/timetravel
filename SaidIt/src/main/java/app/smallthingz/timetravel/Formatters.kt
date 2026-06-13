@@ -10,6 +10,8 @@ private val sizeFormatter = object : ThreadLocal<DecimalFormat>() {
         DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
 }
 
+private val DIGIT_0 = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+
 fun formatShortTimer(seconds: Float): String {
     val totalSeconds = seconds.toInt().coerceAtLeast(0)
     val hours = totalSeconds / 3600
@@ -17,18 +19,23 @@ fun formatShortTimer(seconds: Float): String {
     val secs = totalSeconds % 60
 
     return if (hours > 0) {
-        buildString {
-            append(hours); append(':'); append(pad2(minutes)); append(':'); append(pad2(secs))
-        }
+        val hs = hours.toString()
+        val chars = CharArray(hs.length + 6)
+        var i = 0
+        for (c in hs) chars[i++] = c
+        chars[i++] = ':'; chars[i++] = DIGIT_0[minutes / 10]; chars[i++] = DIGIT_0[minutes % 10]
+        chars[i++] = ':'; chars[i++] = DIGIT_0[secs / 10]; chars[i] = DIGIT_0[secs % 10]
+        String(chars)
+    } else if (minutes >= 10) {
+        val chars = CharArray(5)
+        chars[0] = DIGIT_0[minutes / 10]; chars[1] = DIGIT_0[minutes % 10]
+        chars[2] = ':'; chars[3] = DIGIT_0[secs / 10]; chars[4] = DIGIT_0[secs % 10]
+        String(chars)
     } else {
-        buildString {
-            append(minutes); append(':'); append(pad2(secs))
-        }
+        val chars = CharArray(4)
+        chars[0] = DIGIT_0[minutes]; chars[1] = ':'; chars[2] = DIGIT_0[secs / 10]; chars[3] = DIGIT_0[secs % 10]
+        String(chars)
     }
-}
-
-private fun pad2(value: Int): String {
-    return if (value < 10) "0$value" else value.toString()
 }
 
 fun formatShortFileSize(size: Long): String {

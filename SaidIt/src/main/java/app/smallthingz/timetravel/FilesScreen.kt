@@ -57,7 +57,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,11 +102,11 @@ fun FilesScreen() {
     val selectedIds = remember { mutableStateMapOf<String, RecordingEntity>() }
     val pendingDeletions = remember { mutableStateMapOf<String, RecordingEntity>() }
     var isDeleting by remember { mutableStateOf(false) }
-    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
     var renameRecording by remember { mutableStateOf<RecordingEntity?>(null) }
-    var showInfoDialog by rememberSaveable { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
     var infoRecording by remember { mutableStateOf<RecordingEntity?>(null) }
-    var showPlayerDialog by rememberSaveable { mutableStateOf(false) }
+    var showPlayerDialog by remember { mutableStateOf(false) }
     var playerRecording by remember { mutableStateOf<RecordingEntity?>(null) }
 
     fun refresh() {
@@ -221,7 +220,7 @@ fun FilesScreen() {
         showInfoDialog = true
     }
 
-    val selectionActive = selectedIds.isNotEmpty()
+    val selectionActive by remember { derivedStateOf { selectedIds.isNotEmpty() } }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },

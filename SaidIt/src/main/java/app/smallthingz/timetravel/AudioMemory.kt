@@ -13,6 +13,7 @@ internal class AudioMemory {
     private var currentWasFilled = false
     private var current: ByteArray? = null
     private var offset = 0
+    private var statsCache: Stats? = null
 
     @Synchronized
     fun allocate(sizeToEnsure: Long) {
@@ -146,12 +147,12 @@ internal class AudioMemory {
 
     @Synchronized
     fun clear() {
+        statsCache = null
         val c = current
         if (c != null) free.addLast(c)
         current = null
         offset = 0
         currentWasFilled = false
-        filling = false
         free.addAll(filled)
         filled.clear()
     }
@@ -167,29 +168,28 @@ internal class AudioMemory {
         var readOffset = offset
         var remaining = count
         while (remaining > 0) {
-            if (current == null) {
-                if (free.isEmpty()) {
-                    if (filled.isEmpty()) {
-                        return
-                    }
+            var buf = current
+            if (buf == null) {
+                buf = if (free.isEmpty()) {
+                    if (filled.isEmpty()) return
                     currentWasFilled = true
-                    current = filled.removeFirst()
+                    filled.removeFirst()
                 } else {
                     currentWasFilled = false
-                    current = free.removeFirst()
+                    free.removeFirst()
                 }
+                current = buf
                 this.offset = 0
             }
 
-            val currentBuffer = requireNotNull(current)
-            val copyCount = minOf(remaining, currentBuffer.size - this.offset)
-            System.arraycopy(array, readOffset, currentBuffer, this.offset, copyCount)
+            val copyCount = minOf(remaining, buf.size - this.offset)
+            System.arraycopy(array, readOffset, buf, this.offset, copyCount)
             readOffset += copyCount
             remaining -= copyCount
             this.offset += copyCount
 
-            if (this.offset >= currentBuffer.size) {
-                filled.add(currentBuffer)
+            if (this.offset >= buf.size) {
+                filled.add(buf)
                 current = null
                 this.offset = 0
             }
@@ -199,34 +199,33 @@ internal class AudioMemory {
     @Throws(IOException::class)
     fun fill(filler: Consumer) {
         synchronized(this) {
-            if (current == null) {
-                if (free.isEmpty()) {
-                    if (filled.isEmpty()) {
-                        return
-                    }
+            var buf = current
+            if (buf == null) {
+                buf = if (free.isEmpty()) {
+                    if (filled.isEmpty()) return
                     currentWasFilled = true
-                    current = filled.removeFirst()
+                    filled.removeFirst()
                 } else {
                     currentWasFilled = false
-                    current = free.removeFirst()
+                    free.removeFirst()
                 }
+                current = buf
                 offset = 0
             }
             filling = true
             fillingStartUptimeMillis = SystemClock.uptimeMillis()
 
-            val currentBuffer = requireNotNull(current)
             val read = try {
-                filler.consume(currentBuffer, offset, currentBuffer.size - offset)
+                filler.consume(buf, offset, buf.size - offset)
                     .coerceAtLeast(0)
-                    .coerceAtMost(currentBuffer.size - offset)
+                    .coerceAtMost(buf.size - offset)
             } catch (e: Exception) {
                 filling = false
                 throw e
             }
 
-            if (offset + read >= currentBuffer.size) {
-                filled.add(currentBuffer)
+            if (offset + read >= buf.size) {
+                filled.add(buf)
                 current = null
                 offset = 0
             } else {
@@ -238,6 +237,8 @@ internal class AudioMemory {
 
     @Synchronized
     fun getStats(fillRate: Int): Stats {
+        val cached = statsCache
+        if (cached != null) return cached
         val total = (filled.size.toLong() + free.size.toLong() + if (current == null) 0L else 1L) * CHUNK_SIZE.toLong()
         val filledBytes = filled.size.toLong() * CHUNK_SIZE.toLong() + when {
             current == null -> 0L
@@ -249,12 +250,7 @@ internal class AudioMemory {
         } else {
             0L
         }
-        return Stats(
-            filled = filledBytes,
-            total = total,
-            estimation = estimation,
-            overwriting = currentWasFilled,
-        )
+        return Stats(filledBytes, total, estimation, currentWasFilled).also { statsCache = it }
     }
 
     data class Stats(

@@ -38,11 +38,10 @@ internal class WavAudioFileWriter(
         offset: Int,
         count: Int,
     ) {
-        var written = 0
-        while (written < count) {
-            val n = channel.write(ByteBuffer.wrap(bytes, offset + written, count - written))
+        val buf = ByteBuffer.wrap(bytes, offset, count)
+        while (buf.hasRemaining()) {
+            val n = channel.write(buf)
             if (n <= 0) throw IOException("Failed to write WAV data")
-            written += n
         }
         totalSampleBytesWritten += count.toLong()
     }

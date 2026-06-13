@@ -217,7 +217,7 @@ private fun SQLiteDatabase.recreateSchema() {
 }
 
 private fun RecordingEntity.toContentValues(): ContentValues {
-    return ContentValues().apply {
+    return ContentValues(12).apply {
         put(RecordingDatabase.COLUMN_ID, id)
         put(RecordingDatabase.COLUMN_DISPLAY_NAME, displayName)
         put(RecordingDatabase.COLUMN_MIME_TYPE, mimeType)
@@ -246,25 +246,26 @@ private fun readRecordings(cursor: android.database.Cursor): List<RecordingEntit
     val createdAtMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_CREATED_AT_MILLIS)
     val lastSeenAtMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_LAST_SEEN_AT_MILLIS)
     val missingSinceMillisIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_MISSING_SINCE_MILLIS)
-    return buildList {
-        while (cursor.moveToNext()) {
-            add(
-                RecordingEntity(
-                    id = cursor.getString(idIndex),
-                    displayName = cursor.getString(displayNameIndex),
-                    mimeType = cursor.getString(mimeTypeIndex),
-                    startedAtMillis = cursor.getLong(startedAtMillisIndex),
-                    durationMillis = cursor.getLong(durationMillisIndex),
-                    sizeBytes = cursor.getLong(sizeBytesIndex),
-                    codecSummary = cursor.getString(codecSummaryIndex),
-                    storageType = cursor.getString(storageTypeIndex),
-                    directoryId = cursor.getString(directoryIdIndex),
-                    createdAtMillis = cursor.getLong(createdAtMillisIndex),
-                    lastSeenAtMillis = cursor.getLong(lastSeenAtMillisIndex),
-                    missingSinceMillis =
-                        if (cursor.isNull(missingSinceMillisIndex)) null else cursor.getLong(missingSinceMillisIndex),
-                ),
-            )
-        }
+    val count = cursor.count.coerceAtLeast(0)
+    val result = ArrayList<RecordingEntity>(count)
+    while (cursor.moveToNext()) {
+        result.add(
+            RecordingEntity(
+                id = cursor.getString(idIndex),
+                displayName = cursor.getString(displayNameIndex),
+                mimeType = cursor.getString(mimeTypeIndex),
+                startedAtMillis = cursor.getLong(startedAtMillisIndex),
+                durationMillis = cursor.getLong(durationMillisIndex),
+                sizeBytes = cursor.getLong(sizeBytesIndex),
+                codecSummary = cursor.getString(codecSummaryIndex),
+                storageType = cursor.getString(storageTypeIndex),
+                directoryId = cursor.getString(directoryIdIndex),
+                createdAtMillis = cursor.getLong(createdAtMillisIndex),
+                lastSeenAtMillis = cursor.getLong(lastSeenAtMillisIndex),
+                missingSinceMillis =
+                    if (cursor.isNull(missingSinceMillisIndex)) null else cursor.getLong(missingSinceMillisIndex),
+            ),
+        )
     }
+    return result
 }

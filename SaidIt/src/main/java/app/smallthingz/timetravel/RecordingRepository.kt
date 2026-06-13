@@ -138,9 +138,11 @@ object RecordingRepository {
         val imported = listCurrentOutputDirectoryRecordings(context)
         val existing = dao.listByDirectory(currentDirectoryId)
         val nowMillis = System.currentTimeMillis()
-        val existingById = existing.associateBy { it.id }
+        val existingById = HashMap<String, RecordingEntity>(existing.size)
+        existing.associateByTo(existingById) { it.id }
         val importedPresent = imported.map { mergeObservedRecording(existingById[it.id], it, nowMillis) }
-        val importedIds = importedPresent.mapTo(mutableSetOf()) { it.id }
+        val importedIds = HashSet<String>(importedPresent.size)
+        importedPresent.mapTo(importedIds) { it.id }
         val updates = mutableListOf<RecordingEntity>()
         val staleIds = mutableListOf<String>()
 

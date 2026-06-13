@@ -49,7 +49,7 @@ fun AboutDialog(onDismiss: () -> Unit = {}) {
         }
         info.versionName.orEmpty()
     }
-    val versionText = context.getString(R.string.about_version, versionName)
+    val versionText = remember(versionName) { context.getString(R.string.about_version, versionName) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

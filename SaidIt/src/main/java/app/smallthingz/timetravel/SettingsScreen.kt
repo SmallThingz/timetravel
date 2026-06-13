@@ -675,7 +675,9 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) { bindUiFromPreferences() }
 
-    val estimatePrefixVal = if (selectedFormat.isPcmContainer) TimeTravelConfig.ESTIMATE_EXACT_PREFIX else TimeTravelConfig.ESTIMATE_APPROX_PREFIX
+    val estimatePrefixVal = remember(selectedFormat) {
+        if (selectedFormat.isPcmContainer) TimeTravelConfig.ESTIMATE_EXACT_PREFIX else TimeTravelConfig.ESTIMATE_APPROX_PREFIX
+    }
 
     Scaffold(
         topBar = {

@@ -106,6 +106,9 @@ class TimeTravelService : Service() {
     @Volatile
     private var cachedPersistentPcmSizeBytes = 0L
 
+    @Volatile
+    private var cachedConfigSnapshot: RecorderConfigurationSnapshot? = null
+
     private val oneShotAudioMemory = OneShotAudioMemory()
     private val audioMemory = AudioMemory()
     private val captureScratch = ByteArray(CAPTURE_SCRATCH_BYTES)
@@ -134,7 +137,7 @@ class TimeTravelService : Service() {
     private val statePollAudioTask: Runnable = object : Runnable {
         override fun run() {
             val stats = audioMemory.getStats(fillRate)
-            statePollConfiguredRetentionBytes = configuredRetentionSampleBytes()
+            statePollConfiguredRetentionBytes = cachedRetentionSampleBytes
             statePollRetainedBytes = availableBufferedSampleBytes()
             statePollMemorizedBytes = (statePollRetainedBytes + stats.estimation).coerceAtMost(statePollConfiguredRetentionBytes)
             var recordedBytes = 0L
@@ -299,6 +302,7 @@ class TimeTravelService : Service() {
         outputFormat = selectedFormat
         outputCodec = selectedCodec
         inputRouteMode = selectedRouteMode
+        cachedConfigSnapshot = null
         refreshCachedBufferSizing()
     }
 
@@ -415,11 +419,11 @@ class TimeTravelService : Service() {
         updateWakeLockState()
         ContextCompat.startForegroundService(this, Intent(this, javaClass))
 
-        val logicalRetentionBytes = configuredRetentionSampleBytes()
-        val workingMemorySize = configuredWorkingMemorySizeBytes()
+        val logicalRetentionBytes = cachedRetentionSampleBytes
+        val workingMemorySize = cachedWorkingMemorySizeBytes
         audioHandler.post {
             releaseAudioRecord()
-            oneShotAudioMemory.allocate(configuredOneShotMemorySizeBytes())
+            oneShotAudioMemory.allocate(cachedOneShotMemorySizeBytes)
             audioMemory.allocate(workingMemorySize)
             restorePersistedBufferIfNeeded(logicalRetentionBytes, workingMemorySize)
 
@@ -795,8 +799,8 @@ class TimeTravelService : Service() {
 
         loadConfiguration()
         audioHandler.post {
-            oneShotAudioMemory.allocate(configuredOneShotMemorySizeBytes())
-            audioMemory.allocate(configuredWorkingMemorySizeBytes())
+            oneShotAudioMemory.allocate(cachedOneShotMemorySizeBytes)
+            audioMemory.allocate(cachedWorkingMemorySizeBytes)
             syncPersistentBufferFromMemory()
         }
 
@@ -972,8 +976,9 @@ class TimeTravelService : Service() {
     }
 
     private fun availableBufferedSampleBytes(): Long {
-        return oneShotAudioMemory.countFilled() + maxOf(
-            if (::persistentAudioRingStore.isInitialized) persistentAudioRingStore.countFilledBytes() else 0L,
+        val oneShotFilled = oneShotAudioMemory.countFilled()
+        return oneShotFilled + maxOf(
+            persistentAudioRingStore.countFilledBytes(),
             audioMemory.countFilled(),
         )
     }
@@ -1079,9 +1084,8 @@ class TimeTravelService : Service() {
             audioHandler.post(audioReader)
         } else {
             val bufferSizeInSeconds = currentRecord.bufferSizeInFrames / maxOf(sampleRate, 1).toFloat()
-            var delaySeconds = bufferSizeInSeconds - 1f
-            delaySeconds = maxOf(delaySeconds, bufferSizeInSeconds * 0.5f)
-            delaySeconds = minOf(delaySeconds, bufferSizeInSeconds * 0.9f)
+            val delaySeconds = (bufferSizeInSeconds - 1f)
+                .coerceIn(bufferSizeInSeconds * 0.5f, bufferSizeInSeconds * 0.9f)
             audioHandler.postDelayed(audioReader, (delaySeconds * 1000f).toLong())
         }
         return read
@@ -1107,15 +1111,17 @@ class TimeTravelService : Service() {
     }
 
     fun getConfigurationSnapshot(): RecorderConfigurationSnapshot {
+        val cached = cachedConfigSnapshot
+        if (cached != null) return cached
         return RecorderConfigurationSnapshot(
-            format = effectiveOutputFormat,
-            codec = effectiveOutputCodec,
+            format = outputFormat,
+            codec = outputCodec,
             sampleFormat = pcmSampleFormat,
             sampleRate = sampleRate,
             sourceMode = sourceMode,
             channelMode = channelMode,
             routeMode = inputRouteMode,
-        )
+        ).also { cachedConfigSnapshot = it }
     }
 
     fun hasBufferedAudio(): Boolean {
@@ -1204,8 +1210,8 @@ class TimeTravelService : Service() {
     }
 
     private fun restorePersistedBufferIfNeeded(
-        memorySize: Long = configuredRetentionSampleBytes(),
-        workingMemorySize: Long = configuredWorkingMemorySizeBytes(),
+        memorySize: Long = cachedRetentionSampleBytes,
+        workingMemorySize: Long = cachedWorkingMemorySizeBytes,
     ) {
         val persisted = persistentAudioRingStore.peekSnapshot()
         val restoredCapacityBytes = persisted?.capacityBytes?.toLong() ?: 0L
@@ -1219,10 +1225,11 @@ class TimeTravelService : Service() {
                 channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
                 pcmSampleFormat = PcmSampleFormat.entries.firstOrNull { it.bytesPerSample == snapshot.bytesPerSample } ?: PcmSampleFormat.PCM_16
                 fillRate = sampleRate * channelMode.channelCount * pcmSampleFormat.bytesPerSample
+                cachedConfigSnapshot = null
             }
         }
         if (audioMemory.allocatedMemorySize != workingMemorySize) {
-            oneShotAudioMemory.allocate(configuredOneShotMemorySizeBytes())
+            oneShotAudioMemory.allocate(cachedOneShotMemorySizeBytes)
             audioMemory.allocate(workingMemorySize)
         }
         if (audioMemory.countFilled() > 0L) {
@@ -1252,9 +1259,7 @@ class TimeTravelService : Service() {
             return
         }
         runOnAudioThreadAndWait {
-            if (::audioHandler.isInitialized) {
-                audioHandler.removeCallbacks(audioReader)
-            }
+            audioHandler.removeCallbacks(audioReader)
             if (state == STATE_RECORDING) {
                 flushAudioRecord()
                 val writer = audioFileWriter
@@ -1469,6 +1474,7 @@ class TimeTravelService : Service() {
         channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
         pcmSampleFormat = PcmSampleFormat.entries.firstOrNull { it.bytesPerSample == snapshot.bytesPerSample } ?: PcmSampleFormat.PCM_16
         fillRate = sampleRate * channelMode.channelCount * pcmSampleFormat.bytesPerSample
+        cachedConfigSnapshot = null
     }
 
     private fun updateWakeLockState() {

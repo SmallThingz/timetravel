@@ -134,11 +134,14 @@ fun RecordingPlayerDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = {
+    val dismissRequest = remember(onDismiss) {
+        {
             releasePlayer()
             onDismiss()
-        },
+        }
+    }
+    AlertDialog(
+        onDismissRequest = dismissRequest,
         shape = RoundedCornerShape(18.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = {
@@ -200,18 +203,52 @@ fun RecordingPlayerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
+                    val positionText = remember(currentPosition) { formatPlaybackTime(currentPosition) }
+                    val durationText = remember(duration) { formatPlaybackTime(duration) }
                     Text(
-                        text = formatPlaybackTime(currentPosition),
+                        text = positionText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = formatPlaybackTime(duration),
+                        text = durationText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Spacer(Modifier.height(16.dp))
+                val seekBack = remember {
+                    {
+                        val player = mediaPlayer
+                        if (player != null && prepared && !released) {
+                            val pos = player.currentPosition.coerceAtLeast(0)
+                            player.seekTo((pos - SEEK_JUMP_MS).coerceAtLeast(0))
+                        }
+                    }
+                }
+                val togglePlay = remember {
+                    {
+                        val player = mediaPlayer
+                        if (player != null && prepared && !released) {
+                            if (player.isPlaying) {
+                                player.pause()
+                                isPlaying = false
+                            } else {
+                                player.start()
+                                isPlaying = true
+                            }
+                        }
+                    }
+                }
+                val seekForward = remember {
+                    {
+                        val player = mediaPlayer
+                        if (player != null && prepared && !released) {
+                            val pos = player.currentPosition.coerceAtLeast(0)
+                            player.seekTo((pos + SEEK_JUMP_MS).coerceAtMost(duration))
+                        }
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -223,13 +260,7 @@ fun RecordingPlayerDialog(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         IconButton(
-                            onClick = {
-                                val player = mediaPlayer ?: return@IconButton
-                                if (!prepared || released) return@IconButton
-                                val target = (currentPosition - SEEK_JUMP_MS).coerceAtLeast(0)
-                                player.seekTo(target)
-                                currentPosition = target
-                            },
+                            onClick = seekBack,
                             enabled = prepared,
                             modifier = Modifier.size(48.dp),
                         ) {
@@ -247,17 +278,7 @@ fun RecordingPlayerDialog(
                         color = MaterialTheme.colorScheme.secondaryContainer,
                     ) {
                         IconButton(
-                            onClick = {
-                                val player = mediaPlayer ?: return@IconButton
-                                if (!prepared || released) return@IconButton
-                                if (player.isPlaying) {
-                                    player.pause()
-                                    isPlaying = false
-                                } else {
-                                    player.start()
-                                    isPlaying = true
-                                }
-                            },
+                            onClick = togglePlay,
                             enabled = prepared,
                         ) {
                             Icon(
@@ -278,13 +299,7 @@ fun RecordingPlayerDialog(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         IconButton(
-                            onClick = {
-                                val player = mediaPlayer ?: return@IconButton
-                                if (!prepared || released) return@IconButton
-                                val target = (currentPosition + SEEK_JUMP_MS).coerceAtMost(duration)
-                                player.seekTo(target)
-                                currentPosition = target
-                            },
+                            onClick = seekForward,
                             enabled = prepared,
                             modifier = Modifier.size(48.dp),
                         ) {

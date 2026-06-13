@@ -72,7 +72,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,15 +173,15 @@ fun CaptureScreen() {
     var service by remember { mutableStateOf<TimeTravelService?>(null) }
     var isListening by remember { mutableStateOf(true) }
     var isRecording by remember { mutableStateOf(false) }
-    var isSaving by rememberSaveable { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
     var memorizedSeconds by remember { mutableFloatStateOf(0f) }
     var totalMemorySeconds by remember { mutableFloatStateOf(0f) }
     var recordedSeconds by remember { mutableFloatStateOf(0f) }
 
-    var showClearDialog by rememberSaveable { mutableStateOf(false) }
-    var showExportRangeDialog by rememberSaveable { mutableStateOf(false) }
-    var showExportClampDialog by rememberSaveable { mutableStateOf(false) }
-    var clampWarningSeconds by rememberSaveable { mutableFloatStateOf(0f) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var showExportRangeDialog by remember { mutableStateOf(false) }
+    var showExportClampDialog by remember { mutableStateOf(false) }
+    var clampWarningSeconds by remember { mutableFloatStateOf(0f) }
     var pendingExportRange by remember { mutableStateOf<ExportRange?>(null) } // Not saveable — non-serializable
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -295,18 +294,75 @@ fun CaptureScreen() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (isRecording) {
+            val onStopRecording = remember(service, isSaving) {
+                {
+                    val s = service
+                    if (s != null && !isSaving) {
+                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        isSaving = true
+                        s.stopRecording(SaveResultReceiver(context, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it }))
+                    }
+                }
+            }
             RecordingOverlay(
                 recordedSeconds = recordedSeconds,
                 isSaving = isSaving,
-                onStopRecording = {
-                    val s = service ?: return@RecordingOverlay
-                    if (isSaving) return@RecordingOverlay
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    isSaving = true
-                    s.stopRecording(SaveResultReceiver(context, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it }))
-                },
+                onStopRecording = onStopRecording,
             )
         } else {
+            val onListenToggle = remember(service, isSaving, isListening) {
+                {
+                    val s = service
+                    if (s != null && !isSaving) {
+                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        isListening = !isListening
+                        if (isListening) s.enableListening() else s.disableListening()
+                    }
+                }
+            }
+            val onClearBuffer = remember(isSaving, isRecording) {
+                {
+                    if (!isSaving && !isRecording) {
+                        showClearDialog = true
+                    }
+                }
+            }
+            val handler = remember(service) {
+                { range: ExportRange ->
+                    if (range.warningDurationSeconds != null) {
+                        clampWarningSeconds = range.warningDurationSeconds
+                        pendingExportRange = range
+                        showExportClampDialog = true
+                    } else {
+                        startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
+                    }
+                }
+            }
+            val onExportFull = remember(service, isSaving) {
+                {
+                    val s = service
+                    if (s != null && !isSaving) {
+                        val secs = memorizedSeconds.coerceAtLeast(0f)
+                        if (secs > 0f) {
+                            handleExport(context, s, secs, handler)
+                        } else {
+                            Toast.makeText(context, R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            val onExportCustom = remember(isSaving) {
+                {
+                    if (!isSaving) {
+                        val secs = memorizedSeconds.coerceAtLeast(0f)
+                        if (secs > 0f) {
+                            showExportRangeDialog = true
+                        } else {
+                            Toast.makeText(context, R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
             MainCaptureContent(
                 memorizedSeconds = memorizedSeconds,
                 totalMemorySeconds = totalMemorySeconds,
@@ -314,44 +370,10 @@ fun CaptureScreen() {
                 isRecording = isRecording,
                 isSaving = isSaving,
                 service = service,
-                onListenToggle = {
-                    val s = service ?: return@MainCaptureContent
-                    if (isSaving) return@MainCaptureContent
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    isListening = !isListening
-                    if (isListening) s.enableListening() else s.disableListening()
-                },
-                onClearBuffer = {
-                    if (!isSaving && !isRecording) {
-                        showClearDialog = true
-                    }
-                },
-                onExportFull = {
-                    if (isSaving) return@MainCaptureContent
-                    val currentSeconds = memorizedSeconds.coerceAtLeast(0f)
-                    if (currentSeconds <= 0f) {
-                        Toast.makeText(context, R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
-                        return@MainCaptureContent
-                    }
-                    handleExport(context, service, currentSeconds, currentSeconds) { range ->
-                        if (range.warningDurationSeconds != null) {
-                            clampWarningSeconds = range.warningDurationSeconds
-                            pendingExportRange = range
-                            showExportClampDialog = true
-                        } else {
-                startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
-                        }
-                    }
-                },
-                onExportCustom = {
-                    if (isSaving) return@MainCaptureContent
-                    val currentSeconds = memorizedSeconds.coerceAtLeast(0f)
-                    if (currentSeconds <= 0f) {
-                        Toast.makeText(context, R.string.nothing_to_export, Toast.LENGTH_SHORT).show()
-                        return@MainCaptureContent
-                    }
-                    showExportRangeDialog = true
-                },
+                onListenToggle = onListenToggle,
+                onClearBuffer = onClearBuffer,
+                onExportFull = onExportFull,
+                onExportCustom = onExportCustom,
             )
         }
 
@@ -417,51 +439,54 @@ private fun MainCaptureContent(
         }
 
     val exportConfig = remember(context, service) { currentExportConfig(context, service) }
-    val currentBytes = estimateExportSizeBytes(
-        exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, displayedCurrentSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
-    )
-    val limitBytes = estimateExportSizeBytes(
-        exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, displayedLimitSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
-    )
-    val configuredLimitBytes =
+    val currentBytes = remember(exportConfig, displayedCurrentSeconds) {
+        estimateExportSizeBytes(
+            exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
+            exportConfig.channelCount, displayedCurrentSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
+        )
+    }
+    val limitBytes = remember(exportConfig, displayedLimitSeconds) {
+        estimateExportSizeBytes(
+            exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
+            exportConfig.channelCount, displayedLimitSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
+        )
+    }
+    val configuredLimitBytes = remember(retentionMode.value, limitBytes) {
         when (retentionMode.value) {
             RetentionMode.TIME -> limitBytes
             RetentionMode.SIZE -> getConfiguredRetentionSizeBytes(context)
         }
-    val exportLimitBytes = exportFileSizeLimitBytes(exportConfig.format)
-    val overExportLimit = currentBytes > exportLimitBytes
+    }
+    val exportLimitBytes = remember(exportConfig.format) { exportFileSizeLimitBytes(exportConfig.format) }
+    val overExportLimit = remember(currentBytes, exportLimitBytes) { currentBytes > exportLimitBytes }
 
-    val timerText = when (retentionMode.value) {
-        RetentionMode.TIME -> buildString {
-            append(formatShortTimer(displayedCurrentSeconds.toFloat()))
-            append(" / ")
-            append(formatShortTimer(displayedLimitSeconds.toFloat()))
-        }
+    val timerText = remember(retentionMode.value, displayedCurrentSeconds, displayedLimitSeconds, currentBytes, configuredLimitBytes) {
+        when (retentionMode.value) {
+            RetentionMode.TIME -> buildString {
+                append(formatShortTimer(displayedCurrentSeconds.toFloat()))
+                append(" / ")
+                append(formatShortTimer(displayedLimitSeconds.toFloat()))
+            }
 
-        RetentionMode.SIZE -> buildString {
-            append(formatShortFileSize(currentBytes))
-            append(" / ")
-            append(formatShortFileSize(configuredLimitBytes))
+            RetentionMode.SIZE -> buildString {
+                append(formatShortFileSize(currentBytes))
+                append(" / ")
+                append(formatShortFileSize(configuredLimitBytes))
+            }
         }
     }
-    val summaryText =
+    val summaryText = remember(retentionMode.value, overExportLimit, currentBytes, displayedCurrentSeconds, exportLimitBytes, context) {
+        val exportLimitSummary = context.getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
         when (retentionMode.value) {
             RetentionMode.TIME ->
-                if (overExportLimit) {
-                    stringResource(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
-                } else {
-                    formatShortFileSize(currentBytes)
-                }
+                if (overExportLimit) exportLimitSummary
+                else formatShortFileSize(currentBytes)
 
             RetentionMode.SIZE ->
-                if (overExportLimit) {
-                    stringResource(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
-                } else {
-                    formatShortTimer(displayedCurrentSeconds.toFloat())
-                }
+                if (overExportLimit) exportLimitSummary
+                else formatShortTimer(displayedCurrentSeconds.toFloat())
         }
+    }
     val summaryColor =
         if (overExportLimit) MaterialTheme.colorScheme.error
         else MaterialTheme.colorScheme.onSurfaceVariant
@@ -582,8 +607,9 @@ private fun RecordingOverlay(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val timerText = remember(recordedSeconds) { formatShortTimer(recordedSeconds) }
             Text(
-                text = formatShortTimer(recordedSeconds),
+                text = timerText,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontFamily = FontFamily.Monospace,
@@ -1227,26 +1253,22 @@ private fun startExport(
 private fun handleExport(
     context: Context,
     service: TimeTravelService?,
-    currentSeconds: Float,
-    endSeconds: Float,
+    bufferSeconds: Float,
     onRange: (ExportRange) -> Unit,
 ) {
-    if (currentSeconds <= 0f) return
     val exportConfig = currentExportConfig(context, service)
-    val maxDurationSeconds = exportDurationLimitSeconds(
+    val maxDuration = exportDurationLimitSeconds(
         exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
         exportConfig.channelCount, exportConfig.bitrateKbps,
     ).toFloat().coerceAtLeast(1f)
-    val requestedDuration = endSeconds
-    val boundedEnd = endSeconds.coerceAtLeast(0f)
-    if (requestedDuration <= maxDurationSeconds) {
-        onRange(ExportRange(0f, boundedEnd, null))
+    if (bufferSeconds <= maxDuration) {
+        onRange(ExportRange(0f, bufferSeconds, null))
     } else {
         onRange(
             ExportRange(
-                startSeconds = (boundedEnd - maxDurationSeconds).coerceAtLeast(0f),
-                endSeconds = boundedEnd,
-                warningDurationSeconds = maxDurationSeconds,
+                startSeconds = (bufferSeconds - maxDuration).coerceAtLeast(0f),
+                endSeconds = bufferSeconds,
+                warningDurationSeconds = maxDuration,
             ),
         )
     }
