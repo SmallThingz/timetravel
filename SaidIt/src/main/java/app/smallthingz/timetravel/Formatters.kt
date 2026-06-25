@@ -10,7 +10,7 @@ private val sizeFormatter = object : ThreadLocal<DecimalFormat>() {
         DecimalFormat(TimeTravelConfig.FORMAT_SIZE_MIB, DecimalFormatSymbols(Locale.US))
 }
 
-private val DIGIT_0 = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+
 
 fun formatShortTimer(seconds: Float): String {
     val totalSeconds = seconds.toInt().coerceAtLeast(0)

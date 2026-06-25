@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -15,6 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
@@ -59,19 +63,56 @@ private val DarkColorScheme = darkColorScheme(
     error = Color(0xFFF2B8B5),
 )
 
+private val TimeTravelTypography = Typography(
+    titleLarge = TextStyle(
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+    ),
+    titleMedium = TextStyle(
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+    ),
+    bodyLarge = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    bodySmall = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    ),
+    labelLarge = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp,
+    ),
+)
+
 @Composable
 fun TimeTravelTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val colorScheme = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val contextForDynamic = context as? Activity ?: return@TimeTravelTheme TimeTravelThemeBase(
-                darkTheme = darkTheme, content = content
-            )
-            if (darkTheme) dynamicDarkColorScheme(contextForDynamic)
-            else dynamicLightColorScheme(contextForDynamic)
+            val activity = context as? Activity
+            if (activity == null) {
+                if (darkTheme) DarkColorScheme else LightColorScheme
+            } else if (darkTheme) {
+                dynamicDarkColorScheme(activity)
+            } else {
+                dynamicLightColorScheme(activity)
+            }
         }
         else -> if (darkTheme) DarkColorScheme else LightColorScheme
     }
@@ -79,7 +120,7 @@ fun TimeTravelTheme(
     TimeTravelThemeBase(
         darkTheme = darkTheme,
         colorScheme = colorScheme,
-        content = content
+        content = content,
     )
 }
 
@@ -87,7 +128,7 @@ fun TimeTravelTheme(
 private fun TimeTravelThemeBase(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colorScheme: ColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -104,6 +145,7 @@ private fun TimeTravelThemeBase(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        content = content
+        typography = TimeTravelTypography,
+        content = content,
     )
 }

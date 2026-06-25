@@ -11,8 +11,6 @@
     <string name="clear_buffer">Temizle</string>
     <string name="record_all_memory">Tümünü dışa aktar</string>
     <string name="custom_time">Özel dışa aktar</string>
-    <string name="reencode_history">Geçmişi yeniden kodla</string>
-    <string name="reencode_history_progress">Yeniden kodlanıyor %1$d%%</string>
     <string name="custom_export_mode_range">Aralık</string>
     <string name="custom_export_mode_past">Geçmiş</string>
     <string name="custom_export_unit_size">Boyut</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">Kaydedildi</string>
     <string name="save_failed">Kayıt kaydedilemedi.</string>
     <string name="nothing_to_export">Dışa aktarılacak bir şey yok.</string>
-    <string name="open">Aç</string>
     <string name="allow">İzin ver</string>
     <string name="exit">Çıkış</string>
     <string name="done">Bitti</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">Pil ayarları</string>
     <string name="settings_saved">Kaydedildi.</string>
     <string name="settings_saved_next_start">Kaydedildi. Bir sonraki açılışta başlar.</string>
-    <string name="settings_saved_reencode_history">Kaydedildi. Yeniden dışa aktarmak için geçmişi yeniden kodlayın.</string>
     <string name="settings_saved_deferred_input">Kaydedildi. Giriş değişiklikleri bir sonraki açılışta uygulanır.</string>
     <string name="settings_apply_blocked_recording">Önce kaydı durdurun.</string>
     <string name="unsupported_config_message">Desteklenmiyor.</string>

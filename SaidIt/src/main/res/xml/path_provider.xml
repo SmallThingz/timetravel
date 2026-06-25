@@ -6,6 +6,9 @@
     <external-files-path
         name="external_files"
         path="." />
+    <external-files-path
+        name="external_music"
+        path="Music/" />
     <files-path
         name="internal_files"
         path="." />

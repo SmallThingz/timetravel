@@ -22,7 +22,10 @@ object RecordingRepository {
     suspend fun register(context: Context, recording: RecordingEntity): RecordingEntity {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
-                val presentRecording = mergeObservedRecording(existing = null, observed = recording, nowMillis = System.currentTimeMillis())
+                val presentRecording = mergeObservedRecording(
+                    existing = null, observed = recording,
+                    nowMillis = System.currentTimeMillis(),
+                )
                 RecordingDatabase.getInstance(context).recordingDao().upsert(presentRecording)
                 presentRecording
             }
@@ -95,14 +98,13 @@ object RecordingRepository {
                 }
 
                 val targetDirectoryId = getConfiguredOutputDirectoryId(context)
-                val updates = mutableListOf<RecordingEntity>()
-                val deletes = mutableListOf<String>()
-                var moved = 0
+                val missingDeletes = mutableListOf<String>()
+                val copied = mutableListOf<Pair<RecordingEntity, RecordingEntity>>()
                 var skipped = 0
 
                 current.forEach { recording ->
                     if (!recordingExists(context, recording)) {
-                        deletes += recording.id
+                        missingDeletes += recording.id
                         return@forEach
                     }
 
@@ -113,21 +115,29 @@ object RecordingRepository {
 
                     val movedRecording = copyRecordingToConfiguredDirectory(context, recording)
                     if (movedRecording != null) {
-                        deleteRecordingAsset(context, recording)
-                        updates += movedRecording
-                        deletes += recording.id
-                        moved++
+                        copied += recording to movedRecording
                     }
                 }
 
-                if (deletes.isNotEmpty()) {
-                    dao.deleteByIds(deletes)
+                val updates = mutableListOf<RecordingEntity>()
+                val movedDeletes = mutableListOf<String>()
+                copied.forEach { (source, target) ->
+                    if (deleteRecordingAsset(context, source)) {
+                        updates += target
+                        movedDeletes += source.id
+                    } else {
+                        deleteRecordingAsset(context, target)
+                    }
                 }
+                val deletes = missingDeletes + movedDeletes
                 if (updates.isNotEmpty()) {
                     dao.upsertAll(updates)
                 }
+                if (deletes.isNotEmpty()) {
+                    dao.deleteByIds(deletes)
+                }
 
-                MoveResult(moved = moved, skipped = skipped, removedMissing = deletes.size - moved)
+                MoveResult(moved = movedDeletes.size, skipped = skipped, removedMissing = missingDeletes.size)
             }
         }
     }

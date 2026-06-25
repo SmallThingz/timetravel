@@ -4,7 +4,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,14 +21,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -44,18 +43,12 @@ internal fun AppTopBar(
 ) {
     if (selectionActive) return
 
-    var brandPressed by remember { mutableStateOf(false) }
+    val brandInteraction = remember { MutableInteractionSource() }
+    val brandPressed by brandInteraction.collectIsPressedAsState()
     val brandScale by animateFloatAsState(
         targetValue = if (brandPressed) 0.96f else 1f,
         animationSpec = spring(stiffness = Spring.StiffnessHigh),
         label = "brandPress",
-    )
-
-    var settingsPressed by remember { mutableStateOf(false) }
-    val settingsScale by animateFloatAsState(
-        targetValue = if (settingsPressed) 0.96f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessHigh),
-        label = "settingsPress",
     )
 
     Row(
@@ -70,19 +63,11 @@ internal fun AppTopBar(
                     scaleX = brandScale
                     scaleY = brandScale
                 }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            brandPressed = true
-                            try {
-                                tryAwaitRelease()
-                            } finally {
-                                brandPressed = false
-                            }
-                        },
-                        onTap = { onBrandClick() },
-                    )
-                },
+                .clickable(
+                    interactionSource = brandInteraction,
+                    indication = null,
+                    onClick = onBrandClick,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -124,24 +109,6 @@ internal fun AppTopBar(
         Spacer(Modifier.weight(1f))
         IconButton(
             onClick = onSettingsClick,
-            modifier = Modifier
-                .graphicsLayer {
-                    scaleX = settingsScale
-                    scaleY = settingsScale
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            settingsPressed = true
-                            try {
-                                tryAwaitRelease()
-                            } finally {
-                                settingsPressed = false
-                            }
-                        },
-                        onTap = { onSettingsClick() },
-                    )
-                },
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_settings),

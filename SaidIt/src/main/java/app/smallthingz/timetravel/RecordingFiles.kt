@@ -95,7 +95,8 @@ fun buildRecordingUri(
     return when (RecordingStorageType.valueOf(recording.storageType)) {
         RecordingStorageType.FILE -> {
             val file = File(recording.id)
-            FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+            runCatching { FileProvider.getUriForFile(context, "${context.packageName}.provider", file) }
+                .getOrElse { Uri.fromFile(file) }
         }
 
         RecordingStorageType.DOCUMENT -> Uri.parse(recording.id)
@@ -107,13 +108,12 @@ fun buildOpenRecordingIntent(
     recording: RecordingEntity,
 ): Intent {
     return Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(buildRecordingUri(context, recording), recording.mimeType.ifBlank { TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO })
+        setDataAndType(
+            buildRecordingUri(context, recording),
+            recording.mimeType.ifBlank { TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO },
+        )
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-}
-
-fun buildRecordingBaseName(startedAtMillis: Long): String {
-    return startedAtMillis.toString()
 }
 
 fun formatRecordingStartTimestamp(context: Context, startedAtMillis: Long): String {
@@ -262,7 +262,9 @@ private fun describeDocumentRecordingLocation(
             .onFailure { Log.w(TAG, "getTreeDocumentId failed for $it", it) }.getOrNull()
     })?.let {
         val normalizedBasePath = it.trimEnd('/')
-        return if (normalizedBasePath.endsWith("/${recording.displayName}") || normalizedBasePath == recording.displayName) {
+        return if (normalizedBasePath == recording.displayName ||
+            normalizedBasePath.endsWith("/${recording.displayName}")
+        ) {
             normalizedBasePath
         } else {
             "$normalizedBasePath/${recording.displayName}"
@@ -298,7 +300,8 @@ private fun describeAppStorageRelativePath(
     relativePath: String,
 ): String? {
     val normalizedPath = relativePath.replace('\\', '/').trim('/')
-    val appStorageRelativeRoot = "Android/data/${context.packageName}/files/${Environment.DIRECTORY_MUSIC}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
+    val appStorageRelativeRoot = "Android/data/${context.packageName}/files/" +
+        "${Environment.DIRECTORY_MUSIC}/${TimeTravelConfig.APP_STORAGE_FOLDER_NAME}"
     if (normalizedPath == appStorageRelativeRoot || normalizedPath.startsWith("$appStorageRelativeRoot/")) {
         val tail = normalizedPath.removePrefix(appStorageRelativeRoot).trimStart('/')
         return appendRelativePath(
@@ -329,7 +332,11 @@ fun buildCodecSummary(
     channelCount: Int,
     bitrateKbps: Int? = null,
 ): String {
-    val channelLabel = if (channelCount >= 2) context.getString(R.string.channel_mode_stereo) else context.getString(R.string.channel_mode_mono)
+    val channelLabel = if (channelCount >= 2) {
+        context.getString(R.string.channel_mode_stereo)
+    } else {
+        context.getString(R.string.channel_mode_mono)
+    }
     val resolvedBitrateKbps = defaultCodecBitrateKbps(codec, sampleRate, channelCount)
         ?.let { bitrateKbps ?: it }
     return buildString {
@@ -409,8 +416,8 @@ fun resolveRecordingDurationMillis(
         return metadataDuration
     }
 
-    if (displayName.endsWith(        ".${ExportFormat.WAV.extension}", ignoreCase = true)) {
-        return context.contentResolver.openInputStream(uri)?.use(::readWavDurationMillis).orEmptyDuration()
+    if (displayName.endsWith(".${ExportFormat.WAV.extension}", ignoreCase = true)) {
+        return context.contentResolver.openInputStream(uri)?.use(::readWavDurationMillis) ?: 0L
     }
     return 0L
 }
@@ -423,9 +430,9 @@ fun createOutputTarget(
     codec: ExportCodec,
 ): RecordingOutputTarget {
     val baseName = sanitizeBaseName(
-        if (requestedName.isNullOrBlank()) buildRecordingBaseName(startedAtMillis) else requestedName.trim(),
+        if (requestedName.isNullOrBlank()) startedAtMillis.toString() else requestedName.trim(),
     )
-    val displayName =         "$baseName.${format.extension}"
+    val displayName = "$baseName.${format.extension}"
     val mimeType = format.outputMimeType
     return createOutputTarget(context, displayName, mimeType, startedAtMillis)
 }
@@ -530,8 +537,9 @@ fun renameRecordingAsset(
     var sanitized = sanitizeBaseName(requestedBaseName)
     if (sanitized.isBlank()) return null
     if (extension.isNotBlank()) {
-        if (sanitized.endsWith(".$extension")) {
-            sanitized = sanitized.substringBeforeLast(".$extension")
+        val lastExtension = sanitized.substringAfterLast('.', "")
+        if (lastExtension.isNotBlank()) {
+            sanitized = sanitized.substringBeforeLast('.')
         }
         sanitized = "$sanitized.$extension"
     }
@@ -554,24 +562,25 @@ fun copyRecordingToConfiguredDirectory(
     )
 
     return try {
-        when (RecordingStorageType.valueOf(recording.storageType)) {
+        val input = when (RecordingStorageType.valueOf(recording.storageType)) {
             RecordingStorageType.FILE -> FileInputStream(File(recording.id))
             RecordingStorageType.DOCUMENT -> context.contentResolver.openInputStream(Uri.parse(recording.id))
-        }?.use { input ->
+        } ?: throw IOException("Unable to open source recording")
+        input.use { source ->
             when (target.storageType) {
                 RecordingStorageType.FILE -> {
                     FileOutputStream(requireNotNull(target.file)).use { output ->
-                        input.copyTo(output)
+                        source.copyTo(output)
                     }
                 }
 
                 RecordingStorageType.DOCUMENT -> {
                     context.contentResolver.openOutputStream(requireNotNull(target.uri), "w")?.use { output ->
-                        input.copyTo(output)
+                        source.copyTo(output)
                     } ?: throw IOException("Unable to open target output stream")
                 }
             }
-        } ?: return null
+        }
 
         recording.copy(
             id = target.id,
@@ -585,7 +594,9 @@ fun copyRecordingToConfiguredDirectory(
         runCatching {
             when (target.storageType) {
                 RecordingStorageType.FILE -> target.file?.delete()
-                RecordingStorageType.DOCUMENT -> DocumentFile.fromSingleUri(context, requireNotNull(target.uri))?.delete()
+                RecordingStorageType.DOCUMENT -> {
+                    DocumentFile.fromSingleUri(context, requireNotNull(target.uri))?.delete()
+                }
             }
         }.onFailure { Log.w(TAG, "Failed to clean up partial export for ${target.displayName}", it) }
         null
@@ -775,22 +786,19 @@ private fun sanitizeBaseName(name: String): String {
 
 private fun guessMimeType(displayName: String): String {
     val ext = displayName.substringAfterLast('.', "").lowercase()
-    return ExportFormat.entries.firstOrNull { it.extension == ext }?.outputMimeType ?: TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO
-}
-
-private fun stripDuplicateSuffix(name: String): String {
-    if (!name.endsWith(")")) return name
-    val openParen = name.lastIndexOf(" (")
-    if (openParen < 0) return name
-    val suffix = name.substring(openParen + 2, name.length - 1)
-    if (suffix.all { it in '0'..'9' }) return name.substring(0, openParen)
-    return name
+    return ExportFormat.entries.firstOrNull { it.extension == ext }?.outputMimeType
+        ?: TimeTravelConfig.FALLBACK_MIME_TYPE_AUDIO
 }
 
 private fun parseRecordingStartTimeMillis(value: String): Long? {
-    val normalized = stripDuplicateSuffix(value)
-    normalized.toLongOrNull()?.let { return it }
-    return null
+    val normalized = if (!value.endsWith(")")) value else {
+        val openParen = value.lastIndexOf(" (")
+        if (openParen < 0) value else {
+            val suffix = value.substring(openParen + 2, value.length - 1)
+            if (suffix.all { it in '0'..'9' }) value.substring(0, openParen) else value
+        }
+    }
+    return normalized.toLongOrNull()
 }
 
 private fun readWavDurationMillis(file: File): Long {
@@ -830,8 +838,6 @@ private fun readWavDurationMillis(input: InputStream): Long {
         if (byteRate <= 0L) 0L else dataSize * 1000L / byteRate
     }.onFailure { Log.w(TAG, "readWavDurationMillis(input) failed", it) }.getOrDefault(0L)
 }
-
-private fun Long?.orEmptyDuration(): Long = this ?: 0L
 
 private fun littleEndianInt(
     data: ByteArray,

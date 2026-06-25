@@ -13,7 +13,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
         val forwardedIntent =
             Intent(context, TimeTravelService::class.java).apply {
                 action = intent.action
-                replaceExtras(intent)
+                intent.extras?.let { putExtras(it) }
                 setPackage(context.packageName)
             }
         ContextCompat.startForegroundService(context, forwardedIntent)

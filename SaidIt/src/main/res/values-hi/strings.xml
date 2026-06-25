@@ -11,8 +11,6 @@
     <string name="clear_buffer">साफ़ करें</string>
     <string name="record_all_memory">सब कुछ निर्यात करें</string>
     <string name="custom_time">कस्टम निर्यात</string>
-    <string name="reencode_history">इतिहास को फिर से एन्कोड करें</string>
-    <string name="reencode_history_progress">फिर से एन्कोड हो रहा है %1$d%%</string>
     <string name="custom_export_mode_range">रेंज</string>
     <string name="custom_export_mode_past">बीता समय</string>
     <string name="custom_export_unit_size">आकार</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">सहेजा गया</string>
     <string name="save_failed">रिकॉर्डिंग सहेजी नहीं जा सकी।</string>
     <string name="nothing_to_export">निर्यात करने के लिए कुछ नहीं है।</string>
-    <string name="open">खोलें</string>
     <string name="allow">अनुमति दें</string>
     <string name="exit">बाहर निकलें</string>
     <string name="done">पूर्ण</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">बैटरी सेटिंग्स</string>
     <string name="settings_saved">सहेजा गया।</string>
     <string name="settings_saved_next_start">सहेजा गया। अगली बार शुरू होगा।</string>
-    <string name="settings_saved_reencode_history">सहेजा गया। फिर से निर्यात करने के लिए इतिहास को फिर से एन्कोड करें।</string>
     <string name="settings_saved_deferred_input">सहेजा गया। इनपुट परिवर्तन अगली बार लागू होंगे।</string>
     <string name="settings_apply_blocked_recording">पहले रिकॉर्डिंग रोकें।</string>
     <string name="unsupported_config_message">समर्थित नहीं है।</string>

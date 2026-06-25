@@ -11,8 +11,6 @@
     <string name="clear_buffer">清除</string>
     <string name="record_all_memory">导出全部</string>
     <string name="custom_time">自定义导出</string>
-    <string name="reencode_history">重新编码历史</string>
-    <string name="reencode_history_progress">重新编码中 %1$d%%</string>
     <string name="custom_export_mode_range">范围</string>
     <string name="custom_export_mode_past">过去</string>
     <string name="custom_export_unit_size">大小</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">已保存</string>
     <string name="save_failed">无法保存录音。</string>
     <string name="nothing_to_export">没有可导出的内容。</string>
-    <string name="open">打开</string>
     <string name="allow">允许</string>
     <string name="exit">退出</string>
     <string name="done">完成</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">电池设置</string>
     <string name="settings_saved">已保存。</string>
     <string name="settings_saved_next_start">已保存。下次启动时生效。</string>
-    <string name="settings_saved_reencode_history">已保存。请重新编码历史后再导出。</string>
     <string name="settings_saved_deferred_input">已保存。输入更改将在下次生效。</string>
     <string name="settings_apply_blocked_recording">先停止录音。</string>
     <string name="unsupported_config_message">不支持。</string>

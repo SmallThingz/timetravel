@@ -11,7 +11,10 @@ import java.nio.channels.FileChannel
 internal class PersistentAudioRingStore(
     context: Context,
 ) : Closeable {
-    private val directory = File(context.noBackupFilesDir, TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME).also { directory ->
+    private val directory = File(
+        context.noBackupFilesDir,
+        TimeTravelConfig.BUFFER_CACHE_FOLDER_NAME,
+    ).also { directory ->
         if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
             throw IllegalStateException("Unable to create buffer cache directory: ${directory.absolutePath}")
         }
@@ -57,7 +60,9 @@ internal class PersistentAudioRingStore(
         val channelCount = meta.readChannelCount()
         val bytesPerSample = meta.readBytesPerSample().takeIf { it > 0 } ?: 2
         val filledBytes = meta.readFilledBytes()
-        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 ||
+            filledBytes <= 0 || filledBytes > capacityBytes
+        ) {
             return null
         }
         return Snapshot(
@@ -100,68 +105,6 @@ internal class PersistentAudioRingStore(
     }
 
     @Synchronized
-    fun read(
-        skipBytes: Long,
-        maxBytes: Long,
-        reader: AudioMemory.Consumer,
-    ) {
-        ensureMetaMapped()
-        val meta = metaMap ?: return
-        if (maxBytes <= 0L) {
-            return
-        }
-        val capacityBytes = meta.readCapacityBytes()
-        val sampleRate = meta.readSampleRate()
-        val channelCount = meta.readChannelCount()
-        val filledBytes = meta.readFilledBytes()
-        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
-            return
-        }
-        val bytesPerSample = meta.readBytesPerSample().takeIf { it > 0 } ?: 2
-        val aligned = alignToPageSize(capacityBytes)
-        if (dataMap == null ||
-            mappedCapacityBytes != aligned ||
-            mappedSampleRate != sampleRate ||
-            mappedChannelCount != channelCount ||
-            mappedBytesPerSample != bytesPerSample
-        ) {
-            ensureMapped(capacityBytes, sampleRate, channelCount, bytesPerSample)
-        }
-        val dv = dataMap ?: return
-        var remainingSkip = skipBytes.coerceAtLeast(0L)
-        var remainingTake = minOf(maxBytes, filledBytes.toLong() - remainingSkip).coerceAtLeast(0L)
-        if (remainingTake <= 0L) {
-            return
-        }
-
-        val wp = meta.readWritePosition()
-        var readPosition = ((wp % capacityBytes).let { if (it < 0) it + capacityBytes else it } - filledBytes).let { if (it < 0) it + capacityBytes else it }
-        var unread = filledBytes
-
-        while (unread > 0 && remainingTake > 0L) {
-            val chunkSize = minOf(unread, ioScratch.size, capacityBytes - readPosition)
-            dv.position(readPosition)
-            dv.get(ioScratch, 0, chunkSize)
-
-            if (remainingSkip < chunkSize) {
-                val chunkOffset = remainingSkip.toInt()
-                val take = minOf((chunkSize - chunkOffset).toLong(), remainingTake).toInt()
-                reader.consume(ioScratch, chunkOffset, take)
-                remainingTake -= take.toLong()
-                remainingSkip = 0L
-            } else {
-                remainingSkip -= chunkSize.toLong()
-            }
-
-            unread -= chunkSize
-            readPosition += chunkSize
-            if (readPosition >= capacityBytes) {
-                readPosition = 0
-            }
-        }
-    }
-
-    @Synchronized
     fun snapshotBytes(): ByteArray {
         ensureMetaMapped()
         val meta = metaMap ?: return ByteArray(0)
@@ -169,7 +112,9 @@ internal class PersistentAudioRingStore(
         val sampleRate = meta.readSampleRate()
         val channelCount = meta.readChannelCount()
         val filledBytes = meta.readFilledBytes()
-        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
+        if (capacityBytes <= 0 || sampleRate <= 0 || channelCount <= 0 ||
+            filledBytes <= 0 || filledBytes > capacityBytes
+        ) {
             return ByteArray(0)
         }
         val bytesPerSample = meta.readBytesPerSample().takeIf { it > 0 } ?: 2
@@ -227,31 +172,6 @@ internal class PersistentAudioRingStore(
         }
     }
 
-    fun replaceWith(
-        audioMemory: AudioMemory,
-        sampleRate: Int,
-        channelCount: Int,
-        sampleFormat: PcmSampleFormat = PcmSampleFormat.PCM_16,
-    ) {
-        val capacityBytes = audioMemory.allocatedMemorySize
-        if (capacityBytes <= 0L || sampleRate <= 0 || channelCount <= 0) {
-            clear()
-            return
-        }
-
-        ensureMapped(capacityBytes.toInt(), sampleRate, channelCount, sampleFormat.bytesPerSample, keepExisting = false)
-        val meta = metaMap ?: return
-        meta.writeWritePosition(0)
-        meta.writeFilledBytes(0)
-        meta.writeLastWriteAtMillis(0L)
-
-        audioMemory.read(0) { array, offset, count ->
-            append(array, offset, count, capacityBytes, sampleRate, channelCount, sampleFormat)
-            count
-        }
-        force()
-    }
-
     @Synchronized
     fun hasData(): Boolean {
         ensureMetaMapped()
@@ -260,7 +180,8 @@ internal class PersistentAudioRingStore(
         val sampleRate = meta.readSampleRate()
         val channelCount = meta.readChannelCount()
         val filledBytes = meta.readFilledBytes()
-        return capacityBytes > 0 && sampleRate > 0 && channelCount > 0 && filledBytes > 0 && filledBytes <= capacityBytes
+        return capacityBytes > 0 && sampleRate > 0 && channelCount > 0 &&
+            filledBytes > 0 && filledBytes <= capacityBytes
     }
 
     @Synchronized
@@ -273,18 +194,6 @@ internal class PersistentAudioRingStore(
             return 0L
         }
         return filledBytes.toLong()
-    }
-
-    @Synchronized
-    fun configuredCapacityBytes(): Long {
-        ensureMetaMapped()
-        val meta = metaMap ?: return 0L
-        val capacityBytes = meta.readCapacityBytes()
-        val filledBytes = meta.readFilledBytes()
-        if (capacityBytes <= 0 || filledBytes <= 0 || filledBytes > capacityBytes) {
-            return 0L
-        }
-        return capacityBytes.toLong()
     }
 
     @Synchronized
@@ -345,7 +254,13 @@ internal class PersistentAudioRingStore(
         if (dataMap == null) {
             val existingCapacity = meta.readCapacityBytes()
             if (existingCapacity > 0) {
-                remap(existingCapacity, meta.readSampleRate(), meta.readChannelCount(), meta.readBytesPerSample(), clearContents = false)
+                remap(
+                    existingCapacity,
+                    meta.readSampleRate(),
+                    meta.readChannelCount(),
+                    meta.readBytesPerSample(),
+                    clearContents = false,
+                )
             }
         }
 
@@ -369,7 +284,9 @@ internal class PersistentAudioRingStore(
             return
         }
 
-        val sameFormat = meta.readSampleRate() == sampleRate && meta.readChannelCount() == channelCount && meta.readBytesPerSample() == bytesPerSample
+        val sameFormat = meta.readSampleRate() == sampleRate &&
+            meta.readChannelCount() == channelCount &&
+            meta.readBytesPerSample() == bytesPerSample
         val sameCapacity = meta.readCapacityBytes() == alignedCapacityBytes
         if (sameFormat && sameCapacity) {
             remap(alignedCapacityBytes, sampleRate, channelCount, bytesPerSample, clearContents = false)
@@ -395,7 +312,9 @@ internal class PersistentAudioRingStore(
         val oldFilledBytes = existingMeta?.readFilledBytes()?.coerceIn(0, oldCapacityBytes) ?: 0
         val oldWritePosition = existingMeta?.readWritePosition()?.coerceIn(0, oldCapacityBytes) ?: 0
 
-        if (sameFormat && capacityBytes > oldCapacityBytes && canGrowWithoutCopy(oldCapacityBytes, oldFilledBytes, oldWritePosition)) {
+        if (sameFormat && capacityBytes > oldCapacityBytes &&
+            canGrowWithoutCopy(oldCapacityBytes, oldFilledBytes, oldWritePosition)
+        ) {
             remap(capacityBytes, sampleRate, channelCount, bytesPerSample, clearContents = false)
             if (oldFilledBytes == oldCapacityBytes && oldWritePosition == 0) {
                 metaMap?.writeWritePosition(oldCapacityBytes)
@@ -403,12 +322,25 @@ internal class PersistentAudioRingStore(
             return
         }
 
-        if (sameFormat && capacityBytes > oldCapacityBytes && oldFilledBytes == oldCapacityBytes && oldWritePosition > 0) {
-            growWrappedRingWithSmallestCopy(capacityBytes, sampleRate, channelCount, bytesPerSample, oldCapacityBytes, oldWritePosition)
+        if (sameFormat && capacityBytes > oldCapacityBytes &&
+            oldFilledBytes == oldCapacityBytes && oldWritePosition > 0
+        ) {
+            growWrappedRingWithSmallestCopy(
+                capacityBytes,
+                sampleRate,
+                channelCount,
+                bytesPerSample,
+                oldCapacityBytes,
+                oldWritePosition,
+            )
             return
         }
 
-        val saved = if (sameFormat) readNewestBytes(minOf(metaMap?.readFilledBytes() ?: 0, capacityBytes)) else ByteArray(0)
+        val saved = if (sameFormat) {
+            readNewestBytes(minOf(metaMap?.readFilledBytes() ?: 0, capacityBytes))
+        } else {
+            ByteArray(0)
+        }
         remap(capacityBytes, sampleRate, channelCount, bytesPerSample, clearContents = true)
         if (saved.isEmpty()) return
 
@@ -521,7 +453,8 @@ internal class PersistentAudioRingStore(
         if (take <= 0) return ByteArray(0)
         val result = ByteArray(take)
         val wp = meta.readWritePosition()
-        var readPosition = ((wp % mappedCapacityBytes).let { if (it < 0) it + mappedCapacityBytes else it } - take).let { if (it < 0) it + mappedCapacityBytes else it }
+        val readStart = (wp % mappedCapacityBytes).let { if (it < 0) it + mappedCapacityBytes else it }
+        var readPosition = (readStart - take).let { if (it < 0) it + mappedCapacityBytes else it }
         var remaining = take
         var writeOffset = 0
         while (remaining > 0) {
@@ -550,9 +483,17 @@ internal class PersistentAudioRingStore(
         dataChannel = null
         dataAccess = null
 
-        dataAccess = RandomAccessFile(dataFile, "rwd").also { it.setLength(capacityBytes.toLong()) }
-        dataChannel = requireNotNull(dataAccess).channel
-        dataMap = requireNotNull(dataChannel).map(FileChannel.MapMode.READ_WRITE, 0, capacityBytes.toLong())
+        try {
+            dataAccess = RandomAccessFile(dataFile, "rwd").also { it.setLength(capacityBytes.toLong()) }
+            dataChannel = requireNotNull(dataAccess).channel
+            dataMap = requireNotNull(dataChannel).map(FileChannel.MapMode.READ_WRITE, 0, capacityBytes.toLong())
+        } catch (e: Exception) {
+            runCatching { dataAccess?.close() }
+            dataAccess = null
+            dataChannel = null
+            dataMap = null
+            throw e
+        }
 
         mappedCapacityBytes = capacityBytes
         mappedSampleRate = sampleRate
@@ -606,14 +547,6 @@ internal class PersistentAudioRingStore(
         metaMap?.force()
         dataMap?.force()
         lastForcedAtUptimeMillis = SystemClock.uptimeMillis()
-    }
-
-    private fun forceMeta() {
-        metaMap?.force()
-    }
-
-    private fun forceData() {
-        dataMap?.force()
     }
 
     private fun MappedByteBuffer.readMagic(): Int = getInt(OFFSET_MAGIC)

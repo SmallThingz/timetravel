@@ -11,8 +11,6 @@
     <string name="clear_buffer">지우기</string>
     <string name="record_all_memory">전체 내보내기</string>
     <string name="custom_time">사용자 지정 내보내기</string>
-    <string name="reencode_history">기록 다시 인코딩</string>
-    <string name="reencode_history_progress">다시 인코딩 중 %1$d%%</string>
     <string name="custom_export_mode_range">범위</string>
     <string name="custom_export_mode_past">지난 시간</string>
     <string name="custom_export_unit_size">크기</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">저장됨</string>
     <string name="save_failed">녹음을 저장할 수 없습니다.</string>
     <string name="nothing_to_export">내보낼 내용이 없습니다.</string>
-    <string name="open">열기</string>
     <string name="allow">허용</string>
     <string name="exit">종료</string>
     <string name="done">완료</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">배터리 설정</string>
     <string name="settings_saved">저장되었습니다.</string>
     <string name="settings_saved_next_start">저장되었습니다. 다음 실행부터 적용됩니다.</string>
-    <string name="settings_saved_reencode_history">저장되었습니다. 다시 내보내려면 기록을 다시 인코딩하세요.</string>
     <string name="settings_saved_deferred_input">저장되었습니다. 입력 변경은 다음 실행부터 적용됩니다.</string>
     <string name="settings_apply_blocked_recording">먼저 녹음을 중지하세요.</string>
     <string name="unsupported_config_message">지원되지 않습니다.</string>

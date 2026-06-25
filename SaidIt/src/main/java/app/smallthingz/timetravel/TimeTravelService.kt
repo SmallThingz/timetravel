@@ -7,7 +7,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
@@ -23,7 +22,6 @@ import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
-
 
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -42,7 +40,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 
 @SuppressLint("ImplicitSamInstance")
 class TimeTravelService : Service() {
@@ -134,43 +136,42 @@ class TimeTravelService : Service() {
     @Volatile private var statePollMemorizedBytes = 0L
     @Volatile private var statePollFinalRecordedBytes = 0L
 
-    private val statePollAudioTask: Runnable = object : Runnable {
-        override fun run() {
-            val stats = audioMemory.getStats(fillRate)
-            statePollConfiguredRetentionBytes = cachedRetentionSampleBytes
-            statePollRetainedBytes = availableBufferedSampleBytes()
-            statePollMemorizedBytes = (statePollRetainedBytes + stats.estimation).coerceAtMost(statePollConfiguredRetentionBytes)
-            var recordedBytes = 0L
-            val writer = audioFileWriter
-            if (writer != null) {
-                recordedBytes += writer.totalSampleBytesWritten
-                recordedBytes += stats.estimation
-            }
-            statePollFinalRecordedBytes = recordedBytes
-            mainHandler.post(statePollMainTask)
+    private val statePollAudioTask = Runnable {
+        val stats = audioMemory.getStats(fillRate)
+        statePollConfiguredRetentionBytes = cachedRetentionSampleBytes
+        statePollRetainedBytes = availableBufferedSampleBytes()
+        statePollMemorizedBytes = (statePollRetainedBytes + stats.estimation)
+            .coerceAtMost(statePollConfiguredRetentionBytes)
+        var recordedBytes = 0L
+        val writer = audioFileWriter
+        if (writer != null) {
+            recordedBytes += writer.totalSampleBytesWritten
+            recordedBytes += stats.estimation
         }
+        statePollFinalRecordedBytes = recordedBytes
+        mainHandler.post(statePollMainTask)
     }
 
-    private val statePollMainTask: Runnable = object : Runnable {
-        override fun run() {
-            statePollCallback?.state(
-                statePollListeningEnabled,
-                statePollRecording,
-                statePollMemorizedBytes * bytesToSeconds,
-                statePollConfiguredRetentionBytes * bytesToSeconds,
-                statePollFinalRecordedBytes * bytesToSeconds,
-            )
-        }
+    private val statePollMainTask = Runnable {
+        statePollCallback?.state(
+            statePollListeningEnabled,
+            statePollRecording,
+            statePollMemorizedBytes * bytesToSeconds,
+            statePollConfiguredRetentionBytes * bytesToSeconds,
+            statePollFinalRecordedBytes * bytesToSeconds,
+        )
     }
 
     override fun onCreate() {
         loadConfiguration()
         persistentAudioRingStore = PersistentAudioRingStore(this)
-        adoptPersistedBufferConfigurationIfNeeded()
+        createNotificationChannel()
         refreshCachedBufferSizing()
-        audioThread = HandlerThread(TimeTravelConfig.THREAD_NAME_AUDIO, Process.THREAD_PRIORITY_AUDIO).also { it.start() }
+        audioThread = HandlerThread(TimeTravelConfig.THREAD_NAME_AUDIO, Process.THREAD_PRIORITY_AUDIO)
+            .also { it.start() }
         audioHandler = Handler(audioThread.looper)
-        exportThread = HandlerThread(TimeTravelConfig.THREAD_NAME_EXPORT, Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
+        exportThread = HandlerThread(TimeTravelConfig.THREAD_NAME_EXPORT, Process.THREAD_PRIORITY_BACKGROUND)
+            .also { it.start() }
         exportHandler = Handler(exportThread.looper)
         exportWorkExecutor = Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, TimeTravelConfig.THREAD_NAME_EXPORT_WORK).apply {
@@ -191,6 +192,7 @@ class TimeTravelService : Service() {
         flushAndPersistBeforeShutdown()
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        mainHandler.removeCallbacks(statePollMainTask)
 
         if (::exportWorkExecutor.isInitialized) {
             exportWorkExecutor.shutdownNow()
@@ -199,7 +201,7 @@ class TimeTravelService : Service() {
         persistentAudioRingStore.close()
         audioThread.quitSafely()
         exportThread.quitSafely()
-        serviceScope.cancel()
+        serviceScope.coroutineContext[Job]?.cancel()
         super.onDestroy()
     }
 
@@ -233,8 +235,8 @@ class TimeTravelService : Service() {
         writer.println("  listeningEnabled=${isListeningEnabled()}")
         writer.println("  sampleRate=$sampleRate")
         writer.println("  channelCount=${channelMode.channelCount}")
-        writer.println("  format=${effectiveOutputFormat.prefValue}")
-        writer.println("  codec=${effectiveOutputCodec.prefValue}")
+        writer.println("  format=${outputFormat.prefValue}")
+        writer.println("  codec=${outputCodec.prefValue}")
         writer.println("  fillRate=$fillRate")
         writer.println("  exportDir=${describeConfiguredOutputDirectory(this)}")
         writer.println("  buffer filled=${stats.filled} total=${stats.total} overwriting=${stats.overwriting}")
@@ -275,7 +277,14 @@ class TimeTravelService : Service() {
         var selectedCodec = getConfiguredOutputCodec(this)
         val selectedSampleFormat = getConfiguredPcmSampleFormat(this)
 
-        val requestedRate = getConfiguredSampleRate(this, selectedSourceMode, selectedRouteMode, selectedFormat, selectedCodec, selectedChannelMode)
+        val requestedRate = getConfiguredSampleRate(
+            this,
+            selectedSourceMode,
+            selectedRouteMode,
+            selectedFormat,
+            selectedCodec,
+            selectedChannelMode,
+        )
         val resolvedConfig = resolveOperationalConfiguration(
             preferredSourceMode = selectedSourceMode,
             preferredChannelMode = selectedChannelMode,
@@ -312,8 +321,8 @@ class TimeTravelService : Service() {
                 context = this,
                 sampleRate = sampleRate,
                 channelMode = channelMode,
-                format = effectiveOutputFormat,
-                codec = effectiveOutputCodec,
+                format = outputFormat,
+                codec = outputCodec,
                 bitrateKbps = null,
                 sampleFormat = pcmSampleFormat,
             )
@@ -322,8 +331,8 @@ class TimeTravelService : Service() {
                 context = this,
                 sampleRate = sampleRate,
                 channelMode = channelMode,
-                format = effectiveOutputFormat,
-                codec = effectiveOutputCodec,
+                format = outputFormat,
+                codec = outputCodec,
                 bitrateKbps = null,
                 sampleFormat = pcmSampleFormat,
             )
@@ -333,8 +342,8 @@ class TimeTravelService : Service() {
                 context = this,
                 sampleRate = sampleRate,
                 channelMode = channelMode,
-                format = effectiveOutputFormat,
-                codec = effectiveOutputCodec,
+                format = outputFormat,
+                codec = outputCodec,
                 bitrateKbps = null,
                 sampleFormat = pcmSampleFormat,
             )
@@ -343,8 +352,8 @@ class TimeTravelService : Service() {
                 context = this,
                 sampleRate = sampleRate,
                 channelMode = channelMode,
-                format = effectiveOutputFormat,
-                codec = effectiveOutputCodec,
+                format = outputFormat,
+                codec = outputCodec,
                 bitrateKbps = null,
                 sampleFormat = pcmSampleFormat,
             )
@@ -423,6 +432,7 @@ class TimeTravelService : Service() {
         val workingMemorySize = cachedWorkingMemorySizeBytes
         audioHandler.post {
             releaseAudioRecord()
+            syncPersistentBufferFromMemory()
             oneShotAudioMemory.allocate(cachedOneShotMemorySizeBytes)
             audioMemory.allocate(workingMemorySize)
             restorePersistedBufferIfNeeded(logicalRetentionBytes, workingMemorySize)
@@ -563,22 +573,24 @@ class TimeTravelService : Service() {
     }
 
     fun cancelCurrentExport(): Boolean {
-        val token = activeExportToken ?: return false
-        if (activeExportToken !== token) return cancelCurrentExport()
-        val future = activeExportFuture
-        val receiver = activeExportReceiver
-        token.cancelled.set(true)
-        if (!token.started.get() && future?.cancel(true) == true) {
-            if (activeExportToken === token) {
-                activeExportToken = null
-                activeExportFuture = null
-                activeExportReceiver = null
+        while (true) {
+            val token = activeExportToken ?: return false
+            if (activeExportToken !== token) continue
+            val future = activeExportFuture
+            val receiver = activeExportReceiver
+            token.cancelled.set(true)
+            if (!token.started.get() && future?.cancel(true) == true) {
+                if (activeExportToken === token) {
+                    activeExportToken = null
+                    activeExportFuture = null
+                    activeExportReceiver = null
+                }
+                notifyReceiverCancelled(receiver)
+                return true
             }
-            notifyReceiverCancelled(receiver)
+            future?.cancel(true)
             return true
         }
-        future?.cancel(true)
-        return true
     }
 
     private fun exportBufferedRange(
@@ -593,8 +605,12 @@ class TimeTravelService : Service() {
         }
         val bytesAvailable = availableBufferedSampleBytes()
         val startedAtMillis = System.currentTimeMillis() - 1000L * (bytesAvailable - skipBytes) / maxOf(fillRate, 1)
-        val exportFormat = effectiveOutputFormat
-        val exportCodec = effectiveOutputCodec
+        val exportFormat = outputFormat
+        val exportCodec = outputCodec
+        val exportSampleRate = sampleRate
+        val exportChannelMode = channelMode
+        val exportSampleFormat = pcmSampleFormat
+        val exportFillRate = fillRate
         val exportToken = ExportCancellationToken(nextExportTokenId.getAndIncrement())
         activeExportToken = exportToken
         activeExportReceiver = receiver
@@ -606,7 +622,13 @@ class TimeTravelService : Service() {
                         ensureExportNotCancelled(exportToken)
                         outTarget =
                             try {
-                            createOutputTarget(this@TimeTravelService, newFileName, startedAtMillis, exportFormat, exportCodec)
+                                createOutputTarget(
+                                    this@TimeTravelService,
+                                    newFileName,
+                                    startedAtMillis,
+                                    exportFormat,
+                                    exportCodec,
+                                )
                         } catch (e: IOException) {
                             Log.e(TAG, "Unable to prepare export file", e)
                             val message = errorMessageWithStack(getString(R.string.cant_create_file_generic), e)
@@ -616,14 +638,22 @@ class TimeTravelService : Service() {
                         }
                         var durationMillis = 0L
                         val readSucceeded =
-                            createAudioFileWriter(outTarget).use { writer ->
+                            WavAudioFileWriter(
+                                this@TimeTravelService,
+                                outTarget,
+                                exportSampleRate,
+                                exportChannelMode.channelCount,
+                                exportSampleFormat,
+                            ).use { writer ->
                                 val didRead = readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
                                     ensureExportNotCancelled(exportToken)
                                     writer.write(array, offset, count)
                                     count
                                 }
                                 ensureExportNotCancelled(exportToken)
-                                durationMillis = (writer.totalSampleBytesWritten * bytesToSeconds * 1000f).toLong()
+                                durationMillis = (
+                                    writer.totalSampleBytesWritten * 1000f / maxOf(exportFillRate, 1)
+                                ).toLong()
                                 didRead
                             }
                         if (!readSucceeded) {
@@ -637,7 +667,14 @@ class TimeTravelService : Service() {
                                 this@TimeTravelService,
                                 outTarget,
                                 durationMillis,
-                                currentCodecSummary(),
+                                buildCodecSummary(
+                                    this@TimeTravelService,
+                                    exportFormat,
+                                    exportCodec,
+                                    exportSampleRate,
+                                    exportChannelMode.channelCount,
+                                    null,
+                                ),
                             ),
                         )
                     } catch (cancelled: InterruptedIOException) {
@@ -647,7 +684,8 @@ class TimeTravelService : Service() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Error while exporting raw history into ${outTarget?.displayName ?: newFileName}", e)
                         val message = errorMessageWithStack(
-                            getString(R.string.error_during_writing_history_into) + (outTarget?.displayName ?: newFileName),
+                            getString(R.string.error_during_writing_history_into) +
+                                (outTarget?.displayName ?: newFileName),
                             e,
                         )
                         showToast(message)
@@ -685,10 +723,8 @@ class TimeTravelService : Service() {
             else -> return
         }
 
-        state = STATE_RECORDING
-        updateWakeLockState()
-
         audioHandler.post {
+            if (state == STATE_RECORDING) return@post
             flushAudioRecord()
 
             val prependBytes = (prependedMemorySeconds * fillRate).toLong()
@@ -698,13 +734,20 @@ class TimeTravelService : Service() {
             val startedAtMillis = System.currentTimeMillis() - 1000L * useBytes / maxOf(fillRate, 1)
 
             try {
-                recordingTarget = createOutputTarget(this@TimeTravelService, null, startedAtMillis, effectiveOutputFormat, effectiveOutputCodec)
+                recordingTarget = createOutputTarget(
+                    this@TimeTravelService,
+                    null,
+                    startedAtMillis,
+                    outputFormat,
+                    outputCodec,
+                )
                 audioFileWriter = createAudioFileWriter(requireNotNull(recordingTarget))
+                state = STATE_RECORDING
+                updateWakeLockState()
             } catch (e: Exception) {
                 Log.e(TAG, "Unable to create recording output", e)
                 recordingTarget = null
                 audioFileWriter = null
-                state = STATE_LISTENING
                 showToast(errorMessageWithStack(getString(R.string.cant_create_file_generic), e))
                 return@post
             }
@@ -713,28 +756,27 @@ class TimeTravelService : Service() {
                 return@post
             }
 
-            exportHandler.post {
-                try {
-                    val writer = audioFileWriter
-                    readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
-                        writer?.write(array, offset, count)
-                        count
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error while priming recording into ${recordingTarget?.displayName}", e)
-                    showToast(
-                        errorMessageWithStack(
-                            getString(R.string.error_during_recording_into) + (recordingTarget?.displayName ?: getString(R.string.app_name)),
-                            e,
-                        ),
-                    )
-                    stopRecording(NotifyFileReceiver(this@TimeTravelService, serviceScope))
+            try {
+                val writer = audioFileWriter
+                readBufferedPcm(skipBytes, useBytes) { array, offset, count ->
+                    writer?.write(array, offset, count)
+                    count
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error while priming recording into ${recordingTarget?.displayName}", e)
+                showToast(
+                    errorMessageWithStack(
+                        getString(R.string.error_during_recording_into) +
+                            (recordingTarget?.displayName ?: getString(R.string.app_name)),
+                        e,
+                    ),
+                )
+                stopRecording(NotifyFileReceiver(this@TimeTravelService, serviceScope))
             }
         }
     }
 
-    fun getMemorySize(): Long = configuredRetentionSampleBytes()
+    fun getMemorySize(): Long = cachedRetentionSampleBytes
 
     fun setMemorySize(memorySize: Long) {
         getRecorderPreferences(this).edit()
@@ -799,9 +841,9 @@ class TimeTravelService : Service() {
 
         loadConfiguration()
         audioHandler.post {
+            syncPersistentBufferFromMemory()
             oneShotAudioMemory.allocate(cachedOneShotMemorySizeBytes)
             audioMemory.allocate(cachedWorkingMemorySizeBytes)
-            syncPersistentBufferFromMemory()
         }
 
         return ApplySettingsResult.APPLIED_NOW
@@ -851,7 +893,11 @@ class TimeTravelService : Service() {
                     Log.e(TAG, "Recorded output missing or empty", error)
                     notifyReceiverFailure(
                         receiver,
-                        errorMessageWithStack(getString(R.string.error_during_writing_history_into) + target.displayName, error),
+                        errorMessageWithStack(
+                            getString(R.string.error_during_writing_history_into) +
+                                target.displayName,
+                            error,
+                        ),
                         error,
                     )
                     return@post
@@ -897,12 +943,6 @@ class TimeTravelService : Service() {
             throw InterruptedIOException("Export cancelled")
         }
     }
-
-    private val effectiveOutputFormat: ExportFormat
-        get() = outputFormat
-
-    private val effectiveOutputCodec: ExportCodec
-        get() = outputCodec
 
     @Throws(IOException::class)
     private fun createAudioFileWriter(target: RecordingOutputTarget): AudioFileWriter {
@@ -951,36 +991,18 @@ class TimeTravelService : Service() {
     private fun currentCodecSummary(): String {
         return buildCodecSummary(
             this,
-            effectiveOutputFormat,
-            effectiveOutputCodec,
+            outputFormat,
+            outputCodec,
             sampleRate,
             channelMode.channelCount,
             null,
         )
     }
 
-    private fun configuredRetentionSampleBytes(): Long {
-        return cachedRetentionSampleBytes
-    }
-
-    private fun configuredWorkingMemorySizeBytes(): Long {
-        return cachedWorkingMemorySizeBytes
-    }
-
-    private fun configuredOneShotMemorySizeBytes(): Long {
-        return cachedOneShotMemorySizeBytes
-    }
-
-    private fun configuredPersistentPcmSizeBytes(): Long {
-        return cachedPersistentPcmSizeBytes
-    }
-
     private fun availableBufferedSampleBytes(): Long {
         val oneShotFilled = oneShotAudioMemory.countFilled()
-        return oneShotFilled + maxOf(
-            persistentAudioRingStore.countFilledBytes(),
-            audioMemory.countFilled(),
-        )
+        val ringFilled = audioMemory.countFilled().let { if (it > 0L) it else persistentAudioRingStore.countFilledBytes() }
+        return oneShotFilled + ringFilled
     }
 
     private fun currentRawBufferedSampleBytes(): Long {
@@ -1045,19 +1067,12 @@ class TimeTravelService : Service() {
     private fun readCaptureIntoScratch(): Int {
         val currentRecord = audioRecord ?: return 0
         val read = currentRecord.read(captureScratch, 0, captureScratch.size, AudioRecord.READ_NON_BLOCKING)
-        when (read) {
-            AudioRecord.ERROR_BAD_VALUE -> {
-                Log.e(TAG, "AudioRecord returned ERROR_BAD_VALUE")
-                return 0
-            }
-            AudioRecord.ERROR_INVALID_OPERATION -> {
-                Log.e(TAG, "AudioRecord returned ERROR_INVALID_OPERATION")
-                return 0
-            }
-            AudioRecord.ERROR -> {
-                Log.e(TAG, "AudioRecord returned ERROR")
-                return 0
-            }
+        if (read == AudioRecord.ERROR_BAD_VALUE ||
+            read == AudioRecord.ERROR_INVALID_OPERATION ||
+            read == AudioRecord.ERROR
+        ) {
+            Log.e(TAG, "AudioRecord read error: $read")
+            return 0
         }
 
         val writer = audioFileWriter
@@ -1073,7 +1088,7 @@ class TimeTravelService : Service() {
                 array = captureScratch,
                 offset = 0,
                 count = read,
-                capacityBytes = configuredPersistentPcmSizeBytes(),
+                capacityBytes = cachedPersistentPcmSizeBytes,
                 sampleRate = sampleRate,
                 channelCount = channelMode.channelCount,
                 sampleFormat = pcmSampleFormat,
@@ -1091,7 +1106,7 @@ class TimeTravelService : Service() {
         return read
     }
 
-    private val audioReader: Runnable = Runnable {
+    private val audioReader = Runnable {
         try {
             readCaptureIntoScratch()
         } catch (e: Exception) {
@@ -1132,10 +1147,24 @@ class TimeTravelService : Service() {
         if (state == STATE_RECORDING) {
             return
         }
-        audioHandler.post {
+        val clearTask = Runnable {
+            oneShotAudioMemory.clear()
             audioMemory.clear()
             persistentAudioRingStore.clear()
         }
+        if (audioHandler.looper == Looper.myLooper()) {
+            clearTask.run()
+            return
+        }
+        val latch = CountDownLatch(1)
+        audioHandler.post {
+            try {
+                clearTask.run()
+            } finally {
+                latch.countDown()
+            }
+        }
+        runCatching { latch.await(2, TimeUnit.SECONDS) }
     }
 
     private val bytesToSeconds: Float
@@ -1179,20 +1208,10 @@ class TimeTravelService : Service() {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager?.createNotificationChannel(
-            NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ),
-        )
-
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.notification_running))
             .setSmallIcon(R.drawable.ic_notification_recording)
-            .setTicker(getString(R.string.app_name))
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setOngoing(true)
@@ -1220,12 +1239,12 @@ class TimeTravelService : Service() {
             return
         }
         persisted?.let { snapshot ->
-            if (audioMemory.countFilled() == 0L && snapshot.sampleRate > 0 && snapshot.channelCount > 0) {
-                sampleRate = snapshot.sampleRate
-                channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
-                pcmSampleFormat = PcmSampleFormat.entries.firstOrNull { it.bytesPerSample == snapshot.bytesPerSample } ?: PcmSampleFormat.PCM_16
-                fillRate = sampleRate * channelMode.channelCount * pcmSampleFormat.bytesPerSample
-                cachedConfigSnapshot = null
+            val sameFormat = snapshot.sampleRate == sampleRate &&
+                snapshot.channelCount == channelMode.channelCount &&
+                snapshot.bytesPerSample == pcmSampleFormat.bytesPerSample
+            if (audioMemory.countFilled() == 0L && !sameFormat) {
+                persistentAudioRingStore.clear()
+                return
             }
         }
         if (audioMemory.allocatedMemorySize != workingMemorySize) {
@@ -1373,14 +1392,14 @@ class TimeTravelService : Service() {
             Log.w(TAG, "injectDebugBuffer ignored seconds=$seconds state=$state")
             return
         }
-        val logicalRetentionBytes = configuredRetentionSampleBytes()
-        val workingMemoryBytes = configuredWorkingMemorySizeBytes()
-        val persistentBytes = configuredPersistentPcmSizeBytes()
+        val logicalRetentionBytes = cachedRetentionSampleBytes
+        val workingMemoryBytes = cachedWorkingMemorySizeBytes
+        val persistentBytes = cachedPersistentPcmSizeBytes
         if (workingMemoryBytes <= 0L || persistentBytes <= 0L) {
             Log.w(TAG, "injectDebugBuffer ignored working=$workingMemoryBytes persistent=$persistentBytes")
             return
         }
-        oneShotAudioMemory.allocate(configuredOneShotMemorySizeBytes())
+        oneShotAudioMemory.allocate(cachedOneShotMemorySizeBytes)
         audioMemory.allocate(workingMemoryBytes)
         val totalBytes = (seconds * fillRate).toLong().coerceAtLeast(0L)
         val chunk = ByteArray(64 * 1024)
@@ -1407,7 +1426,9 @@ class TimeTravelService : Service() {
         syncPersistentBufferFromMemory()
         Log.d(
             TAG,
-            "injectDebugBuffer seconds=$seconds logical=$logicalRetentionBytes working=$workingMemoryBytes persisted=$persistentBytes available=${availableBufferedSampleBytes()}",
+            "injectDebugBuffer seconds=$seconds logical=$logicalRetentionBytes " +
+                "working=$workingMemoryBytes persisted=$persistentBytes " +
+                "available=${availableBufferedSampleBytes()}",
         )
         writeDebugReport("inject-buffer-${seconds}s")
     }
@@ -1415,13 +1436,12 @@ class TimeTravelService : Service() {
     private fun logDebugState() {
         val stats = audioMemory.getStats(fillRate)
         val persisted = persistentAudioRingStore.peekSnapshot()
-        val historyBytes = 0L
         Log.d(
             TAG,
             "debug-state state=$state filled=${stats.filled} total=${stats.total} overwriting=${stats.overwriting} " +
-                "sampleRate=$sampleRate channels=${channelMode.channelCount} codec=${effectiveOutputCodec.prefValue} " +
-                "format=${effectiveOutputFormat.prefValue} logicalRetention=${configuredRetentionSampleBytes()} " +
-                "heapWorking=${audioMemory.allocatedMemorySize} historyBytes=$historyBytes " +
+                "sampleRate=$sampleRate channels=${channelMode.channelCount} codec=${outputCodec.prefValue} " +
+                "format=${outputFormat.prefValue} logicalRetention=${cachedRetentionSampleBytes} " +
+                "heapWorking=${audioMemory.allocatedMemorySize} " +
                 "persistedFilled=${persisted?.filledBytes ?: 0} persistedCapacity=${persisted?.capacityBytes ?: 0}",
         )
     }
@@ -1436,8 +1456,8 @@ class TimeTravelService : Service() {
                 append(" state=").append(state)
                 append(" sampleRate=").append(sampleRate)
                 append(" channelCount=").append(channelMode.channelCount)
-                append(" format=").append(effectiveOutputFormat.prefValue)
-                append(" codec=").append(effectiveOutputCodec.prefValue)
+                append(" format=").append(outputFormat.prefValue)
+                append(" codec=").append(outputCodec.prefValue)
                 append(" filled=").append(stats.filled)
                 append(" total=").append(stats.total)
                 append(" overwriting=").append(stats.overwriting)
@@ -1468,13 +1488,16 @@ class TimeTravelService : Service() {
         return (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     }
 
-    private fun adoptPersistedBufferConfigurationIfNeeded() {
-        val snapshot = persistentAudioRingStore.peekSnapshot() ?: return
-        sampleRate = snapshot.sampleRate
-        channelMode = if (snapshot.channelCount >= 2) ChannelMode.STEREO else ChannelMode.MONO
-        pcmSampleFormat = PcmSampleFormat.entries.firstOrNull { it.bytesPerSample == snapshot.bytesPerSample } ?: PcmSampleFormat.PCM_16
-        fillRate = sampleRate * channelMode.channelCount * pcmSampleFormat.bytesPerSample
-        cachedConfigSnapshot = null
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val notificationManager = getSystemService(NotificationManager::class.java) ?: return
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ),
+        )
     }
 
     private fun updateWakeLockState() {

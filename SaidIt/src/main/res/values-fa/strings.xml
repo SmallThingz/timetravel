@@ -11,8 +11,6 @@
     <string name="clear_buffer">پاک کردن</string>
     <string name="record_all_memory">خروجی کامل</string>
     <string name="custom_time">خروجی سفارشی</string>
-    <string name="reencode_history">بازرمزگذاری تاریخچه</string>
-    <string name="reencode_history_progress">بازرمزگذاری %1$d%%</string>
     <string name="custom_export_mode_range">بازه</string>
     <string name="custom_export_mode_past">گذشته</string>
     <string name="custom_export_unit_size">اندازه</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">ذخیره شد</string>
     <string name="save_failed">ذخیره ضبط ممکن نشد.</string>
     <string name="nothing_to_export">چیزی برای خروجی گرفتن وجود ندارد.</string>
-    <string name="open">باز کردن</string>
     <string name="allow">اجازه دادن</string>
     <string name="exit">خروج</string>
     <string name="done">انجام شد</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">تنظیمات باتری</string>
     <string name="settings_saved">ذخیره شد.</string>
     <string name="settings_saved_next_start">ذخیره شد. از دفعه بعد شروع می‌شود.</string>
-    <string name="settings_saved_reencode_history">ذخیره شد. برای خروجی گرفتن دوباره، تاریخچه را بازرمزگذاری کنید.</string>
     <string name="settings_saved_deferred_input">ذخیره شد. تغییرات ورودی دفعه بعد اعمال می‌شوند.</string>
     <string name="settings_apply_blocked_recording">اول ضبط را متوقف کنید.</string>
     <string name="unsupported_config_message">پشتیبانی نمی‌شود.</string>

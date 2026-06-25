@@ -11,8 +11,6 @@
     <string name="clear_buffer">Bersihkan</string>
     <string name="record_all_memory">Ekspor penuh</string>
     <string name="custom_time">Ekspor khusus</string>
-    <string name="reencode_history">Enkode ulang riwayat</string>
-    <string name="reencode_history_progress">Mengenkode ulang %1$d%%</string>
     <string name="custom_export_mode_range">Rentang</string>
     <string name="custom_export_mode_past">Sebelumnya</string>
     <string name="custom_export_unit_size">Ukuran</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">Tersimpan</string>
     <string name="save_failed">Rekaman tidak dapat disimpan.</string>
     <string name="nothing_to_export">Tidak ada yang bisa diekspor.</string>
-    <string name="open">Buka</string>
     <string name="allow">Izinkan</string>
     <string name="exit">Keluar</string>
     <string name="done">Selesai</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">Pengaturan baterai</string>
     <string name="settings_saved">Tersimpan.</string>
     <string name="settings_saved_next_start">Tersimpan. Akan dimulai lain kali.</string>
-    <string name="settings_saved_reencode_history">Tersimpan. Enkode ulang riwayat untuk mengekspor lagi.</string>
     <string name="settings_saved_deferred_input">Tersimpan. Perubahan input diterapkan lain kali.</string>
     <string name="settings_apply_blocked_recording">Hentikan perekaman dulu.</string>
     <string name="unsupported_config_message">Tidak didukung.</string>

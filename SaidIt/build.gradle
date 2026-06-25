@@ -32,10 +32,10 @@ kotlin {
     }
 }
 
-def releaseStoreFilePath = findProperty('timetravelReleaseStoreFile') ?: 'release.keystore'
-def releaseStorePassword = findProperty('timetravelReleaseStorePassword')
-def releaseKeyAlias = findProperty('timetravelReleaseKeyAlias')
-def releaseKeyPassword = findProperty('timetravelReleaseKeyPassword')
+def releaseStoreFilePath = findProperty('RELEASE_STORE_FILE') ?: 'release.keystore'
+def releaseStorePassword = findProperty('RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = findProperty('RELEASE_KEY_ALIAS')
+def releaseKeyPassword = findProperty('RELEASE_KEY_PASSWORD')
 def releaseSigningReady =
     file(releaseStoreFilePath).exists() &&
         releaseStorePassword &&

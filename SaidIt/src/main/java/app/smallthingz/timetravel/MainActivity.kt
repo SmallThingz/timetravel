@@ -1,7 +1,6 @@
 package app.smallthingz.timetravel
 
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -9,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -17,18 +15,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -48,15 +39,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 
 private const val TAB_CAPTURE = 0
 private const val TAB_FILES = 1
 private const val URI_SCHEME_PACKAGE = "package"
+private const val STATE_PERMISSIONS_REQUESTED = "permissions_requested"
 
 class MainActivity : ComponentActivity() {
     private var permissionsGranted by mutableStateOf(false)
@@ -77,6 +65,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         applyPhonePortraitOnly()
         super.onCreate(savedInstanceState)
+        permissionsRequested = savedInstanceState?.getBoolean(STATE_PERMISSIONS_REQUESTED) ?: false
         themeMode = getConfiguredThemeMode(this)
         setContent {
             val systemDarkTheme = isSystemInDarkTheme()
@@ -100,6 +89,11 @@ class MainActivity : ComponentActivity() {
             }
         }
         scheduleRecorderCapabilityCacheWarm(applicationContext)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(STATE_PERMISSIONS_REQUESTED, permissionsRequested)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onStart() {
@@ -209,7 +203,8 @@ private fun MainScreen(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_CAPTURE) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+    var filesSelectionActive by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
     if (showSettings) {
@@ -225,7 +220,7 @@ private fun MainScreen(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 AppTopBar(
-                    selectionActive = false,
+                    selectionActive = selectedTab == TAB_FILES && filesSelectionActive,
                     onBrandClick = { showAboutDialog = true },
                     onSettingsClick = { showSettings = true },
                 )
@@ -236,22 +231,32 @@ private fun MainScreen(
                         NavigationBarItem(
                             selected = selectedTab == TAB_CAPTURE,
                             onClick = { selectedTab = TAB_CAPTURE },
-                            icon = { Icon(painterResource(R.drawable.ic_tab_home), contentDescription = null) },
+                            icon = {
+                                Icon(
+                                    painterResource(R.drawable.ic_tab_home),
+                                    contentDescription = stringResource(R.string.capture_tab),
+                                )
+                            },
                         )
                         NavigationBarItem(
                             selected = selectedTab == TAB_FILES,
                             onClick = { selectedTab = TAB_FILES },
-                            icon = { Icon(painterResource(R.drawable.ic_tab_files), contentDescription = null) },
+                            icon = {
+                                Icon(
+                                    painterResource(R.drawable.ic_tab_files),
+                                    contentDescription = stringResource(R.string.files_tab),
+                                )
+                            },
                         )
                     }
                 }
             },
         ) { innerPadding ->
-            Box(Modifier.padding(innerPadding)) {
+            Box(Modifier.fillMaxSize().padding(innerPadding)) {
                 if (permissionsGranted) {
                     when (selectedTab) {
                         TAB_CAPTURE -> CaptureScreen()
-                        TAB_FILES -> FilesScreen()
+                        TAB_FILES -> FilesScreen(onSelectionActiveChange = { filesSelectionActive = it })
                     }
                 } else if (!showPermissionDenied) {
                     Surface(Modifier.fillMaxSize()) {

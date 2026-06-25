@@ -11,8 +11,6 @@
     <string name="clear_buffer">مسح</string>
     <string name="record_all_memory">تصدير الكل</string>
     <string name="custom_time">تصدير مخصص</string>
-    <string name="reencode_history">إعادة ترميز السجل</string>
-    <string name="reencode_history_progress">إعادة الترميز %1$d%%</string>
     <string name="custom_export_mode_range">نطاق</string>
     <string name="custom_export_mode_past">الماضي</string>
     <string name="custom_export_unit_size">الحجم</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">تم الحفظ</string>
     <string name="save_failed">تعذر حفظ التسجيل.</string>
     <string name="nothing_to_export">لا يوجد شيء للتصدير.</string>
-    <string name="open">فتح</string>
     <string name="allow">سماح</string>
     <string name="exit">خروج</string>
     <string name="done">تم</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">إعدادات البطارية</string>
     <string name="settings_saved">تم الحفظ.</string>
     <string name="settings_saved_next_start">تم الحفظ. يبدأ في المرة القادمة.</string>
-    <string name="settings_saved_reencode_history">تم الحفظ. أعد ترميز السجل للتصدير مرة أخرى.</string>
     <string name="settings_saved_deferred_input">تم الحفظ. تُطبَّق تغييرات الإدخال في المرة القادمة.</string>
     <string name="settings_apply_blocked_recording">أوقف التسجيل أولاً.</string>
     <string name="unsupported_config_message">غير مدعوم.</string>

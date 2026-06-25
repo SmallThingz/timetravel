@@ -22,7 +22,6 @@
     <string name="saved_snackbar">Salvo</string>
     <string name="save_failed">Não foi possível salvar a gravação.</string>
     <string name="nothing_to_export">Nada para exportar.</string>
-    <string name="open">Abrir</string>
     <string name="allow">Permitir</string>
     <string name="exit">Sair</string>
     <string name="done">Concluir</string>
@@ -120,8 +119,6 @@
         <item quantity="many">%1$d entradas ausentes removidas.</item>
         <item quantity="other">%1$d entradas ausentes removidas.</item>
     </plurals>
-    <string name="reencode_history">Recodificar histórico</string>
-    <string name="reencode_history_progress">Recodificando %1$d%%</string>
     <string name="custom_export_mode_range">Intervalo</string>
     <string name="custom_export_mode_past">Passado</string>
     <string name="custom_export_unit_size">Tamanho</string>
@@ -140,5 +137,4 @@
     <string name="codec_vorbis">Vorbis</string>
     <string name="codec_flac">FLAC</string>
 
-    <string name="settings_saved_reencode_history">Salvo. Recodifique o histórico para exportar novamente.</string>
 </resources>

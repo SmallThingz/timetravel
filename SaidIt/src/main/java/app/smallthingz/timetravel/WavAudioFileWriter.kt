@@ -33,6 +33,7 @@ internal class WavAudioFileWriter(
         }
     }
 
+    @Synchronized
     override fun write(
         bytes: ByteArray,
         offset: Int,
@@ -46,6 +47,7 @@ internal class WavAudioFileWriter(
         totalSampleBytesWritten += count.toLong()
     }
 
+    @Synchronized
     override fun close() {
         try {
             writeHeader(totalSampleBytesWritten)
@@ -56,6 +58,7 @@ internal class WavAudioFileWriter(
         }
     }
 
+    @Synchronized
     private fun writeHeader(dataSize: Long) {
         val chunkSize = 36L + dataSize
         val byteRate = sampleRate * channelCount * sampleFormat.bytesPerSample

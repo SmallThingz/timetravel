@@ -25,8 +25,18 @@ class FormattingAndHistoryMathTest {
             missingSinceMillis = firstMissingAt,
         )
 
-        assertTrue(!isMissingRecordingExpired(oldRecording, firstMissingAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS - 1L))
-        assertTrue(isMissingRecordingExpired(oldRecording, firstMissingAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS))
+        assertFalse(
+            isMissingRecordingExpired(
+                oldRecording,
+                firstMissingAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS - 1L,
+            ),
+        )
+        assertTrue(
+            isMissingRecordingExpired(
+                oldRecording,
+                firstMissingAt + RecordingRepository.MISSING_RECORDING_TTL_MILLIS,
+            ),
+        )
     }
 
     @Test
@@ -103,8 +113,14 @@ class FormattingAndHistoryMathTest {
 
     @Test
     fun sampleRatePreference_prefers44k1_thenNearestHigher() {
-        assertEquals(listOf(44_100, 48_000, 32_000), orderSampleRatesByPreference(listOf(48_000, 32_000, 44_100), 44_100))
-        assertEquals(listOf(48_000, 32_000, 24_000), orderSampleRatesByPreference(listOf(48_000, 24_000, 32_000), 44_100))
+        assertEquals(
+            listOf(44_100, 48_000, 32_000),
+            orderSampleRatesByPreference(listOf(48_000, 32_000, 44_100), 44_100),
+        )
+        assertEquals(
+            listOf(48_000, 32_000, 24_000),
+            orderSampleRatesByPreference(listOf(48_000, 24_000, 32_000), 44_100),
+        )
     }
 
     @Test
@@ -172,8 +188,8 @@ class FormattingAndHistoryMathTest {
         assertTrue(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.PCM_16, 48_000, 2))
         assertTrue(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.PCM_16, 8_000, 1))
 
-        assertTrue(!isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.AAC_LC, 44_100, 1))
-        assertTrue(!isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.AMR_NB, 8_000, 1))
+        assertFalse(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.AAC_LC, 44_100, 1))
+        assertFalse(isExportConfigurationSupported(ExportFormat.WAV, ExportCodec.AMR_NB, 8_000, 1))
     }
 
     @Test
@@ -402,7 +418,10 @@ class FormattingAndHistoryMathTest {
     fun orderSampleRatesByPreference_handlesEmptyAndDuplicateInput() {
         assertEquals(emptyList<Int>(), orderSampleRatesByPreference(emptyList(), 44_100))
         assertEquals(listOf(44_100), orderSampleRatesByPreference(listOf(44_100, 44_100), 44_100))
-        assertEquals(listOf(44_100, 48_000, 96_000), orderSampleRatesByPreference(listOf(96_000, 48_000, 44_100), 44_100))
+        assertEquals(
+            listOf(44_100, 48_000, 96_000),
+            orderSampleRatesByPreference(listOf(96_000, 48_000, 44_100), 44_100),
+        )
     }
 
 }

@@ -14,11 +14,12 @@
     <string name="buffer_active_summary">ON</string>
     <string name="buffer_inactive_summary">OFF</string>
     <string name="clear_buffer">Clear</string>
+    <string name="capture_tab">Capture</string>
+    <string name="files_tab">Files</string>
+    <string name="open_options">Open options</string>
 
     <string name="record_all_memory">Export full</string>
     <string name="custom_time">Export custom</string>
-    <string name="reencode_history">Re-encode history</string>
-    <string name="reencode_history_progress">Re-encoding %1$d%%</string>
     <string name="custom_export_mode_range">Range</string>
     <string name="custom_export_mode_past">Past</string>
     <string name="custom_export_unit_size">Size</string>
@@ -37,7 +38,6 @@
     <string name="copy">Copy</string>
     <string name="share">Share</string>
     <string name="nothing_to_export">Nothing to export.</string>
-    <string name="open">Open</string>
     <string name="allow">Allow</string>
     <string name="exit">Exit</string>
     <string name="done">Done</string>
@@ -116,7 +116,6 @@
     <string name="battery_optimization_button">Battery settings</string>
     <string name="settings_saved">Saved.</string>
     <string name="settings_saved_next_start">Saved. Starts next time.</string>
-    <string name="settings_saved_reencode_history">Saved. Re-encode history to export again.</string>
     <string name="settings_saved_deferred_input">Saved. Input changes apply next time.</string>
     <string name="settings_apply_blocked_recording">Stop recording first.</string>
     <string name="settings_buffer_reset_warning">Change capture settings</string>

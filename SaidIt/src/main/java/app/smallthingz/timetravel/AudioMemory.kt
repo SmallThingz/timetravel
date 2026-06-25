@@ -54,14 +54,6 @@ internal class AudioMemory {
     @Throws(IOException::class)
     fun read(
         skipBytes: Long,
-        reader: Consumer,
-    ) {
-        read(skipBytes, Long.MAX_VALUE, reader)
-    }
-
-    @Throws(IOException::class)
-    fun read(
-        skipBytes: Long,
         maxBytes: Long,
         reader: Consumer,
     ) {
@@ -193,45 +185,6 @@ internal class AudioMemory {
                 current = null
                 this.offset = 0
             }
-        }
-    }
-
-    @Throws(IOException::class)
-    fun fill(filler: Consumer) {
-        synchronized(this) {
-            var buf = current
-            if (buf == null) {
-                buf = if (free.isEmpty()) {
-                    if (filled.isEmpty()) return
-                    currentWasFilled = true
-                    filled.removeFirst()
-                } else {
-                    currentWasFilled = false
-                    free.removeFirst()
-                }
-                current = buf
-                offset = 0
-            }
-            filling = true
-            fillingStartUptimeMillis = SystemClock.uptimeMillis()
-
-            val read = try {
-                filler.consume(buf, offset, buf.size - offset)
-                    .coerceAtLeast(0)
-                    .coerceAtMost(buf.size - offset)
-            } catch (e: Exception) {
-                filling = false
-                throw e
-            }
-
-            if (offset + read >= buf.size) {
-                filled.add(buf)
-                current = null
-                offset = 0
-            } else {
-                offset += read
-            }
-            filling = false
         }
     }
 

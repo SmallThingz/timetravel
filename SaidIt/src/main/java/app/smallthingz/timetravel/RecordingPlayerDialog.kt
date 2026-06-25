@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -59,7 +58,9 @@ fun RecordingPlayerDialog(
     var prepared by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableIntStateOf(0) }
-    var duration by remember { mutableIntStateOf(recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) }
+    var duration by remember {
+        mutableIntStateOf(recording.durationMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+    }
     var isDragging by remember { mutableStateOf(false) }
     var released by remember { mutableStateOf(false) }
 
@@ -117,7 +118,9 @@ fun RecordingPlayerDialog(
             player.prepareAsync()
             mediaPlayer = player
         } catch (_: Throwable) {
-            if (!released) onPlaybackFailed()
+            player.release()
+            released = true
+            onPlaybackFailed()
         }
 
         onDispose { releasePlayer() }
@@ -128,7 +131,9 @@ fun RecordingPlayerDialog(
             while (true) {
                 delay(PROGRESS_UPDATE_INTERVAL_MS)
                 if (released) break
-                val pos = try { mediaPlayer?.currentPosition?.coerceAtLeast(0) ?: 0 } catch (_: IllegalStateException) { 0 }
+                val pos = try {
+                    mediaPlayer?.currentPosition?.coerceAtLeast(0) ?: 0
+                } catch (_: IllegalStateException) { 0 }
                 currentPosition = pos
             }
         }
@@ -162,7 +167,7 @@ fun RecordingPlayerDialog(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = dismissRequest) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.close),
@@ -172,7 +177,7 @@ fun RecordingPlayerDialog(
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -194,7 +199,7 @@ fun RecordingPlayerDialog(
                     onValueChange = { currentPosition = it.toInt(); isDragging = true },
                     valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
                     onValueChangeFinished = {
-                        if (prepared) mediaPlayer?.seekTo(currentPosition)
+                        if (prepared && !released) runCatching { mediaPlayer?.seekTo(currentPosition) }
                         isDragging = false
                     },
                     enabled = prepared,
@@ -221,8 +226,10 @@ fun RecordingPlayerDialog(
                     {
                         val player = mediaPlayer
                         if (player != null && prepared && !released) {
-                            val pos = player.currentPosition.coerceAtLeast(0)
-                            player.seekTo((pos - SEEK_JUMP_MS).coerceAtLeast(0))
+                            runCatching {
+                                val pos = player.currentPosition.coerceAtLeast(0)
+                                player.seekTo((pos - SEEK_JUMP_MS).coerceAtLeast(0))
+                            }
                         }
                     }
                 }
@@ -230,12 +237,14 @@ fun RecordingPlayerDialog(
                     {
                         val player = mediaPlayer
                         if (player != null && prepared && !released) {
-                            if (player.isPlaying) {
-                                player.pause()
-                                isPlaying = false
-                            } else {
-                                player.start()
-                                isPlaying = true
+                            runCatching {
+                                if (player.isPlaying) {
+                                    player.pause()
+                                    isPlaying = false
+                                } else {
+                                    player.start()
+                                    isPlaying = true
+                                }
                             }
                         }
                     }
@@ -244,8 +253,10 @@ fun RecordingPlayerDialog(
                     {
                         val player = mediaPlayer
                         if (player != null && prepared && !released) {
-                            val pos = player.currentPosition.coerceAtLeast(0)
-                            player.seekTo((pos + SEEK_JUMP_MS).coerceAtMost(duration))
+                            runCatching {
+                                val pos = player.currentPosition.coerceAtLeast(0)
+                                player.seekTo((pos + SEEK_JUMP_MS).coerceAtMost(duration))
+                            }
                         }
                     }
                 }
@@ -257,7 +268,7 @@ fun RecordingPlayerDialog(
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     ) {
                         IconButton(
                             onClick = seekBack,
@@ -296,7 +307,7 @@ fun RecordingPlayerDialog(
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     ) {
                         IconButton(
                             onClick = seekForward,

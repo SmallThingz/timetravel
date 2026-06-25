@@ -3,6 +3,7 @@ package app.smallthingz.timetravel
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.database.Cursor
 import android.database.sqlite.SQLiteOpenHelper
 
 data class RecordingEntity(
@@ -233,7 +234,7 @@ private fun RecordingEntity.toContentValues(): ContentValues {
     }
 }
 
-private fun readRecordings(cursor: android.database.Cursor): List<RecordingEntity> {
+private fun readRecordings(cursor: Cursor): List<RecordingEntity> {
     val idIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_ID)
     val displayNameIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_DISPLAY_NAME)
     val mimeTypeIndex = cursor.getColumnIndexOrThrow(RecordingDatabase.COLUMN_MIME_TYPE)

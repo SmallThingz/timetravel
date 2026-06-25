@@ -33,8 +33,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,8 +43,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -91,7 +87,7 @@ private sealed class ListItem {
 }
 
 @Composable
-fun FilesScreen() {
+fun FilesScreen(onSelectionActiveChange: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -115,14 +111,10 @@ fun FilesScreen() {
             try {
                 val stored = withContext(Dispatchers.IO) { RecordingRepository.refresh(context) }
                 recordings = stored
-                pendingDeletions.keys.retainAll(stored.map { it.id }.toSet())
-                val toRemove = mutableListOf<String>()
-                for (id in pendingDeletions.keys) {
-                    if (stored.none { it.id == id }) {
-                        toRemove.add(id)
-                    }
+                val storedIds = stored.mapTo(mutableSetOf()) { it.id }
+                pendingDeletions.keys.toList().forEach { id ->
+                    if (id !in storedIds) pendingDeletions.remove(id)
                 }
-                toRemove.forEach { pendingDeletions.remove(it) }
             } finally {
                 isRefreshing = false
             }
@@ -221,14 +213,16 @@ fun FilesScreen() {
     }
 
     val selectionActive by remember { derivedStateOf { selectedIds.isNotEmpty() } }
+    LaunchedEffect(selectionActive) { onSelectionActiveChange(selectionActive) }
+    DisposableEffect(Unit) { onDispose { onSelectionActiveChange(false) } }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (selectionActive) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 3.dp,
                 ) {
                     Row(
                         modifier = Modifier
@@ -242,7 +236,9 @@ fun FilesScreen() {
                         }
                         Spacer(Modifier.width(16.dp))
                         Text(
-                            text = pluralStringResource(R.plurals.recordings_selected, selectedIds.size, selectedIds.size),
+                            text = pluralStringResource(
+                                R.plurals.recordings_selected, selectedIds.size, selectedIds.size,
+                            ),
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Spacer(Modifier.weight(1f))
@@ -283,7 +279,7 @@ fun FilesScreen() {
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     EmptyState()
                 }
@@ -400,6 +396,13 @@ private fun EmptyState() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_tab_files),
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
         Text(
             text = stringResource(R.string.recordings_empty_title),
             style = MaterialTheme.typography.titleLarge,
@@ -421,7 +424,7 @@ private fun HeaderItem(dateLabel: String) {
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         letterSpacing = (0.04).sp,
-        modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
+        modifier = Modifier.padding(top = 28.dp, bottom = 8.dp),
     )
 }
 
@@ -438,66 +441,72 @@ private fun RecordingItem(
         else MaterialTheme.colorScheme.surfaceContainerLow,
         label = "bg",
     )
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgColor)
-            .alpha(if (selectionActive && !isSelected) 0.75f else 1f)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            )
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(bottom = 10.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor,
+        tonalElevation = if (isSelected) 2.dp else 0.5.dp,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(if (selectionActive && !isSelected) 0.75f else 1f)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_audio_file),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.fileName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = item.durationLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = item.timestampLabel,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = item.sizeLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_audio_file),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.fileName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = item.durationLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = item.timestampLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = item.sizeLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -551,10 +560,13 @@ private fun RenameRecordingDialog(
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.rename_recording))
+                Text(
+                    text = stringResource(R.string.rename_recording),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -567,7 +579,7 @@ private fun RenameRecordingDialog(
         text = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(
                     value = name,
@@ -577,17 +589,17 @@ private fun RenameRecordingDialog(
                     isError = error != null,
                     supportingText = error?.let { { Text(it) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { if (!isRenaming) validateAndRename(name.trim()) })
+                    keyboardActions = KeyboardActions(onDone = { if (!isRenaming) validateAndRename(name.trim()) }),
                 )
                 Spacer(Modifier.width(8.dp))
                 IconButton(
                     onClick = { validateAndRename(name.trim()) },
-                    enabled = error == null && !isRenaming
+                    enabled = error == null && !isRenaming,
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_check),
                         contentDescription = stringResource(R.string.rename_recording),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -656,13 +668,21 @@ private fun buildRecordingDetailsText(context: Context, recording: RecordingEnti
 
     return buildString {
         appendLine("${context.getString(R.string.recording_details_name)} ${recording.displayName}")
-        appendLine("${context.getString(R.string.recording_details_started)} ${dateFormat.format(startedAt)} ${timeFormat.format(startedAt)}")
+        appendLine(
+            "${context.getString(R.string.recording_details_started)} ${
+                dateFormat.format(startedAt)
+            } ${timeFormat.format(startedAt)}",
+        )
         appendLine("${context.getString(R.string.recording_details_duration)} $durationText")
         appendLine("${context.getString(R.string.recording_details_size)} $sizeText")
         appendLine("${context.getString(R.string.recording_details_codec)} ${recording.codecSummary}")
         appendLine("${context.getString(R.string.recording_details_mime)} ${recording.mimeType}")
         appendLine("${context.getString(R.string.recording_details_storage)} ${recording.storageType}")
-        append("${context.getString(R.string.recording_details_location)} ${describeRecordingLocation(context, recording)}")
+        append(
+            "${context.getString(R.string.recording_details_location)} ${
+                describeRecordingLocation(context, recording)
+            }",
+        )
     }
 }
 
@@ -680,7 +700,9 @@ private fun buildListItems(context: Context, recordings: List<RecordingEntity>):
                 recording = recording,
                 timestampLabel = formatRecordingStartTimestamp(context, recording.startedAtMillis),
                 fileName = recording.displayName,
-                durationLabel = "${formatSavedRecordingDuration(context, recording.durationMillis)} \u2022 ${recording.codecSummary}",
+                durationLabel = "${formatSavedRecordingDuration(context, recording.durationMillis)} \u2022 ${
+                    recording.codecSummary
+                }",
                 sizeLabel = formatShortFileSize(recording.sizeBytes),
             ),
         )

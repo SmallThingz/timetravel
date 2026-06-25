@@ -11,8 +11,6 @@
     <string name="clear_buffer">Очистить</string>
     <string name="record_all_memory">Экспорт всего</string>
     <string name="custom_time">Пользовательский экспорт</string>
-    <string name="reencode_history">Перекодировать историю</string>
-    <string name="reencode_history_progress">Перекодирование %1$d%%</string>
     <string name="custom_export_mode_range">Диапазон</string>
     <string name="custom_export_mode_past">Прошлое</string>
     <string name="custom_export_unit_size">Размер</string>
@@ -28,7 +26,6 @@
     <string name="saved_snackbar">Сохранено</string>
     <string name="save_failed">Не удалось сохранить запись.</string>
     <string name="nothing_to_export">Нет данных для экспорта.</string>
-    <string name="open">Открыть</string>
     <string name="allow">Разрешить</string>
     <string name="exit">Выход</string>
     <string name="done">Готово</string>
@@ -99,7 +96,6 @@
     <string name="battery_optimization_button">Настройки батареи</string>
     <string name="settings_saved">Сохранено.</string>
     <string name="settings_saved_next_start">Сохранено. Запустится в следующий раз.</string>
-    <string name="settings_saved_reencode_history">Сохранено. Перекодируйте историю, чтобы снова экспортировать.</string>
     <string name="settings_saved_deferred_input">Сохранено. Изменения входа применятся в следующий раз.</string>
     <string name="settings_apply_blocked_recording">Сначала остановите запись.</string>
     <string name="unsupported_config_message">Не поддерживается.</string>

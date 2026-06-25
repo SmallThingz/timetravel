@@ -2,6 +2,8 @@ package app.smallthingz.timetravel
 
 import android.Manifest
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -11,8 +13,8 @@ import android.content.pm.PackageManager
 import android.view.HapticFeedbackConstants
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.os.Build
 import android.os.IBinder
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.animation.core.RepeatMode
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,7 +50,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,7 +63,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -80,13 +81,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -96,18 +96,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+private const val MIB: Double = 1024.0 * 1024.0
 
 class NotifyFileReceiver(
     private val context: Context,
@@ -118,28 +121,39 @@ class NotifyFileReceiver(
         scope.launch(Dispatchers.IO) {
             val saved = RecordingRepository.register(appContext, recording)
             if (
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                ActivityCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
             ) return@launch
-            NotificationManagerCompat.from(context).notify(43, buildCaptureNotification(context, saved))
+            NotificationManagerCompat.from(appContext).notify(43, buildCaptureNotification(appContext, saved))
         }
     }
 
     override fun fileFailed(message: String, error: Throwable?) {
         scope.launch(Dispatchers.Main) {
-            Toast.makeText(appContext, message.ifBlank { appContext.getString(R.string.save_failed) }, Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                appContext, message.ifBlank { appContext.getString(R.string.save_failed) },
+                Toast.LENGTH_LONG,
+            ).show()
         }
     }
 }
 
 fun buildCaptureNotification(context: Context, recording: RecordingEntity): Notification {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
+            NotificationChannel(
+                TimeTravelService.NOTIFICATION_CHANNEL_ID,
+                context.getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ),
+        )
+    }
     val intent = buildOpenRecordingIntent(context, recording)
     val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
     return NotificationCompat.Builder(context, TimeTravelService.NOTIFICATION_CHANNEL_ID)
         .setContentTitle(context.getString(R.string.recording_saved))
         .setContentText(recording.displayName)
         .setSmallIcon(R.drawable.ic_notification_saved)
-        .setTicker(recording.displayName)
         .setContentIntent(pendingIntent)
         .setAutoCancel(true)
         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -258,7 +272,7 @@ fun CaptureScreen() {
                 s.getState(stateCallback)
                 s.consumePendingError()?.let { errorMessage = it }
             }
-            delay(150)
+            delay(500)
         }
     }
 
@@ -282,7 +296,10 @@ fun CaptureScreen() {
                     showExportClampDialog = false
                     val range = pendingExportRange ?: return@ExportClampDialog
                     pendingExportRange = null
-                    startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
+                    startExport(
+                        context, service, range, scope, snackbarHostState,
+                        setSaving = { isSaving = it }, onError = { errorMessage = it },
+                    )
                 },
                 onDismiss = {
                     showExportClampDialog = false
@@ -300,7 +317,12 @@ fun CaptureScreen() {
                     if (s != null && !isSaving) {
                         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         isSaving = true
-                        s.stopRecording(SaveResultReceiver(context, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it }))
+                        s.stopRecording(
+                            SaveResultReceiver(
+                                context, scope, snackbarHostState,
+                                { isSaving = it }, { errorMessage = it },
+                            ),
+                        )
                     }
                 }
             }
@@ -334,7 +356,10 @@ fun CaptureScreen() {
                         pendingExportRange = range
                         showExportClampDialog = true
                     } else {
-                        startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
+                        startExport(
+                            context, service, range, scope, snackbarHostState,
+                            setSaving = { isSaving = it }, onError = { errorMessage = it },
+                        )
                     }
                 }
             }
@@ -389,9 +414,12 @@ fun CaptureScreen() {
 
     if (showExportRangeDialog) {
         val currentSeconds = memorizedSeconds.coerceAtLeast(0f)
+        val currentBufferBytes = remember(context, service, memorizedSeconds) {
+            currentBufferExportBytes(context, service, memorizedSeconds)
+        }
         ExportRangeDialog(
             currentBufferSeconds = currentSeconds,
-            currentBufferBytes = currentBufferExportBytes(context, service, memorizedSeconds),
+            currentBufferBytes = currentBufferBytes,
             onExport = { range ->
                 showExportRangeDialog = false
                 if (range.warningDurationSeconds != null) {
@@ -399,7 +427,10 @@ fun CaptureScreen() {
                     pendingExportRange = range
                     showExportClampDialog = true
                 } else {
-                    startExport(context, service, range, scope, snackbarHostState, setSaving = { isSaving = it }, onError = { errorMessage = it })
+                    startExport(
+                        context, service, range, scope, snackbarHostState,
+                        setSaving = { isSaving = it }, onError = { errorMessage = it },
+                    )
                 }
             },
             onDismiss = { showExportRangeDialog = false },
@@ -428,31 +459,33 @@ private fun MainCaptureContent(
     onExportCustom: () -> Unit,
 ) {
     val context = LocalContext.current
-    val retentionMode = remember(context) { mutableStateOf(getConfiguredRetentionMode(context)) }
-    val retentionSeconds = remember(context) { mutableStateOf(getConfiguredRetentionSeconds(context)) }
+    val retentionMode = getConfiguredRetentionMode(context)
+    val retentionSeconds = getConfiguredRetentionSeconds(context)
 
     val displayedCurrentSeconds = memorizedSeconds.coerceAtLeast(0f).toInt()
     val displayedLimitSeconds =
-        when (retentionMode.value) {
-            RetentionMode.TIME -> retentionSeconds.value.coerceAtLeast(0L).toInt()
+        when (retentionMode) {
+            RetentionMode.TIME -> retentionSeconds.coerceAtLeast(0L).toInt()
             RetentionMode.SIZE -> totalMemorySeconds.coerceAtLeast(0f).toInt()
         }
 
-    val exportConfig = remember(context, service) { currentExportConfig(context, service) }
+    val exportConfig = currentExportConfig(context, service)
     val currentBytes = remember(exportConfig, displayedCurrentSeconds) {
         estimateExportSizeBytes(
             exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-            exportConfig.channelCount, displayedCurrentSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
+            exportConfig.channelCount, displayedCurrentSeconds.toLong(),
+            exportConfig.bitrateKbps, exportConfig.sampleFormat,
         )
     }
     val limitBytes = remember(exportConfig, displayedLimitSeconds) {
         estimateExportSizeBytes(
             exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-            exportConfig.channelCount, displayedLimitSeconds.toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
+            exportConfig.channelCount, displayedLimitSeconds.toLong(),
+            exportConfig.bitrateKbps, exportConfig.sampleFormat,
         )
     }
-    val configuredLimitBytes = remember(retentionMode.value, limitBytes) {
-        when (retentionMode.value) {
+    val configuredLimitBytes = remember(retentionMode, limitBytes) {
+        when (retentionMode) {
             RetentionMode.TIME -> limitBytes
             RetentionMode.SIZE -> getConfiguredRetentionSizeBytes(context)
         }
@@ -460,8 +493,11 @@ private fun MainCaptureContent(
     val exportLimitBytes = remember(exportConfig.format) { exportFileSizeLimitBytes(exportConfig.format) }
     val overExportLimit = remember(currentBytes, exportLimitBytes) { currentBytes > exportLimitBytes }
 
-    val timerText = remember(retentionMode.value, displayedCurrentSeconds, displayedLimitSeconds, currentBytes, configuredLimitBytes) {
-        when (retentionMode.value) {
+    val timerText = remember(
+        retentionMode, displayedCurrentSeconds, displayedLimitSeconds,
+        currentBytes, configuredLimitBytes,
+    ) {
+        when (retentionMode) {
             RetentionMode.TIME -> buildString {
                 append(formatShortTimer(displayedCurrentSeconds.toFloat()))
                 append(" / ")
@@ -475,9 +511,12 @@ private fun MainCaptureContent(
             }
         }
     }
-    val summaryText = remember(retentionMode.value, overExportLimit, currentBytes, displayedCurrentSeconds, exportLimitBytes, context) {
+    val summaryText = remember(
+        retentionMode, overExportLimit, currentBytes,
+        displayedCurrentSeconds, exportLimitBytes, context,
+    ) {
         val exportLimitSummary = context.getString(R.string.export_limit_summary, formatShortFileSize(exportLimitBytes))
-        when (retentionMode.value) {
+        when (retentionMode) {
             RetentionMode.TIME ->
                 if (overExportLimit) exportLimitSummary
                 else formatShortFileSize(currentBytes)
@@ -504,7 +543,7 @@ private fun MainCaptureContent(
 
         Text(
             text = timerText,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
@@ -519,7 +558,7 @@ private fun MainCaptureContent(
 
         Text(
             text = summaryText,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = summaryColor,
             fontFamily = FontFamily.Monospace,
             textAlign = TextAlign.Center,
@@ -548,22 +587,18 @@ private fun MainCaptureContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Surface(
+                FilledTonalButton(
+                    onClick = onClearBuffer,
+                    enabled = clearEnabled,
                     modifier = Modifier.size(52.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentPadding = PaddingValues(0.dp),
                 ) {
-                    IconButton(
-                        onClick = onClearBuffer,
-                        enabled = clearEnabled,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_delete),
-                            contentDescription = stringResource(R.string.clear_buffer),
-                            tint = if (clearEnabled) MaterialTheme.colorScheme.onSecondaryContainer
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.clear_buffer),
+                        tint = if (clearEnabled) MaterialTheme.colorScheme.onSecondaryContainer
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    )
                 }
 
                 Spacer(Modifier.width(8.dp))
@@ -601,7 +636,7 @@ private fun RecordingOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -610,10 +645,11 @@ private fun RecordingOverlay(
             val timerText = remember(recordedSeconds) { formatShortTimer(recordedSeconds) }
             Text(
                 text = timerText,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
             )
 
             Spacer(Modifier.height(32.dp))
@@ -698,6 +734,9 @@ private fun ListenCircle(
     }
 
     val enabled = !isSaving
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 2.dp.toPx() }
+    val strokeStyle = remember(strokeWidthPx) { Stroke(strokeWidthPx) }
 
     Box(
         contentAlignment = Alignment.Center,
@@ -737,7 +776,7 @@ private fun ListenCircle(
                 .clip(CircleShape)
                 .drawBehind {
                     drawCircle(fillColor)
-                    drawCircle(strokeColor, style = Stroke(2.dp.toPx()))
+                    drawCircle(strokeColor, style = strokeStyle)
                 }
                 .graphicsLayer(
                     scaleX = pressScale,
@@ -758,7 +797,9 @@ private fun ListenCircle(
                     painter = painterResource(
                         if (showRecordingIcon) R.drawable.ic_recording else R.drawable.ic_capture_wave,
                     ),
-                    contentDescription = null,
+                    contentDescription = stringResource(
+                        if (active) R.string.buffer_active_summary else R.string.buffer_inactive_summary,
+                    ),
                     tint = contentColor,
                     modifier = Modifier.size(64.dp),
                 )
@@ -805,7 +846,8 @@ private fun ErrorDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@TextButton
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                    as? ClipboardManager ?: return@TextButton
                 clipboard.setPrimaryClip(ClipData.newPlainText("error", message))
             }) {
                 Text(stringResource(R.string.copy))
@@ -881,10 +923,13 @@ private fun ExportClampDialog(
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.export_limit_dialog_title), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    text = stringResource(R.string.export_limit_dialog_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -923,14 +968,19 @@ private fun ExportRangeDialog(
     var unitMode by remember { mutableStateOf(getConfiguredCustomExportUnit(context)) }
 
     var startTimeText by remember { mutableStateOf("0:00") }
-    var endTimeText by remember(currentBufferSeconds) { mutableStateOf(formatDurationInput(currentBufferSeconds.toInt())) }
+    var endTimeText by remember(currentBufferSeconds) {
+        mutableStateOf(formatDurationInput(currentBufferSeconds.toInt()))
+    }
     var startSizeText by remember { mutableStateOf(formatSizeInputMib(0L)) }
     var endSizeText by remember(currentBufferBytes) { mutableStateOf(formatSizeInputMib(currentBufferBytes)) }
     var pastTimeText by remember(currentBufferSeconds) {
         mutableStateOf(formatDurationInput(currentBufferSeconds.toInt().coerceAtLeast(1)))
     }
     var pastSizeText by remember(currentBufferBytes) {
-        mutableStateOf(prefs.getString(PrefKey.CUSTOM_EXPORT_PAST_SIZE_MIB, formatSizeInputMib(currentBufferBytes)) ?: formatSizeInputMib(currentBufferBytes))
+        mutableStateOf(
+            prefs.getString(PrefKey.CUSTOM_EXPORT_PAST_SIZE_MIB, formatSizeInputMib(currentBufferBytes))
+                ?: formatSizeInputMib(currentBufferBytes),
+        )
     }
 
     var startTimeError by remember { mutableStateOf<String?>(null) }
@@ -974,10 +1024,26 @@ private fun ExportRangeDialog(
         if (rangeMode && timeUnit) {
             val startSec = parseDurationInput(startTimeText)?.toFloat()
             val endSec = parseDurationInput(endTimeText)?.toFloat()
-            if (startSec == null || startSec < 0f) { startTimeError = context.getString(R.string.retention_time_invalid); return } else startTimeError = null
-            if (endSec == null || endSec <= 0f) { endTimeError = context.getString(R.string.retention_time_invalid); return } else endTimeError = null
-            if (startSec > currentSeconds) { startTimeError = context.getString(R.string.custom_export_range_invalid); return } else startTimeError = null
-            if (endSec <= startSec || endSec > currentSeconds) { endTimeError = context.getString(R.string.custom_export_range_invalid); return } else endTimeError = null
+            if (startSec == null || startSec < 0f) {
+                startTimeError = context.getString(R.string.retention_time_invalid)
+                return
+            }
+            startTimeError = null
+            if (endSec == null || endSec <= 0f) {
+                endTimeError = context.getString(R.string.retention_time_invalid)
+                return
+            }
+            endTimeError = null
+            if (startSec > currentSeconds) {
+                startTimeError = context.getString(R.string.custom_export_range_invalid)
+                return
+            }
+            startTimeError = null
+            if (endSec <= startSec || endSec > currentSeconds) {
+                endTimeError = context.getString(R.string.custom_export_range_invalid)
+                return
+            }
+            endTimeError = null
             onExport(clampExportRange(startSec, endSec))
             return
         }
@@ -985,27 +1051,65 @@ private fun ExportRangeDialog(
         if (rangeMode && !timeUnit) {
             val startBytes = parseSizeInputMib(startSizeText)
             val endBytes = parseSizeInputMib(endSizeText)
-            if (startBytes == null || startBytes < 0L) { startSizeError = context.getString(R.string.custom_export_size_invalid); return } else startSizeError = null
-            if (endBytes == null || endBytes <= 0L) { endSizeError = context.getString(R.string.custom_export_size_invalid); return } else endSizeError = null
-            if (startBytes > currentBufferBytes) { startSizeError = context.getString(R.string.custom_export_range_invalid); return } else startSizeError = null
-            if (endBytes <= startBytes || endBytes > currentBufferBytes) { endSizeError = context.getString(R.string.custom_export_range_invalid); return } else endSizeError = null
-            onExport(clampExportRange(sizeBytesToExportSeconds(startBytes, context), sizeBytesToExportSeconds(endBytes, context)))
+            if (startBytes == null || startBytes < 0L) {
+                startSizeError = context.getString(R.string.custom_export_size_invalid)
+                return
+            }
+            startSizeError = null
+            if (endBytes == null || endBytes <= 0L) {
+                endSizeError = context.getString(R.string.custom_export_size_invalid)
+                return
+            }
+            endSizeError = null
+            if (startBytes > currentBufferBytes) {
+                startSizeError = context.getString(R.string.custom_export_range_invalid)
+                return
+            }
+            startSizeError = null
+            if (endBytes <= startBytes || endBytes > currentBufferBytes) {
+                endSizeError = context.getString(R.string.custom_export_range_invalid)
+                return
+            }
+            endSizeError = null
+            onExport(
+                clampExportRange(
+                    sizeBytesToExportSeconds(startBytes, context),
+                    sizeBytesToExportSeconds(endBytes, context),
+                ),
+            )
             return
         }
 
         if (!rangeMode && timeUnit) {
             val pastSec = parseDurationInput(pastTimeText)?.toFloat()
-            if (pastSec == null || pastSec <= 0f) { pastTimeError = context.getString(R.string.retention_time_invalid); return } else pastTimeError = null
+            if (pastSec == null || pastSec <= 0f) {
+                pastTimeError = context.getString(R.string.retention_time_invalid)
+                return
+            }
+            pastTimeError = null
             prefs.edit().putInt(PrefKey.CUSTOM_EXPORT_PAST_SECONDS, pastSec.roundToInt()).apply()
             onExport(clampExportRange((currentSeconds - pastSec).coerceAtLeast(0f), currentSeconds))
             return
         }
 
         val pastBytes = parseSizeInputMib(pastSizeText)
-        if (pastBytes == null || pastBytes <= 0L) { pastSizeError = context.getString(R.string.custom_export_size_invalid); return } else pastSizeError = null
-        if (pastBytes > currentBufferBytes) { pastSizeError = context.getString(R.string.custom_export_range_invalid); return } else pastSizeError = null
+        if (pastBytes == null || pastBytes <= 0L) {
+            pastSizeError = context.getString(R.string.custom_export_size_invalid)
+            return
+        }
+        pastSizeError = null
+        if (pastBytes > currentBufferBytes) {
+            pastSizeError = context.getString(R.string.custom_export_range_invalid)
+            return
+        }
+        pastSizeError = null
         prefs.edit().putString(PrefKey.CUSTOM_EXPORT_PAST_SIZE_MIB, pastSizeText).apply()
-        onExport(clampExportRange((currentSeconds - sizeBytesToExportSeconds(pastBytes, context)).coerceAtLeast(0f), currentSeconds))
+        onExport(
+            clampExportRange(
+                (currentSeconds - sizeBytesToExportSeconds(pastBytes, context)).coerceAtLeast(0f),
+                currentSeconds,
+            ),
+        )
     }
 
     AlertDialog(
@@ -1015,10 +1119,13 @@ private fun ExportRangeDialog(
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.export), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    text = stringResource(R.string.export),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -1096,7 +1203,9 @@ private fun ExportRangeDialog(
                                 isError = pastTimeError != null,
                                 supportingText = pastTimeError?.let { { Text(it) } },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done,
+                                ),
                                 keyboardActions = KeyboardActions(onDone = { submit() }),
                                 modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
                             )
@@ -1123,7 +1232,9 @@ private fun ExportRangeDialog(
                                 isError = pastSizeError != null,
                                 supportingText = pastSizeError?.let { { Text(it) } },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done,
+                                ),
                                 keyboardActions = KeyboardActions(onDone = { submit() }),
                                 modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
                             )
@@ -1150,7 +1261,9 @@ private fun ExportRangeDialog(
                                 isError = startTimeError != null,
                                 supportingText = startTimeError?.let { { Text(it) } },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Next),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Next,
+                                ),
                                 keyboardActions = KeyboardActions(onDone = { submit() }),
                                 modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
                             )
@@ -1161,7 +1274,9 @@ private fun ExportRangeDialog(
                                 isError = endTimeError != null,
                                 supportingText = endTimeError?.let { { Text(it) } },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done,
+                                ),
                                 keyboardActions = KeyboardActions(onDone = { submit() }),
                                 modifier = Modifier.weight(1f),
                             )
@@ -1188,7 +1303,9 @@ private fun ExportRangeDialog(
                                 isError = startSizeError != null,
                                 supportingText = startSizeError?.let { { Text(it) } },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next,
+                                ),
                                 keyboardActions = KeyboardActions(onDone = { submit() }),
                                 modifier = Modifier.weight(1f).focusRequester(firstFieldFocusRequester),
                             )
@@ -1199,7 +1316,9 @@ private fun ExportRangeDialog(
                                 isError = endSizeError != null,
                                 supportingText = endSizeError?.let { { Text(it) } },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done,
+                                ),
                                 keyboardActions = KeyboardActions(onDone = { submit() }),
                                 modifier = Modifier.weight(1f),
                             )
@@ -1333,7 +1452,8 @@ private fun currentBufferExportBytes(
     val exportConfig = currentExportConfig(context, recorder)
     return estimateExportSizeBytes(
         exportConfig.format, exportConfig.codec, exportConfig.sampleRate,
-        exportConfig.channelCount, memorizedSeconds.coerceAtLeast(0f).toLong(), exportConfig.bitrateKbps, exportConfig.sampleFormat,
+        exportConfig.channelCount, memorizedSeconds.coerceAtLeast(0f).toLong(),
+        exportConfig.bitrateKbps, exportConfig.sampleFormat,
     )
 }
 
@@ -1348,10 +1468,10 @@ private fun sizeBytesToExportSeconds(sizeBytes: Long, context: Context): Float {
 private fun parseSizeInputMib(value: String): Long? {
     val mib = value.trim().replace(',', '.').toDoubleOrNull() ?: return null
     if (mib < 0.0) return null
-    return (mib * 1024.0 * 1024.0).roundToLong()
+    return (mib * MIB).roundToLong()
 }
 
 private fun formatSizeInputMib(sizeBytes: Long): String {
-    val mebibytes = sizeBytes.coerceAtLeast(0L) / (1024.0 * 1024.0)
-    return "%.1f".format(mebibytes)
+    val mebibytes = sizeBytes.coerceAtLeast(0L) / MIB
+    return String.format(Locale.US, "%.1f", mebibytes)
 }
